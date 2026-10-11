@@ -187,6 +187,8 @@ table.data td { padding: 9px 12px; border-bottom: 1px solid rgba(37, 42, 54, .7)
 table.data tr:last-child td { border-bottom: 0; }
 table.data tbody tr { transition: background .1s ease; }
 table.data tbody tr:hover { background: rgba(255, 255, 255, .025); }
+table.data tbody tr.clickable-row { cursor: pointer; }
+table.data tbody tr.clickable-row:hover td { background: rgba(255, 90, 31, .09); }
 table.data tr.me td { background: rgba(255, 90, 31, .06); }
 td .pimg { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; background: var(--surface-3); vertical-align: middle; }
 .bar { height: 6px; border-radius: 99px; background: var(--surface-3); overflow: hidden; width: 90px; display: inline-block; vertical-align: middle; }
@@ -763,6 +765,28 @@ table.data tr.tr-user-deal td {
     }
     playerPerformance(l, p) { return this.get(`/v4/leagues/${l}/players/${p}/performance`); }
     playerMarketValue(l, p, tf = 92) { return this.get(`/v4/leagues/${l}/players/${p}/marketValue/${tf}`); }
+    async player(l, p) {
+      try { return await this.get(`/v4/leagues/${l}/players/${p}`, null, 60); }
+      catch (e) { return null; }
+    }
+    async activitiesFeed(l, max = 500) {
+      try {
+        const res = await this.get(`/v4/leagues/${l}/activitiesFeed`, { max }, 30);
+        if (res && Array.isArray(res.af)) return res;
+      } catch (e) {}
+      try { return await this.get(`/v4/leagues/${l}/activitiesFeed`, { max: 50 }, 30); }
+      catch (e) { return { af: [] }; }
+    }
+    async playerTransferHistory(l, p) {
+      try { return await this.get(`/v4/leagues/${l}/players/${p}/transferHistory`, null, 60); }
+      catch (e) { return null; }
+    }
+    async playerCenter(comp = 1, p, dayNumber = null) {
+      try {
+        const q = dayNumber ? { dayNumber } : null;
+        return await this.get(`/v4/competitions/${comp}/playercenter/${p}`, q, 30);
+      } catch (e) { return null; }
+    }
 
     // --- Live Matchday & Team Center -----------------------------------------
     async myEleven(l) {
@@ -777,6 +801,10 @@ table.data tr.tr-user-deal td {
       try { return await this.get(`/v4/matches/${m}/details`, null, 30); }
       catch (e) { return null; }
     }
+    async competitionMatchdays(comp = 1) {
+      try { return await this.get(`/v4/competitions/${comp}/matchdays`, null, 120); }
+      catch (e) { return null; }
+    }
 
     // --- Squad & Lineup Management -------------------------------------------
     async squad(l) {
@@ -788,12 +816,17 @@ table.data tr.tr-user-deal td {
         console.warn("Notice: /v4/leagues/squad not available, checking teamcenter:", e);
       }
 
-      // Enrich with live points, match status, and bench players from myEleven
+      // Enrich squad players with live points and match status if available
       try {
         const myEl = await this.myEleven(l);
         if (myEl) {
-          const allEleven = [...(myEl.lp || []), ...(myEl.nlp || [])];
+          // NOTE: In the teamcenter/myeleven payload the "st" key is NOT the injury status
+          // (it changes once a match is played/finished). Strip it so it can never overwrite
+          // the real fitness status coming from the /squad endpoint.
+          const stripSt = (x) => { if (!x) return x; const { st, ...rest } = x; return rest; };
+          const allEleven = [...(myEl.lp || []), ...(myEl.nlp || [])].map(stripSt);
           if (!list.length && allEleven.length) {
+            // Only if /v4/leagues/squad returned nothing at all, use myEleven as fallback
             list = allEleven;
           } else if (list.length && allEleven.length) {
             const elMap = new Map(allEleven.map((p) => [String(p.i || p.pi), p]));
@@ -804,18 +837,16 @@ table.data tr.tr-user-deal td {
               const curLivePts = (mst !== 0 && m.p !== undefined && m.p !== null) ? Number(m.p) : 0;
               return {
                 ...p,
-                ...m,
                 livePoints: curLivePts,
                 matchStatus: mst,
                 matchMinute: m.mt ?? 0,
-                matchup: m.mtd || "",
+                matchDate: m.md || "",
+                matchId: String(m.mi || ""),
                 events: m.k || []
               };
             });
-            const existingIds = new Set(list.map((p) => String(p.i || p.pi)));
-            for (const p of allEleven) {
-              if (!existingIds.has(String(p.i || p.pi))) list.push(p);
-            }
+            // DO NOT append sold players from allEleven into list!
+            // MyTeam represents currently owned players only.
           }
         }
       } catch (e) {}
@@ -853,16 +884,69 @@ table.data tr.tr-user-deal td {
     }
 
     // --- Bidding -------------------------------------------------------------
-    async placeOffer(l, p, price) {
+    async placeOffer(l, p, price, playerMeta = null) {
       price = Math.floor(Number(price));
       if (!(price > 0)) throw new KickbaseError("Price must be positive.");
       const r = await this._request("POST", `/v4/leagues/${l}/market/${p}/offers`, { body: { price } });
       this.clearCache(`/v4/leagues/${l}/m`);
+      try {
+        if (typeof store !== "undefined") {
+          const bids = store.get(`kb.myBids.${l}`, {});
+          const prev = bids[String(p)] || {};
+          bids[String(p)] = {
+            ...prev,
+            playerId: String(p),
+            playerName: playerMeta?.name || prev.playerName || null,
+            position: playerMeta?.position || prev.position || null,
+            image: playerMeta?.image || prev.image || null,
+            marketValue: playerMeta?.marketValue || prev.marketValue || null,
+            expiresAt: playerMeta?.expiresAt instanceof Date ? playerMeta.expiresAt.getTime() : (playerMeta?.expiresAt || prev.expiresAt || null),
+            price,
+            offerId: r && (r.ofi || r.i || r.id) ? String(r.ofi || r.i || r.id) : (prev.offerId || null),
+            timestamp: Date.now(),
+            status: "active",
+            dismissedExpired: false
+          };
+          store.set(`kb.myBids.${l}`, bids);
+        }
+      } catch (e) {}
       return r;
+    }
+    async updateOffer(l, p, price, existingOfferId = null, oldPrice = null, playerMeta = null) {
+      price = Math.floor(Number(price));
+      if (!(price > 0)) throw new KickbaseError("Price must be positive.");
+      let withdrewOld = false;
+      if (existingOfferId) {
+        try {
+          await this._request("DELETE", `/v4/leagues/${l}/market/${p}/offers/${existingOfferId}`);
+          withdrewOld = true;
+        } catch (err) {
+          if (err && err.status !== 404) {
+            // If DELETE was rejected for another reason, still try POST below
+          }
+        }
+      }
+      try {
+        return await this.placeOffer(l, p, price, playerMeta);
+      } catch (err) {
+        if (withdrewOld && oldPrice && Number(oldPrice) > 0) {
+          try { await this.placeOffer(l, p, oldPrice, playerMeta); } catch (e2) {}
+        }
+        throw err;
+      }
     }
     async withdrawOffer(l, p, offerId) {
       const r = await this._request("DELETE", `/v4/leagues/${l}/market/${p}/offers/${offerId}`);
       this.clearCache(`/v4/leagues/${l}/m`);
+      try {
+        if (typeof store !== "undefined") {
+          const bids = store.get(`kb.myBids.${l}`, {});
+          if (bids[String(p)]) {
+            delete bids[String(p)];
+            store.set(`kb.myBids.${l}`, bids);
+          }
+        }
+      } catch (e) {}
       return r;
     }
     async listMarketPlayer(l, playerId, price) {
@@ -964,7 +1048,7 @@ table.data tr.tr-user-deal td {
   function myOffer(p, userId) {
     const id = first(p, "uoid", "uoi", "oid");
     const price = first(p, "uop", "uopr");
-    if (id) return { id: String(id), price: price ?? null };
+    if (id || price) return { id: id ? String(id) : null, price: price ?? null };
     for (const o of first(p, "ofs") || []) {
       if (o && typeof o === "object" && userId && String(first(o, "u", "uid", "ui", "uoid") ?? "") === String(userId)) {
         const oid = first(o, "i", "oi", "id", "offerId");
@@ -1017,6 +1101,13 @@ table.data tr.tr-user-deal td {
     const pid = String(first(p, "i", "pi") ?? "");
     const pName = `${fn} ${ln}`.trim();
     const col = playerColor(pid, pName);
+    const smc = first(p, "smc");
+    const phArr = Array.isArray(p?.ph) ? p.ph : null;
+    const gamesPlayed = (smc !== undefined && smc !== null)
+      ? Number(smc)
+      : (phArr
+          ? phArr.filter((x) => x && (x.hp || (x.p !== undefined && x.p !== 0))).length
+          : (pts && avg ? Math.max(1, Math.round(Math.abs(pts / avg))) : 0));
     return {
       id: pid,
       name: pName,
@@ -1032,24 +1123,34 @@ table.data tr.tr-user-deal td {
       change24h: first(p, "tfhmvt") ?? 0,
       change7d: first(p, "sdmvt") ?? null,
       trend: TREND[first(p, "mvt")] || "",
-      purchasePrice: first(p, "prc") ?? null,
+      purchasePrice: first(p, "prc") ?? (first(p, "mvgl") !== undefined && first(p, "mvgl") !== null && mv > 0 ? mv - Number(first(p, "mvgl")) : null),
       profit: first(p, "mvgl") ?? null,
+      isOnMarket: !!first(p, "iotm"),
       totalPoints: pts,
       avgPoints: avg,
+      gamesPlayed,
+      startsCount: first(p, "ismc") !== undefined ? Number(first(p, "ismc")) : null,
+      seasonMatchdays: first(p, "smdc") !== undefined ? Number(first(p, "smdc")) : null,
       ppm: mv ? Math.round((avg / (mv / 1e6)) * 100) / 100 : null,
       image: KB.imageUrl ? KB.imageUrl(first(p, "pim")) : null,
       price: first(p, "prc") ?? null,
+      expiresInS: exs !== undefined && exs !== null ? Number(exs) : null,
       expiresInH: exs ? Math.round((exs / 3600) * 10) / 10 : null,
+      expiresAt: exs ? new Date(Date.now() + Number(exs) * 1000) : null,
       seller: (first(p, "u") || {}).n || null,
       offers: first(p, "ofc") ?? null,
       myOfferId: offer.id,
+      myOfferPrice: offer.price,
+      rawOffers: first(p, "ofs") || [],
       livePoints: first(p, "livePoints") !== undefined
         ? p.livePoints
         : (first(p, "mst") !== undefined
             ? (Number(first(p, "mst")) === 0 ? 0 : (first(p, "p") !== undefined ? Number(first(p, "p")) : 0))
             : null),
       matchMinute: first(p, "matchMinute", "mt") ?? 0,
-      matchup: first(p, "matchup", "mtd") || "",
+      matchDate: first(p, "matchDate", "md") || "",
+      matchId: String(first(p, "matchId", "mi") ?? ""),
+      matchup: first(p, "matchup") || "",
       events: first(p, "events", "k") || [],
     };
   }
@@ -1101,6 +1202,8 @@ table.data tr.tr-user-deal td {
         isUserTransfer,
         date: x.dt ? new Date(x.dt) : null,
         marketValueAtSale: x.mv || x.pmv || null,
+        bidCount: first(x, "bn", "ofc", "bids") ?? null,
+        userOfferPrice: first(x, "uop", "uopr") ?? null,
         raw: x
       };
     });
@@ -1258,6 +1361,72 @@ table.data tr.tr-user-deal td {
   const int = (v) => (missing(v) ? "–" : Math.round(v).toLocaleString("en-US"));
   const fixed = (d) => (v) => (missing(v) ? "–" : Number(v).toFixed(d));
 
+  function formatMatchDay(dateVal) {
+    if (!dateVal) return "";
+
+    if (typeof dateVal === "string") {
+      const s = dateVal.trim();
+      const germanDays = {
+        "mo": "Monday", "di": "Tuesday", "mi": "Wednesday", "do": "Thursday", "fr": "Friday", "sa": "Saturday", "so": "Sunday",
+        "montag": "Monday", "dienstag": "Tuesday", "mittwoch": "Wednesday", "donnerstag": "Thursday", "freitag": "Friday", "samstag": "Saturday", "sonntag": "Sunday"
+      };
+      const m = s.match(/^([a-zäöü]+)\.?[\s,]+(\d{1,2}:\d{2})/i);
+      if (m) {
+        const dKey = m[1].toLowerCase().replace(/\.$/, "");
+        const dayName = germanDays[dKey] || (m[1].charAt(0).toUpperCase() + m[1].slice(1));
+        return `${dayName}, ${m[2]}`;
+      }
+      const singleDay = s.match(/^([a-zäöü]+)\.?$/i);
+      if (singleDay) {
+        const dKey = singleDay[1].toLowerCase();
+        if (germanDays[dKey]) return germanDays[dKey];
+      }
+    }
+
+    if (typeof dateVal === "number" && dateVal < 1e8) return "";
+    if (typeof dateVal === "string" && /^\d+(\+\d+)?'?$/.test(dateVal.trim()) && Number(dateVal) < 1e8) return "";
+
+    let d = null;
+    if (dateVal instanceof Date && !isNaN(dateVal.getTime())) {
+      d = dateVal;
+    } else if (typeof dateVal === "number") {
+      d = new Date(dateVal > 1e11 ? dateVal : dateVal * 1000);
+    } else if (typeof dateVal === "string") {
+      const num = Number(dateVal);
+      if (!isNaN(num) && num > 1e8) {
+        d = new Date(num > 1e11 ? num : num * 1000);
+      } else if (dateVal.includes("-") || dateVal.includes("/") || dateVal.includes("T") || dateVal.includes(":")) {
+        const parsed = new Date(dateVal);
+        if (!isNaN(parsed.getTime())) {
+          d = parsed;
+        }
+      }
+    }
+
+    if (d && !isNaN(d.getTime())) {
+      const now = new Date();
+      const isToday = d.toDateString() === now.toDateString();
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const isTomorrow = d.toDateString() === tomorrow.toDateString();
+
+      const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+      const dayName = days[d.getDay()];
+      const hours = String(d.getHours()).padStart(2, "0");
+      const minutes = String(d.getMinutes()).padStart(2, "0");
+      const timeStr = `${hours}:${minutes}`;
+
+      if (isToday) return `Today, ${timeStr}`;
+      if (isTomorrow) return `Tomorrow, ${timeStr}`;
+      return `${dayName}, ${timeStr}`;
+    }
+
+    if (typeof dateVal === "string" && dateVal.length <= 25) {
+      return dateVal.trim();
+    }
+    return "";
+  }
+
   /** Creates an element from an HTML string. */
   function h(html) { const t = document.createElement("template"); t.innerHTML = html.trim(); return t.content.firstElementChild; }
 
@@ -1321,7 +1490,7 @@ table.data tr.tr-user-deal td {
 
   /**
    * Renders a sortable table into `container`.
-   * cols: [{key, label, kind, title?}] ; opts: {sort: key, desc: bool, rowClass: fn}
+   * cols: [{key, label, kind, title?}] ; opts: {sort: key, desc: bool, rowClass: fn, onRowClick: fn, rowTitle: fn}
    */
   function table(container, rows, cols, opts = {}) {
     cols = cols.filter((c) => c.kind !== "img" || rows.some((r) => r[c.key]));
@@ -1337,15 +1506,27 @@ table.data tr.tr-user-deal td {
       });
       container.innerHTML = `<div class="table-wrap fade-in"><table class="data"><thead><tr>${cols.map((c) =>
         `<th class="${KINDS[c.kind || "text"][1] ? "r" : ""}" data-k="${c.key}" title="${esc(c.title || "")}">${esc(c.label)}${sortKey === c.key ? `<span class="sort">${desc ? "arrow_downward" : "arrow_upward"}</span>` : ""}</th>`).join("")}
-        </tr></thead><tbody>${sorted.map((r) => `<tr class="${opts.rowClass ? opts.rowClass(r) : ""}">${cols.map((c) => {
-          const [f, right] = KINDS[c.kind || "text"] || KINDS.text;
-          const formatted = c.fmt ? c.fmt(r[c.key], r) : f(r[c.key], r);
-          const isRight = c.right !== undefined ? c.right : right;
-          return `<td class="${isRight ? "r" : ""}">${formatted}</td>`;
-        }).join("")}</tr>`).join("")}</tbody></table></div>`;
+        </tr></thead><tbody>${sorted.map((r, idx) => {
+          const rCls = [opts.rowClass ? opts.rowClass(r) : "", opts.onRowClick ? "clickable-row" : ""].filter(Boolean).join(" ");
+          const rTitle = opts.rowTitle ? opts.rowTitle(r) : (opts.onRowClick ? "Click to open" : "");
+          return `<tr class="${rCls}" ${opts.onRowClick ? `data-row-idx="${idx}"` : ""} ${rTitle ? `title="${esc(rTitle)}"` : ""}>${cols.map((c) => {
+            const [f, right] = KINDS[c.kind || "text"] || KINDS.text;
+            const formatted = c.fmt ? c.fmt(r[c.key], r) : f(r[c.key], r);
+            const isRight = c.right !== undefined ? c.right : right;
+            return `<td class="${isRight ? "r" : ""}">${formatted}</td>`;
+          }).join("")}</tr>`;
+        }).join("")}</tbody></table></div>`;
       container.querySelectorAll("th").forEach((th) => th.addEventListener("click", () => {
         const k = th.dataset.k; if (sortKey === k) desc = !desc; else { sortKey = k; desc = true; } render();
       }));
+      if (opts.onRowClick) {
+        container.querySelectorAll("tbody tr[data-row-idx]").forEach((tr) => {
+          tr.addEventListener("click", (e) => {
+            const idx = Number(tr.dataset.rowIdx);
+            if (!isNaN(idx) && sorted[idx]) opts.onRowClick(sorted[idx], e);
+          });
+        });
+      }
     }
     render();
   }
@@ -1372,7 +1553,7 @@ table.data tr.tr-user-deal td {
     toastTimer = setTimeout(() => t.classList.remove("show"), 3800);
   }
 
-  KB.ui = { esc, money, moneyFull, signedMoney, tone, int, fixed, h, kpis, section, pageHead, pos, icon,
+  KB.ui = { esc, money, moneyFull, signedMoney, tone, int, fixed, formatMatchDay, h, kpis, section, pageHead, pos, icon,
     loading, alert, table, dialog, toast, missing, pawn, playerColor: KB.playerColor, PLAYER_PALETTE: KB.PLAYER_PALETTE };
 })(globalThis.KB = globalThis.KB || {});
 
@@ -1529,14 +1710,16 @@ table.data tr.tr-user-deal td {
           }, gAnn);
 
           const pin = s("circle", {
-            cx: ax, cy: ay, r: 5,
+            cx: ax, cy: ay, r: 5.5,
             fill: a.color || "#10b981",
             stroke: "#ffffff",
             "stroke-width": 2,
-            cursor: "pointer"
+            cursor: "pointer",
+            class: "ann-pin"
           }, gAnn);
 
           pin.addEventListener("mousemove", (e) => {
+            e.stopPropagation();
             tooltip(`
               <div style="font-size:12px;line-height:1.4">
                 <div style="font-weight:800;color:${a.color || "#34d399"}">🛒 ${KB.ui.esc(a.title || "Player Purchase")}</div>
@@ -1549,29 +1732,40 @@ table.data tr.tr-user-deal td {
           pin.addEventListener("mouseleave", () => tooltip(null));
 
           if (a.label) {
+            const clampedX = Math.max(m.l + 36, Math.min(width - m.r - 36, ax));
             const txt = s("text", {
-              x: ax,
-              y: Math.max(m.t + 11, ay - 8),
+              x: clampedX,
+              y: Math.max(m.t + 11, ay - 9),
               "text-anchor": "middle",
               fill: "#ffffff",
               "font-size": "10px",
               "font-weight": "700",
-              style: "text-shadow: 0 1px 3px rgba(0,0,0,0.9); pointer-events: none;"
+              style: "text-shadow: 0 1px 3px rgba(0,0,0,0.95); pointer-events: none;"
             }, gAnn);
             txt.textContent = a.label;
           }
         } else if (!inX && a.x && +a.x < x0 && inY) {
+          s("line", {
+            x1: m.l, y1: ay,
+            x2: m.l + 48, y2: ay,
+            stroke: a.color || "#94a3b8",
+            "stroke-width": 1.5,
+            "stroke-dasharray": "3,3",
+            opacity: 0.6
+          }, gAnn);
           const leftTag = s("text", {
             x: m.l + 4,
             y: Math.max(m.t + 12, ay - 4),
             fill: a.color || "#94a3b8",
             "font-size": "9.5px",
             "font-weight": "700",
+            class: "ann-pin",
             style: "text-shadow: 0 1px 2px rgba(0,0,0,0.8); cursor: pointer;"
           }, gAnn);
           leftTag.textContent = `← Bought: ${yFmt ? yFmt(a.y) : a.y}`;
           leftTag.addEventListener("mousemove", (e) => {
-            tooltip(`<b>${KB.ui.esc(a.title || "")}</b><br>Bought on ${a.x instanceof Date ? a.x.toLocaleDateString("de-DE") : a.x} for ${yFmt ? yFmt(a.y) : a.y}<br>Switch timeframe to 1 year to view on curve.`, e);
+            e.stopPropagation();
+            tooltip(`<b>🛒 ${KB.ui.esc(a.title || "")}</b><br><b>Bought for:</b> ${yFmt ? yFmt(a.y) : a.y}<br><b>Date:</b> ${a.x instanceof Date ? a.x.toLocaleDateString("de-DE") : a.x}${a.sub ? `<br><span style="font-size:11px;color:#cbd5e1">${KB.ui.esc(a.sub)}</span>` : ""}<br><span style="font-size:10.5px;color:#94a3b8">Switch timeframe to 1 Year to see purchase pin on curve.</span>`, e);
           });
           leftTag.addEventListener("mouseleave", () => tooltip(null));
         }
@@ -1581,10 +1775,11 @@ table.data tr.tr-user-deal td {
     // Hover anywhere: nearest x for dense lines.
     if (!markers || all.length > 60) {
       svg.addEventListener("mousemove", (e) => {
+        if (e.target && e.target.classList && e.target.classList.contains("ann-pin")) return;
         const rect = svg.getBoundingClientRect(); const px = ((e.clientX - rect.left) / rect.width) * width;
         const xv = x0 + ((px - m.l) / (width - m.l - m.r)) * (x1 - x0);
         const rows = series.map((d) => { const p = d.points.reduce((b, q) => (Math.abs(+q.x - xv) < Math.abs(+b.x - xv) ? q : b)); return [d, p]; });
-        const head = isDate ? rows[0][1].x.toLocaleDateString() : rows[0][1].x;
+        const head = isDate ? rows[0][1].x.toLocaleDateString("de-DE") : rows[0][1].x;
         const lines = rows.map(([d, p]) => {
           let extra = "";
           if (annotations && annotations.length) {
@@ -2081,16 +2276,16 @@ Analyze my squad strictly under Kickbase rules:
 (function (KB) {
   "use strict";
   const { ui, charts, stats, transform: tf } = KB;
-  const { esc, money, signedMoney, tone } = ui;
+  const { esc, money, signedMoney, tone, formatMatchDay } = ui;
 
   const VERSION = "0.5.0";
   const PAGES = [
     ["team", "sports_soccer", "My team"],
     ["live", "live_tv", "Live Matchday"],
-    ["advisor", "smart_toy", "AI Advisor"],
+    ["market", "storefront", "Transfermarkt"],
     ["managers", "groups", "Managers"],
     ["players", "query_stats", "Players"],
-    ["market", "storefront", "Market"],
+    ["advisor", "smart_toy", "AI Advisor"],
   ];
   const app = document.getElementById("app");
   const S = { api: null, session: null, leagues: [], leagueId: null, page: "team", renderId: 0 };
@@ -2297,10 +2492,10 @@ Analyze my squad strictly under Kickbase rules:
   function renderBiddingSetting() {
     const body = document.getElementById("bidding-body");
     if (settings().bidding) {
-      body.innerHTML = `<p>You can place and withdraw bids in the <b>Market</b> view.</p><button class="btn sm" id="bid-off">Turn bidding off</button>`;
+      body.innerHTML = `<p>You can place and withdraw bids in the <b>Transfermarkt</b> view.</p><button class="btn sm" id="bid-off">Turn bidding off</button>`;
       body.querySelector("#bid-off").addEventListener("click", () => { setSetting("bidding", false); renderShell(); });
     } else {
-      body.innerHTML = `<p>Bid on players from the <b>Market</b> view. Every bid needs a confirmation.</p>
+      body.innerHTML = `<p>Bid on players from the <b>Transfermarkt</b> view. Every bid needs a confirmation.</p>
         <p class="muted" style="font-size:12.5px">This uses the unofficial Kickbase API. Kickbase might not like third-party apps placing bids, which could in the worst case lead to restrictions on your account.</p>
         <label class="check"><input type="checkbox" id="risk"> I understand the risk</label>
         <button class="btn sm primary" id="bid-on" disabled>Turn bidding on</button>`;
@@ -2460,7 +2655,10 @@ Analyze my squad strictly under Kickbase rules:
   }
 
   async function leagueData(l) {
-    const rank = await rankingRows(l);
+    const [rank, feedRaw] = await Promise.all([
+      rankingRows(l),
+      S.api.activitiesFeed ? S.api.activitiesFeed(l, 500) : Promise.resolve({ af: [] })
+    ]);
     const out = { rank, perf: [], transfers: [], squads: [] };
     const queue = [...rank];
     async function worker() {
@@ -2473,6 +2671,42 @@ Analyze my squad strictly under Kickbase rules:
       }
     }
     await Promise.all(Array.from({ length: 6 }, worker));
+
+    // Enrich out.transfers from activitiesFeed (t === 15) for managers whose /transfer endpoint returned empty
+    for (const item of (feedRaw && Array.isArray(feedRaw.af) ? feedRaw.af : [])) {
+      if (item.t !== undefined && item.t !== 15 && item.t !== 12 && item.t !== 2) continue;
+      const d = item && (item.data || item.meta);
+      if (!d || (!d.trp && !d.p && !d.byr && !d.slr)) continue;
+      const pid = String(d.pi || d.pid || "");
+      const price = Number(d.trp ?? d.p ?? 0);
+      const dt = (item.dt || item.date) ? new Date(item.dt || item.date) : null;
+      const buyerName = d.byr ? String(d.byr).trim() : null;
+      const sellerName = d.slr ? String(d.slr).trim() : null;
+      const isUserTransfer = Boolean(buyerName && sellerName);
+      const pName = `${d.fn || ""} ${d.pn || d.n || ""}`.trim() || "Player";
+      if (buyerName) {
+        const bMgr = rank.find((r) => r.name && r.name.toLowerCase() === buyerName.toLowerCase());
+        if (bMgr && !out.transfers.some((et) => String(et.managerId) === String(bMgr.id) && et.type === "Buy" && String(et.playerId) === pid && Math.abs((et.price || 0) - price) < 500)) {
+          out.transfers.push({
+            managerId: String(bMgr.id), manager: bMgr.name, playerId: pid, player: pName,
+            color: KB.playerColor(pid, pName), image: null, type: "Buy",
+            buyer: bMgr.name, seller: sellerName || "Kickbase", price,
+            counterpart: sellerName || "Kickbase", isUserTransfer, date: dt
+          });
+        }
+      }
+      if (sellerName) {
+        const sMgr = rank.find((r) => r.name && r.name.toLowerCase() === sellerName.toLowerCase());
+        if (sMgr && !out.transfers.some((et) => String(et.managerId) === String(sMgr.id) && et.type === "Sell" && String(et.playerId) === pid && Math.abs((et.price || 0) - price) < 500)) {
+          out.transfers.push({
+            managerId: String(sMgr.id), manager: sMgr.name, playerId: pid, player: pName,
+            color: KB.playerColor(pid, pName), image: null, type: "Sell",
+            buyer: buyerName || "Kickbase", seller: sMgr.name, price,
+            counterpart: buyerName || "Kickbase", isUserTransfer, date: dt
+          });
+        }
+      }
+    }
     return out;
   }
 
@@ -2491,8 +2725,21 @@ Analyze my squad strictly under Kickbase rules:
     change7d: { key: "change7d", label: "7 days", kind: "delta", title: "Market value change in the last 7 days" },
     purchasePrice: { key: "purchasePrice", label: "Bought for", kind: "money" },
     profit: { key: "profit", label: "Profit", kind: "delta", title: "Market value minus purchase price" },
-    totalPoints: { key: "totalPoints", label: "Points", kind: "int" },
+    totalPoints: { key: "totalPoints", label: "Total Points", kind: "int" },
     avgPoints: { key: "avgPoints", label: "Ø Points", kind: "int" },
+    gamesPlayed: {
+      key: "gamesPlayed",
+      label: "Games",
+      kind: "int",
+      title: "Games played this season (appearances)",
+      fmt: (v, r) => {
+        if (v === null || v === undefined) return `<span class="muted">–</span>`;
+        const startsSub = (r && r.startsCount !== null && r.startsCount !== undefined)
+          ? `<span class="muted" style="font-size:10.5px;margin-left:4px" title="${r.startsCount} starts out of ${v} games played">(${r.startsCount} S)</span>`
+          : "";
+        return `<span class="num"><b>${ui.int(v)}</b>${startsSub}</span>`;
+      }
+    },
     ppm: { key: "ppm", label: "Ø pts / €1M", kind: "f1", title: "Average points per million market value" },
   };
   const cols = (...keys) => keys.map((k) => (typeof k === "string" ? PLAYER_COLS[k] : k));
@@ -2511,8 +2758,42 @@ Analyze my squad strictly under Kickbase rules:
 
     const squad = squadRaw.map((p) => tf.player(p));
     const market = (marketRaw.it || []).map((p) => tf.player(p, S.session?.userId));
-    const mine = rank.find((r) => r.id === myManagerId(rank));
+    const myId = myManagerId(rank);
+    const mine = rank.find((r) => r.id === myId);
     const budget = me.b ?? 0;
+
+    // Fetch manager transfer history to resolve exact purchase dates and prices
+    let myTransfers = [];
+    if (myId && S.api.managerTransfers) {
+      try {
+        const tRaw = await S.api.managerTransfers(ctx.l, myId);
+        myTransfers = tf.transfers(tRaw, mine?.name || S.session?.userName || "");
+      } catch (e) {}
+    }
+    if (ctx.stale()) return;
+
+    squad.forEach((p) => {
+      const buys = myTransfers.filter((t) =>
+        (String(t.playerId) === String(p.id) || (t.player && t.player.toLowerCase() === p.name.toLowerCase())) &&
+        t.type === "Buy"
+      ).sort((a, b) => (b.date ? +b.date : 0) - (a.date ? +a.date : 0));
+      const buy = buys[0] || null;
+      if (buy && buy.price) {
+        p.purchasePrice = buy.price;
+        p.purchaseDate = buy.date || null;
+        p.buyCounterpart = buy.counterpart || "Kickbase";
+      } else {
+        p.purchaseDate = null;
+        p.buyCounterpart = "Initial Squad / Kickbase";
+      }
+      if (p.purchasePrice && p.marketValue) {
+        p.profit = p.marketValue - p.purchasePrice;
+        p.profitPct = Math.round((p.profit / p.purchasePrice) * 1000) / 10;
+      } else {
+        p.profitPct = 0;
+      }
+    });
+
     const value = squad.reduce((s, p) => s + p.marketValue, 0);
     const ch = squad.reduce((s, p) => s + (p.change24h || 0), 0);
 
@@ -2593,11 +2874,11 @@ Analyze my squad strictly under Kickbase rules:
     const cards = [
       { label: "Budget", value: money(budget), sub: budget < 0 ? "⚠️ negative! Must be ≥ 0 by Friday kickoff" : "kickoff ready", tone: budget < 0 ? "down" : "up" },
       { label: "Squad value", value: money(value), delta: signedMoney(ch), tone: tone(ch), sub: "today" },
+      { label: "Squad size", value: `${squad.length} players`, sub: "currently owned" }
     ];
     if (mine) cards.push(
       { label: "League rank", value: `#${mine.seasonRank}`, sub: `of ${rank.length} managers` },
-      { label: "Season points", value: ui.int(mine.seasonPoints) },
-      { label: "Live matchday", value: (mine.matchdayPoints > 0 ? "+" : "") + ui.int(mine.matchdayPoints || liveTotalPoints), delta: mine.matchdayRank ? `#${mine.matchdayRank}` : "ongoing", tone: (mine.matchdayPoints || liveTotalPoints) >= 0 ? "up" : "down", sub: "current points" }
+      { label: "Season points", value: ui.int(mine.seasonPoints) }
     );
 
     const todayStr = getTodayDateKey();
@@ -2643,6 +2924,8 @@ Analyze my squad strictly under Kickbase rules:
       + `<div id="bench-container"></div>`
       + ui.section("Squad Overview", `${squad.length} players · click column to sort`)
       + `<div id="t-squad"></div>`
+      + ui.section("Squad Market Value History & Purchase Tracker", "Marktwert development over time with purchase dates & prices (🛒) — click players to toggle or solo")
+      + `<div id="team-mv-tracker" style="margin-bottom:22px"></div>`
       + `<div class="grid-2" style="margin-top:22px"><div id="c-pos"></div><div id="c-scatter"></div></div>`;
 
     el.querySelector("#team-claim-bonus")?.addEventListener("click", () => handleClaimDailyBonus(true));
@@ -2786,14 +3069,7 @@ Analyze my squad strictly under Kickbase rules:
               <div class="pitch-card ${isSel ? "selected" : ""} ${p.rawStatus !== 0 ? "injured" : ""}" data-pitch-id="${p.id}" style="--pawn-col:${p.color}; border-top:3px solid ${p.color}">
                 ${ui.pawn(p, 42, { center: true })}
                 <div class="pname" title="${esc(p.name)}">${esc(p.name)}</div>
-                ${p.livePoints !== null && p.livePoints !== undefined ? `
-                  <div class="live-pts-badge ${(p.livePoints || 0) >= 0 ? "up" : "down"}" style="font-weight:700;font-size:12px;margin:2px 0">
-                    ⚡ ${(p.livePoints || 0) > 0 ? "+" : ""}${p.livePoints ?? 0} pts
-                  </div>
-                  <div style="font-size:10px;margin-bottom:2px">
-                    ${p.matchStatus === 1 ? `<span class="pill-live"><span class="live-dot" style="display:inline-block;vertical-align:middle;margin-right:2px"></span>LIVE ${p.matchMinute ? p.matchMinute + "'" : ""}</span>` : (p.matchStatus === 2 ? `<span class="pill-ft">FT</span>` : `<span class="pill-upcoming">${esc(p.matchup || "Upcoming")}</span>`)}
-                  </div>
-                ` : `<div class="ppts">★ ${p.avgPoints} pts</div>`}
+                <div class="ppts">★ ${p.avgPoints} pts <span class="muted" style="font-size:10px">(${p.totalPoints})</span></div>
                 <div class="pmv">${money(p.marketValue)}</div>
                 ${p.rawStatus !== 0 ? `<span class="status-badge injured">${esc(p.status)}</span>` : ""}
               </div>
@@ -2935,11 +3211,8 @@ Analyze my squad strictly under Kickbase rules:
               <div class="b-info">
                 <div class="b-name">${esc(p.name)} ${ui.pos(p.position)}</div>
                 <div class="b-sub">
-                  ${p.livePoints !== null && p.livePoints !== undefined ? `
-                    <span class="live-pts-badge ${(p.livePoints || 0) >= 0 ? "up" : "down"}" style="padding:1px 6px;border-radius:6px;font-size:11px">⚡ ${(p.livePoints || 0) > 0 ? "+" : ""}${p.livePoints ?? 0} pts</span>
-                  ` : `<span>★ ${p.avgPoints} pts</span>`}
+                  <span>★ ${p.avgPoints} pts <span class="muted" style="font-size:10px">(${p.totalPoints})</span></span>
                   <span>${money(p.marketValue)}</span>
-                  ${p.matchStatus === 1 ? `<span class="pill-live"><span class="live-dot" style="display:inline-block;vertical-align:middle;margin-right:2px"></span>LIVE ${p.matchMinute ? p.matchMinute + "'" : ""}</span>` : (p.matchStatus === 2 ? `<span class="pill-ft">FT</span>` : "")}
                   ${p.rawStatus !== 0 ? `<span class="status-badge injured">${esc(p.status)}</span>` : ""}
                 </div>
               </div>
@@ -3014,30 +3287,276 @@ Analyze my squad strictly under Kickbase rules:
     renderPitch();
     renderBench();
 
-    const squadCols = cols("image", "name", "position", "status", "marketValue", "change24h", "change7d",
-      "purchasePrice", "profit", "totalPoints", "avgPoints", "ppm");
+    const squadCols = cols(
+      "image", "name", "position", "status", "marketValue", "change24h", "change7d",
+      { key: "purchaseDate", label: "Bought on", kind: "date", optional: true, title: "Date when you bought this player" },
+      "purchasePrice", "profit", "totalPoints", "avgPoints", "ppm"
+    );
     squadCols.push({
-      key: "actions",
-      label: "Market",
-      kind: "text"
+      key: "isOnMarket",
+      label: "Transfer Market",
+      title: "Shows whether this player is listed on the Transfer Market and lets you list/sell them",
+      right: true,
+      fmt: (_, p) => `
+        <div style="display:inline-flex;align-items:center;gap:6px;justify-content:flex-end">
+          ${p.isOnMarket ? `<span class="pill up" style="font-size:10px;padding:1px 6px" title="Currently listed on the Transfer Market">Listed${p.offers ? ` (${p.offers})` : ""}</span>` : ""}
+          <button class="btn sm" data-t-sell="${p.id}" style="height:26px;padding:0 8px;font-size:11px" title="List on Transfer Market or sell directly to Kickbase">${ui.icon("sell")} ${p.isOnMarket ? "Manage" : "Sell"}</button>
+        </div>
+      `
     });
 
-    ui.table(el.querySelector("#t-squad"), squad, squadCols, {
+    const tSquadEl = el.querySelector("#t-squad");
+    ui.table(tSquadEl, squad, squadCols, {
       sort: "marketValue",
       rowClass: (p) => (startingIds.includes(p.id) ? "me" : "")
     });
 
-    el.querySelectorAll("#t-squad tbody tr").forEach((tr, idx) => {
-      const tdLast = tr.querySelector("td:last-child");
-      if (tdLast) {
-        const pName = tr.querySelector("td:nth-child(2)")?.textContent?.trim();
-        const p = squad.find((x) => x.name === pName) || squad[idx];
-        if (p) {
-          tdLast.innerHTML = `<button class="btn sm" data-t-sell="${p.id}" style="height:26px;padding:0 8px;font-size:11px">${ui.icon("sell")} Sell</button>`;
-          tdLast.querySelector("button")?.addEventListener("click", () => sellDialog(ctx, p, budget));
-        }
+    tSquadEl?.addEventListener("click", (e) => {
+      const sellBtn = e.target.closest("[data-t-sell]");
+      if (sellBtn) {
+        const p = squad.find((x) => x.id === sellBtn.dataset.tSell);
+        if (p) sellDialog(ctx, p, budget);
       }
     });
+
+    // --- Interactive Squad Market Value History & Purchase Tracker ---
+    const mvTrackerEl = el.querySelector("#team-mv-tracker");
+    if (mvTrackerEl && squad.length) {
+      let selectedPlayerIds = new Set(squad.map((p) => p.id));
+      let mvTimeframe = 92; // 30, 92, or 365 days
+      let mvPosFilter = "ALL";
+      let showPurchasePins = true;
+      const squadMvHistMap = new Map();
+
+      mvTrackerEl.innerHTML = ui.loading("Loading player market value histories & purchase markers…");
+
+      // Fetch 365-day market value history for all squad players (cached) so timeframe & player toggles are instant
+      (async () => {
+        await Promise.all(squad.map(async (p) => {
+          const cacheKey = `${p.id}_365_team_mv`;
+          if (playerHistCache.has(cacheKey)) {
+            squadMvHistMap.set(p.id, playerHistCache.get(cacheKey));
+            return;
+          }
+          try {
+            const rawMv = await S.api.playerMarketValue(ctx.l, p.id, 365);
+            const pts = tf.marketValues(rawMv || {}, p.name);
+            playerHistCache.set(cacheKey, pts);
+            squadMvHistMap.set(p.id, pts);
+          } catch (e) {
+            squadMvHistMap.set(p.id, []);
+          }
+        }));
+        if (ctx.stale()) return;
+
+        function renderMvTracker() {
+          const visiblePool = squad.filter((p) => mvPosFilter === "ALL" || p.position === mvPosFilter);
+          const activePlayers = visiblePool.filter((p) => selectedPlayerIds.has(p.id));
+
+          const subsetInvested = activePlayers.reduce((s, p) => s + (p.purchasePrice || 0), 0);
+          const subsetCurrentMv = activePlayers.reduce((s, p) => s + (p.marketValue || 0), 0);
+          const subsetProfit = activePlayers.reduce((s, p) => s + (p.profit || 0), 0);
+          const subsetProfitPct = subsetInvested > 0 ? Math.round((subsetProfit / subsetInvested) * 1000) / 10 : 0;
+
+          const posCount = (pos) => pos === "ALL" ? squad.length : squad.filter((p) => p.position === pos).length;
+
+          mvTrackerEl.innerHTML = `
+            <div class="card pad" style="background:var(--surface)">
+              <!-- Top Controls: Presets, Position Filter, Timeframe -->
+              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid var(--border)">
+                <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                  <span style="font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);margin-right:4px">Quick Select:</span>
+                  <button class="btn sm ${selectedPlayerIds.size === squad.length ? "primary" : ""}" data-mv-preset="all">All Squad (${squad.length})</button>
+                  <button class="btn sm" data-mv-preset="starters">Starting XI (${startingIds.length})</button>
+                  <button class="btn sm" data-mv-preset="bench">Bench (${Math.max(0, squad.length - startingIds.length)})</button>
+                  <button class="btn sm" data-mv-preset="top5">Top 5 MV</button>
+                  <button class="btn sm ghost" data-mv-preset="none">Unselect All</button>
+                </div>
+
+                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+                  <button class="btn sm ${showPurchasePins ? "primary" : "ghost"}" id="btn-toggle-buy-pins" title="Toggle purchase date and price markers on the chart">
+                    🛒 Buy Markers: ${showPurchasePins ? "ON" : "OFF"}
+                  </button>
+                  <div class="seg" id="team-mv-pos">
+                    <button data-pos="ALL" class="${mvPosFilter === "ALL" ? "on" : ""}">All (${posCount("ALL")})</button>
+                    <button data-pos="GK" class="${mvPosFilter === "GK" ? "on" : ""}">GK (${posCount("GK")})</button>
+                    <button data-pos="DEF" class="${mvPosFilter === "DEF" ? "on" : ""}">DEF (${posCount("DEF")})</button>
+                    <button data-pos="MID" class="${mvPosFilter === "MID" ? "on" : ""}">MID (${posCount("MID")})</button>
+                    <button data-pos="FWD" class="${mvPosFilter === "FWD" ? "on" : ""}">FWD (${posCount("FWD")})</button>
+                  </div>
+                  <div class="seg" id="team-mv-tf">
+                    <button data-tf="30" class="${mvTimeframe === 30 ? "on" : ""}">30 Days</button>
+                    <button data-tf="92" class="${mvTimeframe === 92 ? "on" : ""}">3 Months</button>
+                    <button data-tf="365" class="${mvTimeframe === 365 ? "on" : ""}">1 Year</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Interactive Player Pills (Click to Toggle ON/OFF, Click 'Only' to Solo) -->
+              <div style="margin-bottom:14px">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;font-size:11.5px;color:var(--muted)">
+                  <span><b>Click any player below to add / unclick</b> from the graph (${activePlayers.length} of ${visiblePool.length} shown) · Click <b>Only</b> to inspect a single player:</span>
+                  <span>🛒 = Bought Date & Buy Price</span>
+                </div>
+                <div style="display:flex;flex-wrap:wrap;gap:6px" id="team-mv-pills">
+                  ${visiblePool.map((p) => {
+                    const isOn = selectedPlayerIds.has(p.id);
+                    const buyStr = p.purchasePrice ? `Bought: ${money(p.purchasePrice)}${p.purchaseDate ? ` (${p.purchaseDate.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })})` : ""}` : "";
+                    return `
+                      <div class="mgr-pill ${isOn ? "active" : ""}" data-toggle-pid="${p.id}" style="--pill-color:${p.color};cursor:pointer;user-select:none;padding:4px 9px;border-radius:8px;display:inline-flex;align-items:center;gap:6px;border:1px ${isOn ? "solid " + p.color : "dashed var(--border)"};background:${isOn ? "rgba(255,255,255,0.05)" : "transparent"};opacity:${isOn ? "1" : "0.45"};transition:all 0.15s" title="${esc(p.name)} · Current MV: ${money(p.marketValue)}${buyStr ? " · " + buyStr : ""}">
+                        <span style="font-size:11px;font-weight:800;color:${isOn ? p.color : "var(--muted)"}">${isOn ? "✓" : "+"}</span>
+                        <span style="width:8px;height:8px;border-radius:50%;background:${p.color};box-shadow:${isOn ? `0 0 6px ${p.color}` : "none"}"></span>
+                        <span style="font-weight:700;font-size:12px">${esc(p.name)}</span>
+                        ${ui.pos(p.position)}
+                        <span style="font-size:11px;color:var(--muted)">${money(p.marketValue)}</span>
+                        <span class="mgr-solo" data-solo-pid="${p.id}" style="font-size:10px;padding:1px 5px;border-radius:4px;background:rgba(255,255,255,0.08);color:#cbd5e1;margin-left:2px" title="Show only ${esc(p.name)}">Only</span>
+                      </div>
+                    `;
+                  }).join("")}
+                </div>
+              </div>
+
+              <!-- Active Subset Summary Bar -->
+              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;padding:10px 14px;margin-bottom:14px;border-radius:8px;background:rgba(16,185,129,0.07);border:1px solid rgba(16,185,129,0.25)">
+                <div style="font-size:12.5px">
+                  <span style="color:var(--muted)">Selected Subset:</span> <b>${activePlayers.length} player${activePlayers.length === 1 ? "" : "s"}</b>
+                </div>
+                <div style="display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px">
+                  <span><span style="color:var(--muted)">Bought For:</span> <b>${subsetInvested > 0 ? money(subsetInvested) : "–"}</b></span>
+                  <span><span style="color:var(--muted)">Current MV:</span> <b style="color:#38bdf8">${money(subsetCurrentMv)}</b></span>
+                  <span><span style="color:var(--muted)">Net Profit:</span> <b class="${subsetProfit >= 0 ? "up" : "down"}">${signedMoney(subsetProfit)} (${subsetProfitPct > 0 ? "+" : ""}${subsetProfitPct}%)</b></span>
+                </div>
+              </div>
+
+              <!-- Chart Container -->
+              <div id="c-team-mv-line"></div>
+            </div>
+          `;
+
+          // Render Chart or Empty Message
+          const chartBox = mvTrackerEl.querySelector("#c-team-mv-line");
+          if (chartBox) {
+            if (!activePlayers.length) {
+              chartBox.innerHTML = ui.alert("info", "No players selected. Click one or more player pills above (or 'All Squad') to display their Market Value history.");
+            } else {
+              const cutoffMs = Date.now() - mvTimeframe * 86400000;
+              const series = [];
+              const annotations = [];
+
+              activePlayers.forEach((p) => {
+                const allPts = squadMvHistMap.get(p.id) || [];
+                const filteredPts = allPts.filter((pt) => +pt.date >= cutoffMs);
+                const ptsToUse = filteredPts.length ? filteredPts : allPts.slice(-mvTimeframe);
+                if (ptsToUse.length) {
+                  series.push({
+                    name: p.name,
+                    color: p.color,
+                    points: ptsToUse.map((pt) => ({ x: pt.date, y: pt.marketValue }))
+                  });
+                }
+
+                if (showPurchasePins && p.purchasePrice) {
+                  let targetDate = p.purchaseDate;
+                  let isEstimatedDate = false;
+                  // If player was in initial squad (no buy transfer timestamp), find closest MV match in history
+                  if (!targetDate && allPts.length) {
+                    let bestPt = allPts[0];
+                    let minDiff = Infinity;
+                    for (const pt of allPts) {
+                      const d = Math.abs(pt.marketValue - p.purchasePrice);
+                      if (d < minDiff) {
+                        minDiff = d;
+                        bestPt = pt;
+                      }
+                    }
+                    targetDate = bestPt.date;
+                    isEstimatedDate = true;
+                  }
+                  if (targetDate) {
+                    const dateStr = targetDate instanceof Date
+                      ? targetDate.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit" })
+                      : "";
+                    const shortLabel = activePlayers.length <= 6
+                      ? `🛒 ${p.name}: €${(p.purchasePrice / 1e6).toFixed(1)}M${dateStr ? ` (${dateStr})` : ""}`
+                      : `🛒 €${(p.purchasePrice / 1e6).toFixed(1)}M`;
+                    annotations.push({
+                      seriesName: p.name,
+                      x: targetDate,
+                      y: p.purchasePrice,
+                      title: `${p.name} (${p.position})`,
+                      label: shortLabel,
+                      color: p.color,
+                      sub: `Current MV: ${money(p.marketValue)} · Profit: ${signedMoney(p.profit)} (${p.profitPct > 0 ? "+" : ""}${p.profitPct}%) · Source: ${isEstimatedDate ? "Initial Squad / Assigned" : (p.buyCounterpart || "Kickbase")}`
+                    });
+                  }
+                }
+              });
+
+              charts.line(chartBox, {
+                title: `Market Value Over Time (${mvTimeframe === 30 ? "Last 30 Days" : mvTimeframe === 92 ? "Last 3 Months" : "Last 1 Year"}) — 🛒 marks when & for how much you bought each player`,
+                height: 390,
+                markers: activePlayers.length <= 5 && mvTimeframe <= 92,
+                yFmt: money,
+                annotations,
+                series
+              });
+            }
+          }
+
+          // Bind Controls
+          mvTrackerEl.querySelectorAll("[data-mv-preset]").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              const mode = btn.dataset.mvPreset;
+              if (mode === "all") selectedPlayerIds = new Set(squad.map((p) => p.id));
+              else if (mode === "starters") selectedPlayerIds = new Set(startingIds);
+              else if (mode === "bench") selectedPlayerIds = new Set(squad.filter((p) => !startingIds.includes(p.id)).map((p) => p.id));
+              else if (mode === "top5") {
+                const top5 = [...squad].sort((a, b) => b.marketValue - a.marketValue).slice(0, 5);
+                selectedPlayerIds = new Set(top5.map((p) => p.id));
+              } else if (mode === "none") selectedPlayerIds = new Set();
+              renderMvTracker();
+            });
+          });
+
+          mvTrackerEl.querySelector("#btn-toggle-buy-pins")?.addEventListener("click", () => {
+            showPurchasePins = !showPurchasePins;
+            renderMvTracker();
+          });
+
+          mvTrackerEl.querySelectorAll("#team-mv-pos button").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              mvPosFilter = btn.dataset.pos;
+              renderMvTracker();
+            });
+          });
+
+          mvTrackerEl.querySelectorAll("#team-mv-tf button").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              mvTimeframe = Number(btn.dataset.tf);
+              renderMvTracker();
+            });
+          });
+
+          mvTrackerEl.querySelectorAll("[data-toggle-pid]").forEach((pill) => {
+            pill.addEventListener("click", (e) => {
+              const soloEl = e.target.closest("[data-solo-pid]");
+              if (soloEl) {
+                e.stopPropagation();
+                selectedPlayerIds = new Set([soloEl.dataset.soloPid]);
+                renderMvTracker();
+                return;
+              }
+              const pid = pill.dataset.togglePid;
+              if (selectedPlayerIds.has(pid)) selectedPlayerIds.delete(pid);
+              else selectedPlayerIds.add(pid);
+              renderMvTracker();
+            });
+          });
+        }
+
+        renderMvTracker();
+      })();
+    }
 
     const byPosStats = stats.squadByPosition(squad);
     charts.bars(el.querySelector("#c-pos"), {
@@ -4725,11 +5244,55 @@ Analyze my squad strictly under Kickbase rules:
     if (ctx.stale()) return;
     const market = (raw.it || []).map((p) => tf.player(p, S.session.userId));
     const squad = (squadRaw || []).map((p) => tf.player(p, S.session?.userId));
+
+    // Sync active user bids and market offer counts to local storage so we can track won/outbid transfers & expiry times
+    try {
+      const storedBids = store.get(`kb.myBids.${ctx.l}`, {});
+      const marketSnap = store.get(`kb.marketSnap.${ctx.l}`, {});
+      let bidsChanged = false;
+      for (const p of market) {
+        if (!p.id) continue;
+        if (p.myOfferId && !p.myOfferPrice && storedBids[p.id]?.price) {
+          p.myOfferPrice = storedBids[p.id].price;
+        }
+        if (p.myOfferId || p.myOfferPrice) {
+          storedBids[p.id] = {
+            ...(storedBids[p.id] || {}),
+            playerId: p.id,
+            playerName: p.name,
+            position: p.position || storedBids[p.id]?.position || null,
+            image: p.image || storedBids[p.id]?.image || null,
+            marketValue: p.marketValue || storedBids[p.id]?.marketValue || null,
+            price: p.myOfferPrice || storedBids[p.id]?.price || null,
+            offerId: p.myOfferId || storedBids[p.id]?.offerId || null,
+            expiresAt: p.expiresAt ? p.expiresAt.getTime() : (storedBids[p.id]?.expiresAt || null),
+            timestamp: Date.now(),
+            status: "active",
+            dismissedExpired: false
+          };
+          bidsChanged = true;
+        }
+        marketSnap[p.id] = {
+          name: p.name || marketSnap[p.id]?.name || null,
+          offers: p.offers ?? marketSnap[p.id]?.offers ?? null,
+          listPrice: p.price ?? null,
+          marketValue: p.marketValue ?? null,
+          seller: p.seller ?? null,
+          position: p.position ?? null,
+          image: p.image ?? null,
+          expiresAt: p.expiresAt ? p.expiresAt.getTime() : (marketSnap[p.id]?.expiresAt || null),
+          seenAt: Date.now()
+        };
+      }
+      if (bidsChanged) store.set(`kb.myBids.${ctx.l}`, storedBids);
+      store.set(`kb.marketSnap.${ctx.l}`, marketSnap);
+    } catch (e) {}
+
     S.positions = S.positions || ["GK", "DEF", "MID", "FWD"];
     if (S.showSquadInMarketGraph === undefined) S.showSquadInMarketGraph = true;
 
-    el.innerHTML = ui.pageHead(ctx.name, "Transfer market", "Who's for sale – and who's worth the money.")
-      + `<div id="bidding"></div>` + ui.section("All players on the market", `${market.length} listed`)
+    el.innerHTML = ui.pageHead(ctx.name, "Transfermarkt", "Who's for sale – and who's worth the money.")
+      + `<div id="bidding"></div>` + ui.section("All players on the Transfermarkt", `${market.length} listed · click any player to place or update a bid`)
       + `<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:12px">`
       +   `<div class="seg" id="posf">${["GK", "DEF", "MID", "FWD"].map((p) => `<button data-p="${p}">${p}</button>`).join("")}</div>`
       +   `<label class="check" style="font-size:12.5px;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;gap:7px;margin:0;user-select:none">`
@@ -4737,21 +5300,62 @@ Analyze my squad strictly under Kickbase rules:
       +     `<span>Compare my squad in graph (<b style="color:#cbd5e1">● Light Grey</b>)</span>`
       +   `</label>`
       + `</div>`
-      + `<div id="t1"></div><div id="c1" style="margin-top:18px"></div>`;
-    if (!market.length) { el.querySelector("#t1").innerHTML = ui.alert("info", "The market is currently empty."); return; }
-    renderBidding(el.querySelector("#bidding"), ctx, market, me.b);
+      + `<div id="t1"></div>`
+      + `<div id="market-recent-transfers" style="margin-top:26px"></div>`
+      + `<div id="c1" style="margin-top:22px"></div>`;
+
+    renderBidding(el.querySelector("#bidding"), ctx, market, me.b, squad);
+
     const draw = () => {
       el.querySelectorAll("#posf button").forEach((b) => b.classList.toggle("on", S.positions.includes(b.dataset.p)));
       const chk = el.querySelector("#chk-squad-graph");
       if (chk) chk.checked = !!S.showSquadInMarketGraph;
 
+      if (!market.length) {
+        el.querySelector("#t1").innerHTML = ui.alert("info", "The Transfermarkt is currently empty.");
+        el.querySelector("#c1").innerHTML = "";
+        return;
+      }
+
       const view = market.filter((p) => S.positions.includes(p.position));
       ui.table(el.querySelector("#t1"), view, cols("image", "name", "position", "status",
         { key: "seller", label: "Seller", fmt: (v) => v ? `<span class="pill-user-deal">👤 ${esc(v)} <span class="tag-user-p2p">User</span></span>` : `<span class="muted" style="font-size:11.5px">🏪 Kickbase</span>` },
         { key: "price", label: "Price", kind: "money" }, "marketValue",
-        { key: "myOfferPrice", label: "My bid", kind: "money", optional: true }, "change24h", "avgPoints", "ppm",
-        { key: "offers", label: "Bids", kind: "int" }, { key: "expiresInH", label: "Ends in (h)", kind: "f1" }),
-        { sort: "ppm", rowClass: (p) => p.seller ? "tr-user-deal" : "" });
+        { key: "myOfferPrice", label: "My bid", kind: "money", optional: true }, "change24h",
+        "totalPoints", "avgPoints", "gamesPlayed", "ppm",
+        { key: "offers", label: "Bids", kind: "int" },
+        {
+          key: "expiresInH",
+          label: "Window ends",
+          kind: "f1",
+          title: "When the transfer window ends for this player and they leave the Transfermarkt",
+          fmt: (v, r) => {
+            const exp = formatTransferExpiry(r);
+            if (!exp) return v !== null && v !== undefined ? `${ui.fixed(1)(v)}h` : `<span class="muted">–</span>`;
+            return `
+              <div title="Transfer window closes ${esc(exp.clockStr)} – player is unavailable after">
+                <b style="color:${exp.color}">${esc(exp.durationStr)}</b>
+                <div style="font-size:10.5px;color:var(--muted)" class="num">${esc(exp.clockStr)}</div>
+              </div>
+            `;
+          }
+        },
+        {
+          key: "id",
+          label: "Bid",
+          right: true,
+          fmt: (v, r) => (r.myOfferId || r.myOfferPrice)
+            ? `<button class="btn sm" style="height:26px;padding:0 9px;font-size:11.5px;border-color:rgba(16,185,129,0.45);color:#34d399">${ui.icon("edit")} Update bid</button>`
+            : `<button class="btn primary sm" style="height:26px;padding:0 10px;font-size:11.5px">${ui.icon("gavel")} Bid</button>`
+        }),
+        {
+          sort: "ppm",
+          rowClass: (p) => (p.myOfferId || p.myOfferPrice) ? "me" : (p.seller ? "tr-user-deal" : ""),
+          onRowClick: (p) => bidDialog(ctx, p, me.b),
+          rowTitle: (p) => (p.myOfferId || p.myOfferPrice)
+            ? `Click to update or withdraw your bid (${money(p.myOfferPrice)}) for ${p.name}`
+            : `Click to place a bid on ${p.name}`
+        });
 
       // Market player points (colored by position / pawn color)
       const marketPoints = view.map((p) => ({
@@ -4761,7 +5365,7 @@ Analyze my squad strictly under Kickbase rules:
         group: p.position,
         color: p.color || charts.POSITION_COLORS[p.position],
         pos: p.position,
-        badge: "Market",
+        badge: "Transfermarkt",
         isSquad: false
       }));
 
@@ -4803,35 +5407,1118 @@ Analyze my squad strictly under Kickbase rules:
       draw();
     });
     draw();
+
+    // Enrich market players with exact season appearances (smc) & total points (tp) from player profile endpoint
+    if (market.length && S.api.player) {
+      Promise.all(market.map(async (p) => {
+        if (!p.id) return false;
+        const pInfo = await S.api.player(ctx.l, p.id);
+        if (!pInfo) return false;
+        if (pInfo.tp !== undefined && pInfo.tp !== null) p.totalPoints = Number(pInfo.tp);
+        if (pInfo.ap !== undefined && pInfo.ap !== null) p.avgPoints = Number(pInfo.ap);
+        if (pInfo.smc !== undefined && pInfo.smc !== null) {
+          p.gamesPlayed = Number(pInfo.smc);
+        } else if (Array.isArray(pInfo.ph)) {
+          p.gamesPlayed = pInfo.ph.filter((x) => x && (x.hp || (x.p !== undefined && x.p !== 0))).length;
+        }
+        if (pInfo.ismc !== undefined && pInfo.ismc !== null) p.startsCount = Number(pInfo.ismc);
+        if (pInfo.smdc !== undefined && pInfo.smdc !== null) p.seasonMatchdays = Number(pInfo.smdc);
+        return true;
+      })).then((results) => {
+        if (!ctx.stale() && results.some(Boolean)) {
+          draw();
+          renderBidding(el.querySelector("#bidding"), ctx, market, me.b, squad);
+        }
+      }).catch(() => {});
+    }
+
+    // Load & render Last Manager Transfers & Winning Bids section
+    renderMarketRecentTransfers(el.querySelector("#market-recent-transfers"), ctx, market, squad);
+  }
+
+  async function renderMarketRecentTransfers(box, ctx, market, squad) {
+    if (!box) return;
+    box.innerHTML = ui.section("Last manager transfers & winning bids", "loading league transfer activity…")
+      + `<div class="card" style="padding:18px;display:flex;align-items:center;gap:10px;color:var(--muted);font-size:13px"><div class="spinner"></div> Fetching recent manager transfers, winning bids, and market value comparisons…</div>`;
+
+    try {
+      const [rank, feedRaw] = await Promise.all([
+        rankingRows(ctx.l),
+        S.api.activitiesFeed ? S.api.activitiesFeed(ctx.l, 500) : Promise.resolve({ af: [] })
+      ]);
+      if (ctx.stale()) return;
+
+      const myId = myManagerId(rank);
+      const myMgr = rank.find((r) => r.id === myId);
+      const myName = (myMgr && myMgr.name) || S.session?.userName || "";
+
+      // Fetch transfers and squads for all managers in the league
+      const rawTransfers = [];
+      const allSquadPlayers = [];
+      await Promise.all(rank.map(async (m) => {
+        const [tRes, sqRes] = await Promise.all([
+          S.api.managerTransfers(ctx.l, m.id).catch(() => ({ it: [], u: m.id })),
+          S.api.managerSquad(ctx.l, m.id).catch(() => ({ it: [] }))
+        ]);
+        rawTransfers.push(...tf.transfers(tRes, m.name));
+        for (const sp of (sqRes.it || [])) {
+          allSquadPlayers.push({ ...tf.player(sp), manager: m.name, managerId: m.id });
+        }
+      }));
+      if (ctx.stale()) return;
+
+      // Build player metadata map (name, position, image, current MV)
+      const playerMeta = new Map();
+      const marketSnap = store.get(`kb.marketSnap.${ctx.l}`, {});
+      for (const [pid, snap] of Object.entries(marketSnap)) {
+        playerMeta.set(String(pid), {
+          name: snap.name || null,
+          position: snap.position || null,
+          image: snap.image || null,
+          currentMv: snap.marketValue || null,
+          snapOffers: snap.offers ?? null,
+          snapSeenAt: snap.seenAt || 0,
+          snapSeller: snap.seller || null,
+          snapPrice: snap.listPrice || null,
+          snapExpiresAt: snap.expiresAt || null
+        });
+      }
+      for (const p of [...market, ...squad, ...allSquadPlayers]) {
+        if (!p || !p.id) continue;
+        const prev = playerMeta.get(String(p.id)) || {};
+        playerMeta.set(String(p.id), {
+          name: p.name || prev.name || null,
+          position: (p.position && p.position !== "?") ? p.position : (prev.position || null),
+          image: p.image || prev.image || null,
+          currentMv: p.marketValue || prev.currentMv || null,
+          snapOffers: prev.snapOffers ?? p.offers ?? null,
+          snapSeenAt: prev.snapSeenAt || 0,
+          snapSeller: prev.snapSeller || p.seller || null,
+          snapPrice: prev.snapPrice || p.price || null,
+          snapExpiresAt: prev.snapExpiresAt || null
+        });
+      }
+
+      // Parse activitiesFeed transfer items (t === 15 in Kickbase v4 returns ALL managers' transfers across the league!)
+      const feedTransfers = [];
+      for (const item of (feedRaw && Array.isArray(feedRaw.af) ? feedRaw.af : [])) {
+        if (item.t !== undefined && item.t !== 15 && item.t !== 12 && item.t !== 2) continue;
+        const d = item && (item.data || item.meta);
+        if (!d || (!d.trp && !d.p && !d.byr && !d.slr && !d.bn && !d.sn)) continue;
+        const pid = String(d.pi || d.pid || "");
+        const price = Number(d.trp ?? d.p ?? 0);
+        const dt = (item.dt || item.date) ? new Date(item.dt || item.date) : null;
+        const rawOfc = d.ofc ?? d.bids ?? (typeof d.bn === "number" && d.bn > 0 && d.bn < 50 ? d.bn : null);
+        const bidCount = rawOfc !== null && rawOfc !== undefined ? Number(rawOfc) : null;
+        const buyerName = d.byr ? String(d.byr).trim() : (typeof d.bn === "string" ? d.bn.trim() : null);
+        const sellerName = d.slr ? String(d.slr).trim() : (typeof d.sn === "string" ? d.sn.trim() : null);
+        const isUserTransfer = Boolean(buyerName && sellerName);
+        const type = buyerName ? "Buy" : "Sell";
+        const buyer = buyerName || "Kickbase";
+        const seller = sellerName || "Kickbase";
+        const meta = playerMeta.get(pid) || {};
+        const pFirstName = d.fn || d.pfn || "";
+        const pLastName = d.pn || d.pln || d.n || "";
+        const pFullName = meta.name || `${pFirstName} ${pLastName}`.trim() || pLastName || "Player";
+        const buyerMgr = rank.find((r) => r.name && buyer && r.name.toLowerCase() === buyer.toLowerCase());
+        const sellerMgr = rank.find((r) => r.name && seller && r.name.toLowerCase() === seller.toLowerCase());
+
+        feedTransfers.push({
+          id: String(item.i || item.id || ""),
+          managerId: buyerMgr ? String(buyerMgr.id) : (sellerMgr ? String(sellerMgr.id) : ""),
+          manager: buyerName || sellerName || "",
+          playerId: pid,
+          player: pFullName,
+          color: KB.playerColor(pid, pFullName),
+          image: meta.image || (KB.imageUrl && d.pim ? KB.imageUrl(d.pim) : null),
+          type,
+          buyer,
+          seller,
+          price,
+          counterpart: buyerName ? seller : buyer,
+          isUserTransfer,
+          date: dt,
+          marketValueAtSale: d.mv || d.pmv || null,
+          bidCount,
+          userOfferPrice: d.uop || d.uopr || null,
+          raw: item
+        });
+      }
+
+      // Deduplicate and merge rawTransfers (from managerTransfers) AND feedTransfers (from activitiesFeed)
+      const seenPeerKeys = new Set();
+      const mergedTransfers = [];
+
+      const addTransferToMerged = (t, isFromFeed = false) => {
+        let buyer = t.buyer || t.manager;
+        let seller = t.seller || t.counterpart;
+        if (!t.buyer && !t.seller) {
+          if (t.type === "Sell") {
+            buyer = t.counterpart;
+            seller = t.manager;
+          } else {
+            buyer = t.manager;
+            seller = t.counterpart;
+          }
+        }
+        if (t.isUserTransfer) {
+          const p1 = String(buyer || "").trim().toLowerCase();
+          const p2 = String(seller || "").trim().toLowerCase();
+          const participants = [p1, p2].sort().join("<->");
+          const dateDay = t.date ? (t.date instanceof Date ? t.date.toISOString().slice(0, 10) : String(t.date).slice(0, 10)) : "";
+          const peerKey = `${t.playerId}__${participants}__${t.price}__${dateDay}`;
+          if (seenPeerKeys.has(peerKey)) return;
+          seenPeerKeys.add(peerKey);
+        }
+
+        // Check if this transfer is already in mergedTransfers (e.g. from rawTransfers when merging feedTransfers)
+        const existingIdx = mergedTransfers.findIndex((mt) =>
+          String(mt.playerId) === String(t.playerId) &&
+          Math.abs((mt.price || 0) - (t.price || 0)) < 500 &&
+          (!mt.date || !t.date || Math.abs(mt.date.getTime() - t.date.getTime()) < 36 * 3600 * 1000) &&
+          (String(mt.buyer || "").toLowerCase() === String(buyer || "").toLowerCase() ||
+           String(mt.seller || "").toLowerCase() === String(seller || "").toLowerCase())
+        );
+
+        if (existingIdx !== -1) {
+          const ex = mergedTransfers[existingIdx];
+          if ((ex.bidCount === null || ex.bidCount === undefined) && t.bidCount !== null && t.bidCount !== undefined) {
+            ex.bidCount = t.bidCount;
+          }
+          if (!ex.marketValueAtSale && t.marketValueAtSale) {
+            ex.marketValueAtSale = t.marketValueAtSale;
+          }
+          if (!ex.userOfferPrice && t.userOfferPrice) {
+            ex.userOfferPrice = t.userOfferPrice;
+          }
+          return;
+        }
+
+        let bidCount = t.bidCount;
+        if (!isFromFeed && (bidCount === null || bidCount === undefined) && feedTransfers.length) {
+          const matchFeed = feedTransfers.find((ft) =>
+            ft.playerId === String(t.playerId) &&
+            Math.abs((ft.price || 0) - (t.price || 0)) < 500 &&
+            (!ft.date || !t.date || Math.abs(ft.date.getTime() - t.date.getTime()) < 36 * 3600 * 1000)
+          );
+          if (matchFeed && matchFeed.bidCount !== null) bidCount = matchFeed.bidCount;
+        }
+        const meta = playerMeta.get(String(t.playerId)) || {};
+        if ((bidCount === null || bidCount === undefined) && meta.snapOffers !== null && meta.snapOffers !== undefined && t.date) {
+          if (Math.abs(Date.now() - t.date.getTime()) < 7 * 86400 * 1000) {
+            bidCount = meta.snapOffers;
+          }
+        }
+
+        const dateStr = t.date instanceof Date && !isNaN(t.date) ? t.date.toISOString().slice(0, 10) : "";
+        const transferKey = t.transferKey || `${t.playerId}_${t.price}_${dateStr}_${buyer}_${seller}`;
+        const pName = meta.name || t.player || "Player";
+
+        mergedTransfers.push({
+          ...t,
+          player: pName,
+          buyer,
+          seller,
+          bidCount,
+          transferKey,
+          position: (t.position && t.position !== "?") ? t.position : (meta.position || null),
+          image: t.image || meta.image || (KB.imageUrl && t.playerId ? `https://kickbase.b-cdn.net/pool/playersbig/${t.playerId}.png` : null)
+        });
+      };
+
+      // 1. Add all rawTransfers (from managerTransfers)
+      for (const t of rawTransfers) {
+        addTransferToMerged(t, false);
+      }
+      // 2. Add all feedTransfers (from activitiesFeed – includes all rival managers' winning bids and sales!)
+      for (const ft of feedTransfers) {
+        addTransferToMerged(ft, true);
+      }
+
+      // 3. Also synthesize any lost/expired user bids from kb.myBids where the player left the market
+      //    and wasn't already matched to a transfer in mergedTransfers (e.g. outbid and not in feed, or window closed without a winner)
+      const syncLostBidsIntoMerged = () => {
+        // Remove previously synthesized unwon rows before re-evaluating
+        for (let i = mergedTransfers.length - 1; i >= 0; i--) {
+          if (mergedTransfers[i]._synthesizedLostBid) mergedTransfers.splice(i, 1);
+        }
+        const storedBids = store.get(`kb.myBids.${ctx.l}`, {});
+        for (const [key, b] of Object.entries(storedBids)) {
+          if (!b || !b.playerId || b.removed) continue;
+          const pid = String(b.playerId);
+          const isManualLost = Boolean(b.isManualLostBid);
+          if (!isManualLost && String(key) !== pid) continue;
+
+          // If player is still on the active Transfermarkt (and not a manual historical lost bid), it's still an open bid
+          const stillOnMarket = market.some((mp) => String(mp.id) === pid);
+          if (stillOnMarket && !isManualLost) continue;
+
+          // If player is in the user's squad (they won the bid), check if already in mergedTransfers
+          const inMySquad = (squad || []).some((sp) => String(sp.id) === pid);
+          if (inMySquad && !isManualLost) continue;
+
+          // Check if mergedTransfers already has a buy transfer for this player around the bid timestamp
+          const hasMatchingTransfer = mergedTransfers.some((mt) =>
+            !mt._synthesizedLostBid &&
+            String(mt.playerId) === pid &&
+            (mt.type === "Buy" || mt.isUserTransfer || (mt.buyer && mt.buyer !== "Kickbase")) &&
+            (!mt.date || !b.timestamp || Math.abs(mt.date.getTime() - b.timestamp) < 10 * 86400 * 1000)
+          );
+          if (hasMatchingTransfer && !isManualLost) continue;
+
+          // Check if a rival manager in the league now owns this player in their squad
+          const rivalSp = allSquadPlayers.find((sp) => String(sp.id) === pid && String(sp.managerId) !== String(myId));
+          const meta = playerMeta.get(pid) || {};
+          const pName = b.playerName || rivalSp?.name || meta.name || `Player #${pid}`;
+          const pos = (b.position && b.position !== "?") ? b.position : (rivalSp?.position || meta.position || null);
+          const img = b.image || rivalSp?.image || meta.image || (KB.imageUrl && pid ? `https://kickbase.b-cdn.net/pool/playersbig/${pid}.png` : null);
+          const buyerName = b.winnerName || (rivalSp ? rivalSp.manager : "No Winner (Window Closed)");
+          const winPrice = b.winningPrice || (rivalSp ? (rivalSp.purchasePrice || rivalSp.marketValue || b.price || 0) : (b.price || b.marketValue || 0));
+          const dt = b.expiresAt ? new Date(b.expiresAt) : new Date(b.timestamp || Date.now());
+          const dateStr = dt instanceof Date && !isNaN(dt) ? dt.toISOString().slice(0, 10) : "";
+          const transferKey = isManualLost ? key : `lost_${pid}_${dateStr}`;
+
+          mergedTransfers.push({
+            id: transferKey,
+            managerId: rivalSp ? String(rivalSp.managerId) : "",
+            manager: buyerName,
+            playerId: pid,
+            player: pName,
+            color: KB.playerColor(pid, pName),
+            image: img,
+            position: pos,
+            type: "Buy",
+            buyer: buyerName,
+            seller: b.seller || meta.snapSeller || "Kickbase",
+            price: winPrice,
+            counterpart: "Kickbase",
+            isUserTransfer: false,
+            isUnwonBid: !rivalSp && !b.winnerName,
+            date: dt,
+            marketValueAtSale: b.marketValue || meta.currentMv || rivalSp?.marketValue || null,
+            bidCount: meta.snapOffers ?? null,
+            userOfferPrice: b.price || null,
+            transferKey,
+            _synthesizedLostBid: true
+          });
+        }
+        mergedTransfers.sort((a, b) => (b.date ? +b.date : 0) - (a.date ? +a.date : 0));
+      };
+
+      syncLostBidsIntoMerged();
+
+      let filterMode = S.marketTransferFilter || "buys"; // "all" | "buys" | "lost" | "mine" | "trades" | "sells"
+      let rowLimit = S.marketTransferLimit || 30;
+
+      const getMyBidForTransfer = (t) => {
+        const storedBids = store.get(`kb.myBids.${ctx.l}`, {});
+        // 1. Check exact transferKey override (manual log or specific transfer)
+        if (storedBids[t.transferKey]) {
+          if (storedBids[t.transferKey].removed) return null;
+          return storedBids[t.transferKey];
+        }
+        // 2. Check API-provided userOfferPrice on the transfer object
+        if (t.userOfferPrice && t.userOfferPrice > 0) {
+          return { price: t.userOfferPrice, source: "api" };
+        }
+        // 3. Check stored bid by playerId (recorded when user bid or viewed active bid on market)
+        const byPid = storedBids[String(t.playerId)];
+        if (byPid && !byPid.removed) {
+          // Match if transfer occurred within 14 days of bid timestamp
+          if (!t.date || !byPid.timestamp || Math.abs(t.date.getTime() - byPid.timestamp) < 14 * 86400 * 1000) {
+            return byPid;
+          }
+        }
+        return null;
+      };
+
+      const enrichTransferRow = (t) => {
+        const meta = playerMeta.get(String(t.playerId)) || {};
+        const mvHist = playerHistCache.get(`${t.playerId}_mv_data`);
+        const currentMv = meta.currentMv || (mvHist ? mvHist.latestMv : null) || null;
+        const mwAtSale = t.marketValueAtSale || findHistoricalMw(mvHist, t.date) || null;
+        const pName = meta.name || t.player || "Player";
+        const pPos = (t.position && t.position !== "?") ? t.position : (meta.position || null);
+        const pImg = t.image || meta.image || null;
+
+        const isBuyDeal = t.type === "Buy" || t.isUserTransfer || t.isUnwonBid || (t.buyer && t.buyer !== "Kickbase");
+        const buyerIsMe = Boolean(
+          !t.isUnwonBid && (
+            (myName && t.buyer && t.buyer.toLowerCase() === myName.toLowerCase()) ||
+            (!t.isUserTransfer && t.type === "Buy" && String(t.managerId) === String(myId))
+          )
+        );
+        const sellerIsMe = Boolean(
+          (myName && t.seller && t.seller.toLowerCase() === myName.toLowerCase()) ||
+          (!t.isUserTransfer && t.type === "Sell" && String(t.managerId) === String(myId))
+        );
+
+        const overpay = (mwAtSale && t.price) ? (t.price - mwAtSale) : null;
+        const overpayPct = (mwAtSale && mwAtSale > 0 && overpay !== null)
+          ? Math.round((overpay / mwAtSale) * 1000) / 10
+          : null;
+
+        const myBidObj = getMyBidForTransfer(t);
+        let didUserBid = false;
+        let userBidStatus = "none"; // "won" | "outbid" | "lost_unwon" | "sold" | "none"
+        let myBidPrice = null;
+
+        if (buyerIsMe && isBuyDeal) {
+          didUserBid = true;
+          userBidStatus = "won";
+          myBidPrice = t.price;
+        } else if (t.isUnwonBid) {
+          didUserBid = true;
+          userBidStatus = "lost_unwon";
+          myBidPrice = myBidObj?.price || t.userOfferPrice || t.price || null;
+        } else if (sellerIsMe) {
+          didUserBid = false;
+          userBidStatus = "sold";
+          myBidPrice = myBidObj?.price || null;
+        } else if (myBidObj && isBuyDeal) {
+          didUserBid = true;
+          userBidStatus = "outbid";
+          myBidPrice = myBidObj.price || null;
+        }
+
+        const managerBidOverMw = isBuyDeal && !t.isUnwonBid && overpay !== null && overpay > 0;
+
+        return {
+          ...t,
+          player: pName,
+          position: pPos,
+          image: pImg,
+          isBuyDeal,
+          buyerIsMe,
+          sellerIsMe,
+          currentMv,
+          mwAtSale,
+          overpay,
+          overpayPct,
+          didUserBid,
+          userBidStatus,
+          myBidPrice,
+          managerBidOverMw
+        };
+      };
+
+      const openLogBidDialog = (tRow) => {
+        const existing = getMyBidForTransfer(tRow);
+        const defaultVal = existing?.price || tRow.myBidPrice || tRow.mwAtSale || tRow.price || 1000000;
+        ui.dialog(`Did you bid on ${tRow.player}?`, (body, close) => {
+          body.innerHTML = `
+            <p style="font-size:13px;color:var(--muted);margin-top:0">
+              ${tRow.isUnwonBid
+                ? `You bid on <b>${esc(tRow.player)}</b> and did not win the bid.`
+                : `<b>${esc(tRow.buyer)}</b> won the bid for <b>${esc(tRow.player)}</b> at <b>${ui.moneyFull(tRow.price)}</b>.`}
+              Record your bid below to track that you bid on this player and did not win.
+            </p>
+            <div class="field">
+              <label for="log-bid-price">Your bid amount (€) <span class="muted">(optional – leave as is or enter exact €)</span></label>
+              <input class="input num" id="log-bid-price" type="number" min="0" step="10000" value="${defaultVal}">
+            </div>
+            <div class="row" style="margin-top:16px">
+              <button class="btn primary" id="btn-save-log-bid" style="flex:1">${ui.icon("check")} Save My Lost Bid</button>
+              ${(existing || tRow._synthesizedLostBid) ? `<button class="btn" id="btn-clear-log-bid" style="color:#f87171">Remove</button>` : ""}
+              <button class="btn ghost" id="btn-cancel-log-bid">Cancel</button>
+            </div>
+          `;
+          body.querySelector("#btn-cancel-log-bid")?.addEventListener("click", close);
+          body.querySelector("#btn-save-log-bid")?.addEventListener("click", () => {
+            const val = Math.floor(Number(body.querySelector("#log-bid-price").value) || 0);
+            const storedBids = store.get(`kb.myBids.${ctx.l}`, {});
+            storedBids[tRow.transferKey] = {
+              ...(storedBids[tRow.transferKey] || {}),
+              playerId: String(tRow.playerId),
+              playerName: tRow.player,
+              position: tRow.position || null,
+              image: tRow.image || null,
+              price: val > 0 ? val : null,
+              timestamp: Date.now(),
+              status: "outbid"
+            };
+            store.set(`kb.myBids.${ctx.l}`, storedBids);
+            syncLostBidsIntoMerged();
+            close();
+            drawRecentTransfers();
+          });
+          body.querySelector("#btn-clear-log-bid")?.addEventListener("click", () => {
+            const storedBids = store.get(`kb.myBids.${ctx.l}`, {});
+            storedBids[tRow.transferKey] = { removed: true };
+            if (storedBids[String(tRow.playerId)]) storedBids[String(tRow.playerId)].removed = true;
+            store.set(`kb.myBids.${ctx.l}`, storedBids);
+            syncLostBidsIntoMerged();
+            close();
+            drawRecentTransfers();
+          });
+        });
+      };
+
+      const openAddLostBidDialog = () => {
+        // Build list of candidate players from rival squads, recent market snapshots, and feed transfers
+        const candidateMap = new Map();
+        for (const [pid, meta] of playerMeta.entries()) {
+          if (meta.name && !squad.some((sp) => String(sp.id) === String(pid))) {
+            const ownerSp = allSquadPlayers.find((sp) => String(sp.id) === String(pid) && String(sp.managerId) !== String(myId));
+            candidateMap.set(String(pid), {
+              id: String(pid),
+              name: meta.name,
+              position: meta.position || "?",
+              mv: meta.currentMv || 1000000,
+              owner: ownerSp ? ownerSp.manager : null,
+              price: ownerSp ? (ownerSp.purchasePrice || ownerSp.marketValue) : (meta.snapPrice || meta.currentMv || 1000000)
+            });
+          }
+        }
+        const candidates = [...candidateMap.values()].sort((a, b) => a.name.localeCompare(b.name));
+
+        ui.dialog("Log a Bid You Did Not Win", (body, close) => {
+          body.innerHTML = `
+            <p style="font-size:13px;color:var(--muted);margin-top:0">
+              Did you place a bid in the Kickbase app that you didn't win (e.g. outbid by another manager or rejected when the window ended)? Add it here so it appears in your transfer & bid history.
+            </p>
+            <div class="field">
+              <label for="lost-bid-select">Select player (or type name below)</label>
+              <select class="input" id="lost-bid-select">
+                <option value="">-- Choose from league / recent market players --</option>
+                ${candidates.map((c) => `<option value="${esc(c.id)}">${esc(c.name)} (${esc(c.position)}) – MV ${money(c.mv)}${c.owner ? ` · Owned by ${esc(c.owner)}` : ""}</option>`).join("")}
+              </select>
+            </div>
+            <div class="field">
+              <label for="lost-bid-name">Player name</label>
+              <input class="input" id="lost-bid-name" type="text" placeholder="e.g. Olise">
+            </div>
+            <div class="row" style="gap:10px">
+              <div class="field" style="flex:1">
+                <label for="lost-bid-myprice">Your bid (€)</label>
+                <input class="input num" id="lost-bid-myprice" type="number" min="0" step="10000" value="5000000">
+              </div>
+              <div class="field" style="flex:1">
+                <label for="lost-bid-winner">Who won the bid?</label>
+                <select class="input" id="lost-bid-winner">
+                  <option value="">No Winner (Window Closed / Rejected)</option>
+                  ${rank.filter((r) => String(r.id) !== String(myId)).map((r) => `<option value="${esc(r.name)}">🏆 ${esc(r.name)}</option>`).join("")}
+                </select>
+              </div>
+            </div>
+            <div class="field" id="lost-bid-winprice-wrap" style="display:none">
+              <label for="lost-bid-winprice">Winning bid price (€)</label>
+              <input class="input num" id="lost-bid-winprice" type="number" min="0" step="10000" value="5500000">
+            </div>
+            <div id="lost-bid-err"></div>
+            <div class="row" style="margin-top:16px">
+              <button class="btn primary" id="btn-save-new-lost-bid" style="flex:1">${ui.icon("check")} Add Lost Bid</button>
+              <button class="btn ghost" id="btn-cancel-new-lost-bid">Cancel</button>
+            </div>
+          `;
+          const selEl = body.querySelector("#lost-bid-select");
+          const nameEl = body.querySelector("#lost-bid-name");
+          const myPriceEl = body.querySelector("#lost-bid-myprice");
+          const winnerEl = body.querySelector("#lost-bid-winner");
+          const winPriceWrap = body.querySelector("#lost-bid-winprice-wrap");
+          const winPriceEl = body.querySelector("#lost-bid-winprice");
+
+          selEl?.addEventListener("change", () => {
+            const c = candidateMap.get(selEl.value);
+            if (!c) return;
+            nameEl.value = c.name;
+            myPriceEl.value = c.mv || 1000000;
+            if (c.owner) {
+              winnerEl.value = c.owner;
+              winPriceWrap.style.display = "";
+              winPriceEl.value = c.price || c.mv || 1000000;
+            }
+          });
+          winnerEl?.addEventListener("change", () => {
+            winPriceWrap.style.display = winnerEl.value ? "" : "none";
+          });
+          body.querySelector("#btn-cancel-new-lost-bid")?.addEventListener("click", close);
+          body.querySelector("#btn-save-new-lost-bid")?.addEventListener("click", () => {
+            const pName = (nameEl.value || "").trim();
+            if (!pName) {
+              body.querySelector("#lost-bid-err").innerHTML = ui.alert("error", "Please select or enter a player name.");
+              return;
+            }
+            const pid = selEl.value || `custom_${pName.toLowerCase().replace(/[^a-z0-9]/g, "")}`;
+            const myBidVal = Math.floor(Number(myPriceEl.value) || 0);
+            const winnerName = winnerEl.value || null;
+            const winPriceVal = winnerName ? Math.floor(Number(winPriceEl.value) || myBidVal) : myBidVal;
+            const cand = candidateMap.get(selEl.value);
+
+            // Check if there is already a transfer in mergedTransfers for this player & winner
+            const existingTr = mergedTransfers.find((mt) =>
+              !mt._synthesizedLostBid &&
+              (String(mt.playerId) === String(pid) || (mt.player && mt.player.toLowerCase() === pName.toLowerCase())) &&
+              (!winnerName || (mt.buyer && mt.buyer.toLowerCase() === winnerName.toLowerCase()))
+            );
+
+            const storedBids = store.get(`kb.myBids.${ctx.l}`, {});
+            const key = existingTr ? existingTr.transferKey : `manual_lost_${pid}_${Date.now()}`;
+            storedBids[key] = {
+              playerId: String(pid),
+              playerName: pName,
+              position: cand?.position || null,
+              marketValue: cand?.mv || myBidVal || null,
+              price: myBidVal > 0 ? myBidVal : null,
+              winnerName,
+              winningPrice: winPriceVal,
+              isManualLostBid: !existingTr,
+              timestamp: Date.now(),
+              status: "outbid"
+            };
+            store.set(`kb.myBids.${ctx.l}`, storedBids);
+            syncLostBidsIntoMerged();
+            close();
+            drawRecentTransfers();
+          });
+        });
+      };
+
+      const formatRelativeDate = (d) => {
+        if (!(d instanceof Date) || isNaN(d)) return "–";
+        const diffMs = Date.now() - d.getTime();
+        const diffH = Math.floor(diffMs / 3600000);
+        const diffD = Math.floor(diffMs / 86400000);
+        let rel = "";
+        if (diffH < 1) rel = "Just now";
+        else if (diffH < 24) rel = `${diffH}h ago`;
+        else if (diffD === 1) rel = "Yesterday";
+        else if (diffD < 14) rel = `${diffD}d ago`;
+        const dateFormatted = d.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" });
+        return `<div><b>${dateFormatted}</b>${rel ? `<div style="font-size:10.5px;color:var(--muted)">${rel}</div>` : ""}</div>`;
+      };
+
+      const drawRecentTransfers = () => {
+        const enrichedAll = mergedTransfers.map(enrichTransferRow);
+        const wonBids = enrichedAll.filter((t) => t.isBuyDeal);
+        const lostBids = enrichedAll.filter((t) => t.userBidStatus === "outbid" || t.userBidStatus === "lost_unwon");
+        const myActivity = enrichedAll.filter((t) => t.didUserBid || t.buyerIsMe || t.sellerIsMe);
+        const peerTrades = enrichedAll.filter((t) => t.isUserTransfer);
+        const kbSales = enrichedAll.filter((t) => !t.isBuyDeal);
+
+        let filtered = enrichedAll;
+        if (filterMode === "buys") filtered = wonBids;
+        else if (filterMode === "lost") filtered = lostBids;
+        else if (filterMode === "mine") filtered = myActivity;
+        else if (filterMode === "trades") filtered = peerTrades;
+        else if (filterMode === "sells") filtered = kbSales;
+
+        const visibleRows = rowLimit > 0 ? filtered.slice(0, rowLimit) : filtered;
+
+        // Compute summary KPIs from recent won bids (last 25 buys)
+        const recentBuys = wonBids.filter((t) => !t.isUnwonBid).slice(0, 25);
+        const lastWon = recentBuys[0] || null;
+        const buysWithOverpay = recentBuys.filter((t) => t.overpay !== null && t.overpay > 0);
+        const topOverpay = [...buysWithOverpay].sort((a, b) => (b.overpay || 0) - (a.overpay || 0))[0] || null;
+        const myWonCount = wonBids.filter((t) => t.buyerIsMe).length;
+        const myLostCount = lostBids.length;
+
+        box.innerHTML = `
+          ${ui.section("Last manager transfers & winning bids", `${wonBids.length} manager buys & bids · ${enrichedAll.length} total league transfers`)}
+          ${(recentBuys.length || myLostCount) ? ui.kpis([
+            {
+              label: "Latest Winning Bid",
+              value: lastWon ? money(lastWon.price) : "–",
+              sub: lastWon ? `${lastWon.player} → ${lastWon.buyer}` : ""
+            },
+            {
+              label: "Biggest Bid Overpay (Recent)",
+              value: topOverpay ? `+${money(topOverpay.overpay)}` : "None > MW",
+              delta: topOverpay && topOverpay.overpayPct ? `+${topOverpay.overpayPct}% over MW` : "",
+              tone: topOverpay ? "down" : "",
+              sub: topOverpay ? `${topOverpay.buyer} for ${topOverpay.player}` : "All recent buys at/under MW"
+            },
+            {
+              label: "Bids Over Market Value",
+              value: `${buysWithOverpay.length} / ${recentBuys.length}`,
+              sub: `in last ${recentBuys.length} manager buys`
+            },
+            {
+              label: "Your Bids (Won vs. Not Won)",
+              value: `${myWonCount} Won · ${myLostCount} Not Won`,
+              sub: "Click '+ I bid' on any row or '+ Log Lost Bid' to add mobile app bids"
+            }
+          ]) : ""}
+
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:12px 0">
+            <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px">
+              <div class="seg" id="mkt-tr-filter">
+                <button data-f="buys" class="${filterMode === "buys" ? "on" : ""}">🏆 Won Bid / Manager Buys (${wonBids.length})</button>
+                <button data-f="lost" class="${filterMode === "lost" ? "on" : ""}">❌ Did Not Win (${lostBids.length})</button>
+                <button data-f="mine" class="${filterMode === "mine" ? "on" : ""}">🎯 My Bids & Deals (${myActivity.length})</button>
+                <button data-f="all" class="${filterMode === "all" ? "on" : ""}">All Transfers (${enrichedAll.length})</button>
+                <button data-f="trades" class="${filterMode === "trades" ? "on" : ""}">🤝 Manager Trades (${peerTrades.length})</button>
+                <button data-f="sells" class="${filterMode === "sells" ? "on" : ""}">🏪 Sold to Kickbase (${kbSales.length})</button>
+              </div>
+              <button class="btn sm" id="btn-add-lost-bid" title="Record a bid you placed in the Kickbase app that you did not win" style="border-color:rgba(245,158,11,0.4);color:#fbbf24">+ Log Lost Bid</button>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span style="font-size:12px;color:var(--muted)">Show:</span>
+              <div class="seg" id="mkt-tr-limit">
+                ${[15, 30, 50, 0].map((lim) => `<button data-lim="${lim}" class="${rowLimit === lim ? "on" : ""}">${lim === 0 ? "All" : `Last ${lim}`}</button>`).join("")}
+              </div>
+            </div>
+          </div>
+
+          <div id="mkt-tr-table"></div>
+        `;
+
+        box.querySelector("#btn-add-lost-bid")?.addEventListener("click", openAddLostBidDialog);
+
+        const tableEl = box.querySelector("#mkt-tr-table");
+        if (!visibleRows.length) {
+          tableEl.innerHTML = ui.alert("info", filterMode === "lost"
+            ? `No lost/outbid offers recorded yet. Active bids placed here or on the Transfermarkt are tracked automatically — or click <b>+ I bid</b> on any manager buy row (or <b>+ Log Lost Bid</b> above) to mark players you bid on in the mobile app and did not win.`
+            : "No transfers match the selected filter.");
+        } else {
+          const trCols = [
+            {
+              key: "date",
+              label: "Date",
+              fmt: (v) => formatRelativeDate(v)
+            },
+            {
+              key: "player",
+              label: "Player",
+              fmt: (v, r) => {
+                const pCol = (r && r.color) || KB.playerColor(r ? (r.playerId || v) : v);
+                const pObj = { id: r ? r.playerId : "", name: v, color: pCol, image: r ? r.image : null, position: r ? r.position : null };
+                return `
+                  <div style="display:flex;align-items:center;gap:8px">
+                    ${ui.pawn(pObj, 30, { showPos: false })}
+                    <div>
+                      <div style="display:flex;align-items:center;gap:6px">
+                        <span class="player-color-dot" style="background:${pCol};box-shadow:0 0 6px ${pCol}88"></span>
+                        <b>${esc(v)}</b>
+                        ${r && r.position && r.position !== "?" ? ui.pos(r.position) : ""}
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }
+            },
+            {
+              key: "buyer",
+              label: "Who Got the Bid (Winner)",
+              fmt: (v, r) => {
+                if (!r.isBuyDeal) {
+                  return `
+                    <div>
+                      <span class="pill-kb-market">${ui.icon("storefront")} Sold to Kickbase</span>
+                      <div style="font-size:11px;color:var(--muted);margin-top:2px">by 👤 <b>${esc(r.seller)}</b></div>
+                    </div>
+                  `;
+                }
+                if (r.isUnwonBid) {
+                  return `
+                    <div>
+                      <span style="color:#f87171;font-weight:700">🔒 No Winner (Window Closed)</span>
+                      <div style="font-size:11px;color:var(--muted);margin-top:2px">Transfer window expired / bid not won</div>
+                    </div>
+                  `;
+                }
+                const winnerBadge = r.buyerIsMe
+                  ? `<span style="color:#10b981;font-weight:800">🏆 ${esc(v)} (You)</span>`
+                  : `<span style="font-weight:700;color:${r.userBidStatus === "outbid" ? "#fbbf24" : "var(--text)"}">🏆 ${esc(v)}</span>`;
+                const fromPart = r.isUserTransfer
+                  ? `<div style="font-size:11px;color:#f87171;margin-top:2px">🤝 bought from 👤 <b>${esc(r.seller)}</b></div>`
+                  : `<div style="font-size:11px;color:var(--muted);margin-top:2px">from 🏪 Kickbase Market</div>`;
+                return `<div>${winnerBadge}${fromPart}</div>`;
+              }
+            },
+            {
+              key: "price",
+              label: "Winning Bid / Price",
+              kind: "money",
+              fmt: (v, r) => {
+                if (r.isUnwonBid) {
+                  return `
+                    <div>
+                      <b style="font-size:13px;color:#94a3b8">${v ? `Your bid: ${money(v)}` : "–"}</b>
+                      <div style="font-size:10.5px;color:var(--muted)" class="num">${v ? ui.moneyFull(v) : "No winning bid"}</div>
+                    </div>
+                  `;
+                }
+                return `
+                  <div>
+                    <b style="font-size:13.5px;color:${r.isBuyDeal ? "#fff" : "var(--muted)"}">${money(v)}</b>
+                    <div style="font-size:10.5px;color:var(--muted)" class="num">${ui.moneyFull(v)}</div>
+                  </div>
+                `;
+              }
+            },
+            {
+              key: "overpay",
+              label: "Bid vs. Market Value",
+              fmt: (v, r) => {
+                if (!r.mwAtSale) return `<span class="muted" style="font-size:11.5px">Loading MW…</span>`;
+                const bidCountHtml = (r.bidCount !== null && r.bidCount !== undefined && r.bidCount > 0)
+                  ? `<span style="display:inline-flex;align-items:center;padding:1px 6px;border-radius:999px;background:rgba(245,158,11,0.15);color:#fbbf24;font-size:10px;font-weight:700;margin-left:5px">🔥 ${r.bidCount} bid${r.bidCount === 1 ? "" : "s"}</span>`
+                  : "";
+                if (!r.isBuyDeal || r.isUnwonBid) {
+                  const diff = r.price ? (r.price - r.mwAtSale) : 0;
+                  return `
+                    <div>
+                      <div style="font-size:11.5px;color:var(--muted)">MW: <b>${money(r.mwAtSale)}</b></div>
+                      ${r.price && diff !== 0 ? `<div style="font-size:10.5px;color:${diff > 0 ? "#34d399" : "#94a3b8"}">${signedMoney(diff)} vs MW</div>` : `<div style="font-size:10.5px;color:var(--muted)">At Market Value</div>`}
+                    </div>
+                  `;
+                }
+                if (v > 0) {
+                  return `
+                    <div>
+                      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px">
+                        <span style="color:#fbbf24;font-weight:700;font-size:12px">🔼 Bid +${money(v)} (+${r.overpayPct}%)</span>
+                        ${bidCountHtml}
+                      </div>
+                      <div style="font-size:10.5px;color:var(--muted)" class="num">over MW ${money(r.mwAtSale)}</div>
+                    </div>
+                  `;
+                }
+                if (v === 0) {
+                  return `
+                    <div>
+                      <div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px">
+                        <span style="color:#94a3b8;font-weight:600;font-size:12px">═ Bid at exact MW</span>
+                        ${bidCountHtml}
+                      </div>
+                      <div style="font-size:10.5px;color:var(--muted)" class="num">MW ${money(r.mwAtSale)}</div>
+                    </div>
+                  `;
+                }
+                return `
+                  <div>
+                    <div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px">
+                      <span style="color:#34d399;font-weight:700;font-size:12px">🔽 ${signedMoney(v)} (${r.overpayPct}%)</span>
+                      ${bidCountHtml}
+                    </div>
+                    <div style="font-size:10.5px;color:var(--muted)" class="num">under MW ${money(r.mwAtSale)}</div>
+                  </div>
+                `;
+              }
+            },
+            {
+              key: "didUserBid",
+              label: "Did You Bid?",
+              fmt: (v, r) => {
+                if (r.userBidStatus === "won") {
+                  return `
+                    <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;background:rgba(16,185,129,0.16);color:#34d399;border:1px solid rgba(16,185,129,0.35);font-size:11.5px;font-weight:700">
+                      ✅ Yes – You Won Bid
+                    </span>
+                  `;
+                }
+                if (r.userBidStatus === "sold") {
+                  return `
+                    <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;background:rgba(56,189,248,0.14);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);font-size:11.5px;font-weight:600">
+                      📤 Your Sale
+                    </span>
+                  `;
+                }
+                if (r.userBidStatus === "lost_unwon") {
+                  return `
+                    <div>
+                      <div style="display:inline-flex;align-items:center;gap:6px">
+                        <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;background:rgba(248,113,113,0.16);color:#f87171;border:1px solid rgba(248,113,113,0.35);font-size:11.5px;font-weight:700">
+                          ❌ Did Not Win${r.myBidPrice ? ` (Bid ${money(r.myBidPrice)})` : ""}
+                        </span>
+                        <button class="btn ghost sm" data-log-bid="${esc(r.transferKey)}" style="height:20px;padding:0 5px;font-size:10px" title="Edit or remove your recorded bid">✎</button>
+                      </div>
+                    </div>
+                  `;
+                }
+                if (r.userBidStatus === "outbid") {
+                  const outbidDiff = (r.myBidPrice && r.price) ? (r.price - r.myBidPrice) : null;
+                  return `
+                    <div>
+                      <div style="display:inline-flex;align-items:center;gap:6px">
+                        <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;background:rgba(248,113,113,0.16);color:#f87171;border:1px solid rgba(248,113,113,0.35);font-size:11.5px;font-weight:700">
+                          ❌ Did Not Win – ${r.myBidPrice ? `You Bid ${money(r.myBidPrice)}` : "Outbid"}
+                        </span>
+                        <button class="btn ghost sm" data-log-bid="${esc(r.transferKey)}" style="height:20px;padding:0 5px;font-size:10px" title="Edit or remove your recorded bid">✎</button>
+                      </div>
+                      ${outbidDiff !== null && outbidDiff > 0 ? `<div style="font-size:10.5px;color:#fbbf24;margin-top:2px" class="num">Outbid by +${money(outbidDiff)} (${ui.moneyFull(outbidDiff)})</div>` : ""}
+                    </div>
+                  `;
+                }
+                if (!r.isBuyDeal) {
+                  return `<span class="muted" style="font-size:11.5px">–</span>`;
+                }
+                return `
+                  <div style="display:flex;align-items:center;gap:6px">
+                    <span class="muted" style="font-size:11.5px">No</span>
+                    <button class="btn ghost sm" data-log-bid="${esc(r.transferKey)}" style="height:21px;padding:0 6px;font-size:10.5px;opacity:0.85" title="Did you also bid on this player and not win? Click to mark your bid">+ I bid</button>
+                  </div>
+                `;
+              }
+            },
+            {
+              key: "currentMv",
+              label: "Current MW",
+              kind: "money",
+              fmt: (v, r) => {
+                if (!v) return `<span class="muted">–</span>`;
+                const diffSinceBuy = (r.isBuyDeal && !r.isUnwonBid && r.price) ? (v - r.price) : 0;
+                return `
+                  <div>
+                    <b>${money(v)}</b>
+                    ${r.isBuyDeal && !r.isUnwonBid && diffSinceBuy !== 0 ? `<div style="font-size:10.5px;color:${diffSinceBuy > 0 ? "#34d399" : "#f87171"}" class="num">${signedMoney(diffSinceBuy)} vs bid</div>` : ""}
+                  </div>
+                `;
+              }
+            }
+          ];
+
+          ui.table(tableEl, visibleRows, trCols, {
+            sort: "date",
+            rowClass: (r) => r.buyerIsMe ? "me" : (r.isUserTransfer ? "tr-user-deal" : "")
+          });
+        }
+
+        box.querySelectorAll("#mkt-tr-filter button").forEach((b) => {
+          b.addEventListener("click", () => {
+            filterMode = b.dataset.f;
+            S.marketTransferFilter = filterMode;
+            drawRecentTransfers();
+          });
+        });
+
+        box.querySelectorAll("#mkt-tr-limit button").forEach((b) => {
+          b.addEventListener("click", () => {
+            rowLimit = Number(b.dataset.lim);
+            S.marketTransferLimit = rowLimit;
+            drawRecentTransfers();
+          });
+        });
+
+        // Event delegation for "+ I bid" / edit bid buttons (persists across table column sorting)
+        if (tableEl && !tableEl._bidListenerBound) {
+          tableEl._bidListenerBound = true;
+          tableEl.addEventListener("click", (e) => {
+            const btn = e.target.closest("[data-log-bid]");
+            if (!btn) return;
+            e.stopPropagation();
+            const key = btn.dataset.logBid;
+            const target = mergedTransfers.find((x) => x.transferKey === key);
+            if (target) openLogBidDialog(enrichTransferRow(target));
+          });
+        }
+      };
+
+      drawRecentTransfers();
+
+      // Fetch historical market values AND missing player profile metadata (position, full name, current MV) in background batches
+      const POS_MAP = { 1: "GK", 2: "DEF", 3: "MID", 4: "FWD" };
+      const pidsToLoad = [...new Set(mergedTransfers.slice(0, 40).map((t) => t.playerId).filter((pid) => pid && !String(pid).startsWith("custom_")))];
+      let updatedAny = false;
+      for (let i = 0; i < pidsToLoad.length; i += 6) {
+        const chunk = pidsToLoad.slice(i, i + 6);
+        await Promise.all(chunk.map(async (pid) => {
+          const meta = playerMeta.get(String(pid)) || {};
+          const tasks = [fetchPlayerMvHistory(ctx.l, pid)];
+          if (!meta.position || !meta.currentMv || !meta.name) {
+            tasks.push(S.api.player(ctx.l, pid).then((pInfo) => {
+              if (!pInfo) return;
+              const fn = pInfo.fn || "";
+              const ln = pInfo.n || pInfo.ln || pInfo.pn || "";
+              const fullName = `${fn} ${ln}`.trim() || meta.name || null;
+              playerMeta.set(String(pid), {
+                ...meta,
+                name: fullName || meta.name || null,
+                position: POS_MAP[pInfo.pos] || meta.position || null,
+                image: (KB.imageUrl && pInfo.pim ? KB.imageUrl(pInfo.pim) : null) || meta.image || null,
+                currentMv: pInfo.mv || meta.currentMv || null
+              });
+            }).catch(() => {}));
+          }
+          await Promise.all(tasks);
+        }));
+        updatedAny = true;
+      }
+      if (updatedAny && !ctx.stale()) {
+        drawRecentTransfers();
+      }
+    } catch (err) {
+      if (!ctx.stale()) {
+        box.innerHTML = ui.section("Last manager transfers & winning bids")
+          + ui.alert("warn", `Could not load recent manager transfers: ${esc(err.message || String(err))}`);
+      }
+    }
   }
 
   // ------------------------------------------------------------ bidding ----
-  function renderBidding(box, ctx, market, budget) {
-    if (!settings().bidding) {
-      box.innerHTML = `<p class="muted">${ui.icon("lightbulb")} Want to bid from here? Turn on <b>Bidding</b> in the sidebar.</p>`;
-      return;
+  function formatTransferExpiry(p) {
+    if (!p) return null;
+    let sec = null;
+    if (p.expiresInS !== undefined && p.expiresInS !== null) {
+      sec = Number(p.expiresInS);
+    } else if (p.expiresAt) {
+      sec = Math.round((new Date(p.expiresAt).getTime() - Date.now()) / 1000);
+    } else if (p.expiresInH !== undefined && p.expiresInH !== null) {
+      sec = Math.round(Number(p.expiresInH) * 3600);
     }
-    const mine = market.filter((p) => p.myOfferId || p.myOfferPrice);
+    if (sec === null || isNaN(sec)) return null;
+
+    const endDate = p.expiresAt ? new Date(p.expiresAt) : new Date(Date.now() + sec * 1000);
+    let durationStr = "";
+    if (sec <= 0) {
+      durationStr = "Ended";
+    } else if (sec < 3600) {
+      durationStr = `${Math.max(1, Math.floor(sec / 60))}m`;
+    } else if (sec < 86400) {
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      durationStr = m > 0 ? `${h}h ${m}m` : `${h}h`;
+    } else {
+      const d = Math.floor(sec / 86400);
+      const h = Math.floor((sec % 86400) / 3600);
+      durationStr = `${d}d ${h}h`;
+    }
+
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const endDayStart = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate()).getTime();
+    const dayDiff = Math.round((endDayStart - todayStart) / 86400000);
+    const timeStr = endDate.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+
+    let clockStr = "";
+    if (dayDiff === 0) clockStr = `Today, ${timeStr}`;
+    else if (dayDiff === 1) clockStr = `Tomorrow, ${timeStr}`;
+    else if (dayDiff === -1) clockStr = `Yesterday, ${timeStr}`;
+    else {
+      const dStr = endDate.toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" });
+      clockStr = `${dStr}, ${timeStr}`;
+    }
+
+    let color = "#38bdf8";
+    let bg = "rgba(56, 189, 248, 0.12)";
+    let border = "rgba(56, 189, 248, 0.3)";
+    if (sec <= 0) {
+      color = "#94a3b8";
+      bg = "rgba(148, 163, 184, 0.12)";
+      border = "rgba(148, 163, 184, 0.28)";
+    } else if (sec < 7200) {
+      color = "#f87171";
+      bg = "rgba(248, 113, 113, 0.14)";
+      border = "rgba(248, 113, 113, 0.35)";
+    } else if (sec < 21600) {
+      color = "#fbbf24";
+      bg = "rgba(251, 191, 36, 0.14)";
+      border = "rgba(251, 191, 36, 0.35)";
+    }
+
+    return { sec, endDate, durationStr, clockStr, color, bg, border };
+  }
+
+  function renderBidding(box, ctx, market, budget, squad = []) {
+    if (!box) return;
+    const canBid = settings().bidding;
+    const mine = [...market.filter((p) => p.myOfferId || p.myOfferPrice)]
+      .sort((a, b) => (a.expiresInS ?? 1e9) - (b.expiresInS ?? 1e9));
     const open = mine.reduce((s, p) => s + (p.myOfferPrice || 0), 0);
     const after = budget - open;
+
+    // Check for recently expired bids where the transfer window ended and the player is no longer on the Transfermarkt
+    const storedBids = store.get(`kb.myBids.${ctx.l}`, {});
+    const expiredBids = [];
+    for (const [key, b] of Object.entries(storedBids)) {
+      if (!b || !b.playerId || b.removed || b.dismissedExpired) continue;
+      // Skip manual transferKey overrides (only show active bids placed on market players)
+      if (String(key) !== String(b.playerId)) continue;
+      const stillOnMarket = market.some((mp) => String(mp.id) === String(b.playerId));
+      if (stillOnMarket) continue;
+      const ageMs = Date.now() - (b.timestamp || 0);
+      if (ageMs > 72 * 3600 * 1000) continue; // Show expired bids from the last 72h
+      const inMySquad = (squad || []).some((sp) => String(sp.id) === String(b.playerId));
+      expiredBids.push({ ...b, inMySquad });
+    }
+
+    if (!canBid && !mine.length && !expiredBids.length) {
+      box.innerHTML = `<p class="muted">${ui.icon("lightbulb")} Click any player in the Transfermarkt table below to place a bid, or turn on <b>Bidding</b> in the sidebar.</p>`;
+      return;
+    }
+
     box.innerHTML = ui.kpis([
       { label: "Budget", value: money(budget) },
       { label: "Open bids", value: String(mine.length), sub: `${money(open)} in total` },
       { label: "If all bids win", value: money(after), delta: after < 0 ? "below zero" : "", tone: "down" },
-    ]) + (mine.length ? ui.section("My bids") + `<div class="card">${mine.map((p) => `
-        <div class="bid-row" style="display:flex;align-items:center;gap:12px">
-          ${ui.pawn(p, 30, { showPos: false })}
-          <div style="flex:1"><b>${esc(p.name)}</b> ${ui.pos(p.position)}</div>
-          <div>Bid <b class="num">${money(p.myOfferPrice)}</b></div><div class="muted num">MV ${money(p.marketValue)}</div>
-          <button class="btn sm" data-wd="${p.id}">${ui.icon("undo")} Withdraw</button></div>`).join("")}</div>` : "")
-      + ui.section("Place a bid") + `<div class="row" style="align-items:center">
-          <select class="input" id="bid-player" style="flex:4"><option value="">Choose a player from the market…</option>
-          ${market.filter((p) => !p.myOfferId).map((p) => `<option value="${p.id}">${esc(p.name)} (${p.position}) – MV ${money(p.marketValue)}</option>`).join("")}</select>
-          <button class="btn primary" id="bid-open" style="flex:1" disabled>${ui.icon("gavel")} Place bid…</button></div>`;
+    ]) + ((mine.length || expiredBids.length) ? ui.section("My bids", mine.length ? "sorted by soonest transfer window end" : "recent bid status") + `<div class="card">${mine.map((p) => {
+        const exp = formatTransferExpiry(p);
+        const expHtml = exp ? `
+          <div style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:${exp.bg};border:1px solid ${exp.border};color:${exp.color};font-size:11.5px;font-weight:600" title="After ${esc(exp.clockStr)}, the transfer window closes and ${esc(p.name)} is no longer available on the Transfermarkt">
+            <span>⏱️ Window ends in <b>${esc(exp.durationStr)}</b></span>
+            <span style="opacity:0.65">·</span>
+            <span class="num">${esc(exp.clockStr)}</span>
+            <span style="font-size:10.5px;opacity:0.8;font-weight:500">(unavailable after)</span>
+          </div>
+        ` : "";
+        return `
+        <div class="bid-row" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+          <div style="display:flex;align-items:center;gap:10px;min-width:220px;flex:1">
+            ${ui.pawn(p, 32, { showPos: false })}
+            <div>
+              <div><b>${esc(p.name)}</b> ${ui.pos(p.position)} <span class="muted" style="font-size:11.5px;margin-left:6px">${ui.int(p.totalPoints)} pts · ${ui.int(p.gamesPlayed ?? 0)} games</span></div>
+              ${p.seller ? `<div style="font-size:11px;color:#f87171;margin-top:2px">👤 Seller: ${esc(p.seller)}</div>` : `<div style="font-size:11px;color:var(--muted);margin-top:2px">🏪 Kickbase Transfermarkt${p.offers ? ` · ${p.offers} bid${p.offers === 1 ? "" : "s"}` : ""}</div>`}
+            </div>
+          </div>
+          ${expHtml}
+          <div style="display:flex;align-items:center;gap:10px">
+            <div style="text-align:right;margin-right:4px">
+              <div>Bid <b class="num" style="color:#10b981">${money(p.myOfferPrice)}</b></div>
+              <div class="muted num" style="font-size:11px">MV ${money(p.marketValue)}</div>
+            </div>
+            <button class="btn primary sm" data-edit-bid="${p.id}">${ui.icon("edit")} Update bid</button>
+            <button class="btn sm" data-wd="${p.id}">${ui.icon("undo")} Withdraw</button>
+          </div>
+        </div>`;
+      }).join("")}${expiredBids.map((b) => {
+        const endedExp = b.expiresAt ? formatTransferExpiry({ expiresAt: b.expiresAt, expiresInS: -1 }) : null;
+        const pObj = { id: b.playerId, name: b.playerName || "Player", position: b.position, image: b.image, color: KB.playerColor(b.playerId, b.playerName) };
+        return `
+        <div class="bid-row" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;opacity:0.85;background:rgba(255,255,255,0.015)">
+          <div style="display:flex;align-items:center;gap:10px;min-width:220px;flex:1">
+            ${ui.pawn(pObj, 30, { showPos: false })}
+            <div>
+              <div><b>${esc(b.playerName || "Player")}</b> ${b.position && b.position !== "?" ? ui.pos(b.position) : ""}</div>
+              <div style="font-size:11px;color:var(--muted)">Your bid: <b class="num">${b.price ? money(b.price) : "–"}</b>${b.marketValue ? ` · MV ${money(b.marketValue)}` : ""}</div>
+            </div>
+          </div>
+          <div style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:rgba(148,163,184,0.12);border:1px solid rgba(148,163,184,0.28);color:#cbd5e1;font-size:11.5px;font-weight:600">
+            <span>🔒 Transfer window ended${endedExp ? ` (${esc(endedExp.clockStr)})` : ""} — Player no longer available</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px">
+            ${b.inMySquad
+              ? `<span style="color:#34d399;font-size:12px;font-weight:700">✅ Won – In Your Squad</span>`
+              : `<span style="color:#f87171;font-size:12px;font-weight:600">❌ Did Not Win (Window Closed)</span>`}
+            <button class="btn ghost sm" data-dismiss-exp="${esc(b.playerId)}" title="Dismiss" style="height:24px;padding:0 6px;font-size:11px">✕</button>
+          </div>
+        </div>`;
+      }).join("")}</div>` : "")
+      + (canBid ? ui.section("Place a bid") + `<div class="row" style="align-items:center">
+          <select class="input" id="bid-player" style="flex:4"><option value="">Choose a player from the Transfermarkt (or click any row below)…</option>
+          ${market.map((p) => {
+            const exp = formatTransferExpiry(p);
+            const hasBid = Boolean(p.myOfferId || p.myOfferPrice);
+            return `<option value="${p.id}">${esc(p.name)} (${p.position}) – MV ${money(p.marketValue)}${hasBid ? ` · Current bid: ${money(p.myOfferPrice)}` : ""} · ${ui.int(p.totalPoints)} pts (${ui.int(p.gamesPlayed ?? 0)} games)${exp ? ` · Ends in ${exp.durationStr} (${exp.clockStr})` : ""}</option>`;
+          }).join("")}</select>
+          <button class="btn primary" id="bid-open" style="flex:1" disabled>${ui.icon("gavel")} Place / Update bid…</button></div>`
+        : `<p class="muted" style="margin-top:10px">${ui.icon("lightbulb")} Tip: Click any player in <b>All players on the Transfermarkt</b> below to place or update a bid.</p>`);
     const sel = box.querySelector("#bid-player"), btn = box.querySelector("#bid-open");
-    sel.addEventListener("change", () => { btn.disabled = !sel.value; });
-    btn.addEventListener("click", () => bidDialog(ctx, market.find((p) => p.id === sel.value), budget));
+    if (sel && btn) {
+      sel.addEventListener("change", () => { btn.disabled = !sel.value; });
+      btn.addEventListener("click", () => bidDialog(ctx, market.find((p) => p.id === sel.value), budget));
+    }
+    box.querySelectorAll("[data-edit-bid]").forEach((b) => b.addEventListener("click", () => bidDialog(ctx, market.find((p) => p.id === b.dataset.editBid), budget)));
     box.querySelectorAll("[data-wd]").forEach((b) => b.addEventListener("click", () => withdrawDialog(ctx, market.find((p) => p.id === b.dataset.wd))));
+    box.querySelectorAll("[data-dismiss-exp]").forEach((b) => b.addEventListener("click", () => {
+      const pid = b.dataset.dismissExp;
+      const bids = store.get(`kb.myBids.${ctx.l}`, {});
+      if (bids[pid]) {
+        bids[pid].dismissedExpired = true;
+        store.set(`kb.myBids.${ctx.l}`, bids);
+      }
+      renderBidding(box, ctx, market, budget, squad);
+    }));
   }
 
   let lastAction = null;
@@ -4850,47 +6537,87 @@ Analyze my squad strictly under Kickbase rules:
   }
 
   function bidDialog(ctx, p, budget) {
+    if (!p) return;
+    const isUpdate = Boolean(p.myOfferId || p.myOfferPrice);
+    const currentBid = Number(p.myOfferPrice || 0);
     const base = Math.ceil(Math.max(p.marketValue || 0, p.price || 0)) || 1;
-    ui.dialog("Place a bid", (body, close) => {
+    const initialPrice = isUpdate && currentBid > 0 ? currentBid : base;
+    const exp = formatTransferExpiry(p);
+    ui.dialog(isUpdate ? "Update bid" : "Place a bid", (body, close) => {
       body.innerHTML = `
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
           ${ui.pawn(p, 40)}
-          <div>
+          <div style="flex:1">
             <div style="font-size:18px;font-weight:700">${esc(p.name)} ${ui.pos(p.position)}</div>
-            <div style="font-size:12px;color:var(--muted)">${p.teamName || ""}</div>
+            <div style="font-size:12px;color:var(--muted)">${p.seller ? `👤 Seller: ${esc(p.seller)}` : "🏪 Kickbase Transfermarkt"}${p.offers ? ` · ${p.offers} bid${p.offers === 1 ? "" : "s"}` : ""}</div>
           </div>
+          ${exp ? `<div style="text-align:right;font-size:11.5px;color:${exp.color};background:${exp.bg};border:1px solid ${exp.border};padding:4px 10px;border-radius:8px"><div>⏱️ Ends in <b>${esc(exp.durationStr)}</b></div><div style="font-size:10.5px;opacity:0.85">${esc(exp.clockStr)}</div></div>` : ""}
         </div>
+        ${isUpdate ? `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:8px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.32);margin-bottom:12px;font-size:12.5px">
+            <span>Current active bid: <b style="color:#34d399" class="num">${ui.moneyFull(currentBid)}</b> (${money(currentBid)})</span>
+            ${p.myOfferId ? `<button class="btn sm" id="btn-wd-inside" style="height:24px;padding:0 8px;font-size:11px;color:#f87171">${ui.icon("undo")} Withdraw bid</button>` : ""}
+          </div>
+        ` : ""}
         <div class="mini-kpis"><div><small>Market value</small><b>${money(p.marketValue)}</b></div>
-          <div><small>Ø points</small><b>${ui.int(p.avgPoints)}</b></div><div><small>Status</small><b>${esc(p.status)}</b></div></div>
-        <div class="steps">${[0, 0.01, 0.03, 0.05].map((s) => `<button class="btn sm" data-step="${s}">${s ? "+" + s * 100 + "%" : "MV"}</button>`).join("")}</div>
-        <div class="field"><label for="price">Your bid (€)</label><input class="input num" id="price" type="number" min="1" step="10000" value="${base}"></div>
+          <div><small>Total points</small><b>${ui.int(p.totalPoints)}</b></div>
+          <div><small>Ø points</small><b>${ui.int(p.avgPoints)}</b></div>
+          <div><small>Games played</small><b>${ui.int(p.gamesPlayed ?? 0)}</b></div>
+          <div><small>Status</small><b>${esc(p.status)}</b></div></div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Set relative to Market Value:</div>
+        <div class="steps">${[0, 0.01, 0.03, 0.05].map((s) => `<button class="btn sm" data-step="${s}">${s ? "+" + s * 100 + "% MV" : "Exact MV"}</button>`).join("")}</div>
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Quick bump current input:</div>
+        <div class="steps">${[50000, 100000, 250000, 500000].map((inc) => `<button class="btn sm" data-bump="${inc}">+${inc / 1000}k €</button>`).join("")}</div>
+        <div class="field"><label for="price">${isUpdate ? "Updated bid (€)" : "Your bid (€)"}</label><input class="input num" id="price" type="number" min="1" step="10000" value="${initialPrice}"></div>
         <div id="bid-info"></div>
         <label class="check"><input type="checkbox" id="confirm"> <span id="confirm-text"></span></label>
         <div id="bid-err"></div>
-        <button class="btn primary block" id="place" disabled>Place bid</button>`;
+        <button class="btn primary block" id="place" disabled>${isUpdate ? "Update bid" : "Place bid"}</button>`;
       const price = body.querySelector("#price"), confirm = body.querySelector("#confirm"), place = body.querySelector("#place");
       const update = () => {
         const v = Math.floor(Number(price.value) || 0);
-        body.querySelector("#confirm-text").textContent = `Yes, bid ${ui.moneyFull(v)} for ${p.name}`;
+        body.querySelector("#confirm-text").textContent = isUpdate
+          ? `Yes, update my bid to ${ui.moneyFull(v)} for ${p.name}`
+          : `Yes, bid ${ui.moneyFull(v)} for ${p.name}`;
         const after = budget - v;
+        const diffFromCurrent = isUpdate && currentBid > 0 ? (v - currentBid) : 0;
         body.querySelector("#bid-info").innerHTML =
           (v < base ? ui.alert("warn", `${ui.icon("warning")}<span>Your bid is below the market value – Kickbase will most likely reject it.</span>`) : "")
-          + `<p>Budget now <b>${money(budget)}</b> → if the bid wins <b class="${after < 0 ? "down" : ""}">${money(after)}</b></p>`
+          + (isUpdate && currentBid > 0 ? `<p style="margin:6px 0 2px;font-size:12.5px">Current bid <b>${money(currentBid)}</b> → New bid <b>${money(v)}</b> <span style="color:${diffFromCurrent > 0 ? "#fbbf24" : (diffFromCurrent < 0 ? "#34d399" : "var(--muted)")}">(${diffFromCurrent === 0 ? "unchanged" : signedMoney(diffFromCurrent)})</span></p>` : "")
+          + `<p style="margin:4px 0 8px">Budget now <b>${money(budget)}</b> → if the bid wins <b class="${after < 0 ? "down" : ""}">${money(after)}</b></p>`
           + (after < 0 ? ui.alert("error", "This bid would push your budget below zero. Kickbase may block your lineup until you are back in the plus.") : "");
         confirm.checked = false; place.disabled = true;  // re-confirm after every price change
       };
       body.querySelectorAll("[data-step]").forEach((b) => b.addEventListener("click", () => { price.value = Math.ceil(base * (1 + Number(b.dataset.step))); update(); }));
+      body.querySelectorAll("[data-bump]").forEach((b) => b.addEventListener("click", () => { price.value = Math.max(1, Math.floor(Number(price.value) || base) + Number(b.dataset.bump)); update(); }));
+      body.querySelector("#btn-wd-inside")?.addEventListener("click", () => {
+        close();
+        withdrawDialog(ctx, p);
+      });
       price.addEventListener("input", update);
       confirm.addEventListener("change", () => { place.disabled = !confirm.checked || !(Number(price.value) > 0); });
       place.addEventListener("click", async () => {
         const v = Math.floor(Number(price.value));
+        // Ensure bidding setting is enabled if user explicitly places/updates a bid
+        if (!settings().bidding) {
+          saveSettings({ bidding: true });
+          const sBid = document.querySelector("#s-bidding");
+          if (sBid) sBid.checked = true;
+        }
+        const btnLabel = isUpdate ? "Update bid" : "Place bid";
         place.disabled = true; place.innerHTML = `<div class="spinner"></div> Sending to Kickbase…`;
         try {
-          if (await runOnce(`bid-${p.id}-${v}`, () => S.api.placeOffer(ctx.l, p.id, v), `Bid of ${money(v)} for ${p.name} placed.`)) close();
-          else { place.textContent = "Place bid"; place.disabled = false; }
+          const actionFn = isUpdate
+            ? () => S.api.updateOffer(ctx.l, p.id, v, p.myOfferId, currentBid, p)
+            : () => S.api.placeOffer(ctx.l, p.id, v, p);
+          const msg = isUpdate
+            ? `Bid for ${p.name} updated to ${money(v)}.`
+            : `Bid of ${money(v)} for ${p.name} placed.`;
+          if (await runOnce(`bid-${p.id}-${v}`, actionFn, msg)) close();
+          else { place.textContent = btnLabel; place.disabled = false; }
         } catch (err) {
           body.querySelector("#bid-err").innerHTML = ui.alert("error", esc(err.message));
-          place.textContent = "Place bid"; place.disabled = false;
+          place.textContent = btnLabel; place.disabled = false;
         }
       });
       update();
@@ -4900,13 +6627,56 @@ Analyze my squad strictly under Kickbase rules:
   // -------------------------------------------------------------- live ----
   async function pageLive(el, ctx) {
     el.innerHTML = ui.loading("Connecting to live matchday feed and player stats…");
-    const [me, rank, myEl, squadRaw] = await Promise.all([
+    const [me, rank, myEl, squadRaw, compMatchdays] = await Promise.all([
       S.api.leagueMe(ctx.l),
       rankingRows(ctx.l),
       S.api.myEleven(ctx.l),
-      S.api.squad(ctx.l)
+      S.api.squad(ctx.l),
+      S.api.competitionMatchdays ? S.api.competitionMatchdays(1) : Promise.resolve(null)
     ]);
     if (ctx.stale()) return;
+
+    // Build schedule and matchup lookups from competition matchdays
+    const compId = (me && me.cpi) ? String(me.cpi) : "1";
+    const matchScheduleMap = new Map();
+    const teamScheduleMap = new Map();
+    const teamToMatchMap = new Map();
+    const matchMatchupMap = new Map();
+    const teamMatchupMap = new Map();
+
+    const mdList = (compMatchdays && Array.isArray(compMatchdays.it))
+      ? compMatchdays.it
+      : (compMatchdays && compMatchdays.value && Array.isArray(compMatchdays.value.it) ? compMatchdays.value.it : []);
+    const curCompDay = compMatchdays?.day ?? compMatchdays?.value?.day ?? null;
+    const relevantMds = (curCompDay !== null && mdList.some((x) => x.day === curCompDay))
+      ? mdList.filter((x) => x.day === curCompDay)
+      : mdList;
+
+    for (const md of relevantMds) {
+      const matches = md.it || md.m || md.matches || [];
+      for (const m of matches) {
+        const mId = String(m.mi || m.id || "");
+        const mDate = m.dt || m.md || m.d || m.date || m.startTime || m.t;
+        const formatted = formatMatchDay(mDate);
+        if (mId && formatted) matchScheduleMap.set(mId, formatted);
+        const t1 = String(m.t1 || m.t1i || m.team1 || "");
+        const t2 = String(m.t2 || m.t2i || m.team2 || "");
+        if (t1 && formatted) teamScheduleMap.set(t1, formatted);
+        if (t2 && formatted) teamScheduleMap.set(t2, formatted);
+        if (t1 && mId) teamToMatchMap.set(t1, mId);
+        if (t2 && mId) teamToMatchMap.set(t2, mId);
+
+        const t1sy = m.t1sy || "";
+        const t2sy = m.t2sy || "";
+        if (t1sy && t2sy) {
+          const hasScore = (m.st > 0 || m.il) && m.t1g !== undefined && m.t2g !== undefined;
+          const matchupStr = hasScore ? `${t1sy} ${m.t1g}:${m.t2g} ${t2sy}` : `${t1sy} vs ${t2sy}`;
+          if (mId) matchMatchupMap.set(mId, matchupStr);
+          if (t1) teamMatchupMap.set(t1, matchupStr);
+          if (t2) teamMatchupMap.set(t2, matchupStr);
+        }
+      }
+    }
 
     const squad = squadRaw.map((p) => tf.player(p));
     const mine = rank.find((r) => r.id === myManagerId(rank));
@@ -4915,35 +6685,45 @@ Analyze my squad strictly under Kickbase rules:
     let starters = [];
     if (myEl && Array.isArray(myEl.lp) && myEl.lp.length) {
       starters = myEl.lp.map((raw) => {
-        const fullP = squad.find((sp) => sp.id === String(raw.i || raw.pi)) || {};
-        const mst = raw.mst !== undefined ? Number(raw.mst) : (fullP.matchStatus !== undefined ? Number(fullP.matchStatus) : 0);
+        const fullP = squad.find((sp) => sp.id === String(raw.i || raw.pi));
+        const isSold = !fullP;
+        const refP = fullP || {};
+        const mst = raw.mst !== undefined ? Number(raw.mst) : (refP.matchStatus !== undefined ? Number(refP.matchStatus) : 0);
         // Only show current game day points: 0 if upcoming, raw.p if live or finished
         let curGamePoints = 0;
         if (mst === 0) {
           curGamePoints = 0;
         } else if (raw.p !== undefined && raw.p !== null) {
           curGamePoints = Number(raw.p);
-        } else if (fullP.livePoints !== undefined && fullP.livePoints !== null) {
-          curGamePoints = Number(fullP.livePoints);
+        } else if (refP.livePoints !== undefined && refP.livePoints !== null) {
+          curGamePoints = Number(refP.livePoints);
         } else {
           curGamePoints = 0;
         }
-        const rawP = tf.player(raw);
-        const actualMv = (fullP.marketValue && fullP.marketValue > 0) ? fullP.marketValue : (rawP.marketValue || 0);
+        const rawP = tf.player({ ...raw, st: undefined }); // myeleven "st" is not injury status
+        const actualMv = (refP.marketValue && refP.marketValue > 0) ? refP.marketValue : (rawP.marketValue || 0);
+        const tId = String(raw.tid || refP.teamId || "");
+        const mId = String(raw.mi || refP.matchId || teamToMatchMap.get(tId) || "");
+        const rawDate = raw.md || raw.d || raw.dt || raw.date || raw.startTime || raw.t || raw.matchDate || refP.matchDate;
+        const resolvedDay = formatMatchDay(rawDate) || matchScheduleMap.get(mId) || teamScheduleMap.get(tId) || "";
+        const resolvedMatchup = matchMatchupMap.get(mId) || teamMatchupMap.get(tId) || refP.matchup || "";
         return {
-          ...fullP,
+          ...refP,
           ...rawP,
-          id: String(raw.i || raw.pi || fullP.id || ""),
-          name: fullP.name || rawP.name,
-          position: fullP.position || rawP.position,
+          id: String(raw.i || raw.pi || refP.id || ""),
+          name: refP.name || rawP.name,
+          position: refP.position || rawP.position,
           marketValue: actualMv,
           livePoints: curGamePoints,
           matchStatus: mst,
-          matchMinute: raw.mt !== undefined ? raw.mt : (fullP.matchMinute ?? 0),
-          matchup: raw.mtd || fullP.matchup || "",
-          matchId: String(raw.mi || fullP.matchId || ""),
-          events: raw.k || raw.ev || raw.events || fullP.events || [],
-          isStarter: true
+          matchMinute: raw.mt !== undefined ? raw.mt : (refP.matchMinute ?? 0),
+          matchup: resolvedMatchup,
+          matchDay: resolvedDay,
+          matchId: mId,
+          events: raw.k || raw.ev || raw.events || refP.events || [],
+          status: refP.status || "Fit", rawStatus: refP.rawStatus || 0, isInjured: !!refP.rawStatus,
+          isStarter: true,
+          isSold
         };
       });
     } else {
@@ -4953,7 +6733,10 @@ Analyze my squad strictly under Kickbase rules:
       starters = starters.map((p) => {
         const mst = p.matchStatus !== undefined ? Number(p.matchStatus) : 0;
         const curGamePoints = (mst !== 0 && p.livePoints !== undefined && p.livePoints !== null) ? Number(p.livePoints) : 0;
-        return { ...p, livePoints: curGamePoints, matchStatus: mst, isStarter: true };
+        const mId = p.matchId || teamToMatchMap.get(p.teamId) || "";
+        const resolvedDay = p.matchDay || formatMatchDay(p.matchDate) || matchScheduleMap.get(mId) || teamScheduleMap.get(p.teamId) || "";
+        const resolvedMatchup = p.matchup || matchMatchupMap.get(mId) || teamMatchupMap.get(p.teamId) || "";
+        return { ...p, matchId: mId, matchup: resolvedMatchup, livePoints: curGamePoints, matchStatus: mst, matchDay: resolvedDay, isStarter: true };
       });
     }
 
@@ -4961,75 +6744,192 @@ Analyze my squad strictly under Kickbase rules:
     let bench = [];
     if (myEl && Array.isArray(myEl.nlp) && myEl.nlp.length) {
       bench = myEl.nlp.map((raw) => {
-        const fullP = squad.find((sp) => sp.id === String(raw.i || raw.pi)) || {};
-        const mst = raw.mst !== undefined ? Number(raw.mst) : (fullP.matchStatus !== undefined ? Number(fullP.matchStatus) : 0);
+        const fullP = squad.find((sp) => sp.id === String(raw.i || raw.pi));
+        const isSold = !fullP;
+        const refP = fullP || {};
+        const mst = raw.mst !== undefined ? Number(raw.mst) : (refP.matchStatus !== undefined ? Number(refP.matchStatus) : 0);
         let curGamePoints = 0;
         if (mst === 0) {
           curGamePoints = 0;
         } else if (raw.p !== undefined && raw.p !== null) {
           curGamePoints = Number(raw.p);
-        } else if (fullP.livePoints !== undefined && fullP.livePoints !== null) {
-          curGamePoints = Number(fullP.livePoints);
+        } else if (refP.livePoints !== undefined && refP.livePoints !== null) {
+          curGamePoints = Number(refP.livePoints);
         } else {
           curGamePoints = 0;
         }
-        const rawP = tf.player(raw);
-        const actualMv = (fullP.marketValue && fullP.marketValue > 0) ? fullP.marketValue : (rawP.marketValue || 0);
+        const rawP = tf.player({ ...raw, st: undefined }); // myeleven "st" is not injury status
+        const actualMv = (refP.marketValue && refP.marketValue > 0) ? refP.marketValue : (rawP.marketValue || 0);
+        const tId = String(raw.tid || refP.teamId || "");
+        const mId = String(raw.mi || refP.matchId || teamToMatchMap.get(tId) || "");
+        const rawDate = raw.md || raw.d || raw.dt || raw.date || raw.startTime || raw.t || raw.matchDate || refP.matchDate;
+        const resolvedDay = formatMatchDay(rawDate) || matchScheduleMap.get(mId) || teamScheduleMap.get(tId) || "";
+        const resolvedMatchup = matchMatchupMap.get(mId) || teamMatchupMap.get(tId) || refP.matchup || "";
         return {
-          ...fullP,
+          ...refP,
           ...rawP,
-          id: String(raw.i || raw.pi || fullP.id || ""),
-          name: fullP.name || rawP.name,
-          position: fullP.position || rawP.position,
+          id: String(raw.i || raw.pi || refP.id || ""),
+          name: refP.name || rawP.name,
+          position: refP.position || rawP.position,
           marketValue: actualMv,
           livePoints: curGamePoints,
           matchStatus: mst,
-          matchMinute: raw.mt !== undefined ? raw.mt : (fullP.matchMinute ?? 0),
-          matchup: raw.mtd || fullP.matchup || "",
-          matchId: String(raw.mi || fullP.matchId || ""),
-          events: raw.k || raw.ev || raw.events || fullP.events || [],
-          isStarter: false
+          matchMinute: raw.mt !== undefined ? raw.mt : (refP.matchMinute ?? 0),
+          matchup: resolvedMatchup,
+          matchDay: resolvedDay,
+          matchId: mId,
+          events: raw.k || raw.ev || raw.events || refP.events || [],
+          status: refP.status || "Fit", rawStatus: refP.rawStatus || 0, isInjured: !!refP.rawStatus,
+          isStarter: false,
+          isSold
         };
       });
     } else {
       bench = squad.filter((p) => !starters.some((s) => s.id === p.id)).map((p) => {
         const mst = p.matchStatus !== undefined ? Number(p.matchStatus) : 0;
         const curGamePoints = (mst !== 0 && p.livePoints !== undefined && p.livePoints !== null) ? Number(p.livePoints) : 0;
-        return { ...p, livePoints: curGamePoints, matchStatus: mst, isStarter: false };
+        const mId = p.matchId || teamToMatchMap.get(p.teamId) || "";
+        const resolvedDay = p.matchDay || formatMatchDay(p.matchDate) || matchScheduleMap.get(mId) || teamScheduleMap.get(p.teamId) || "";
+        const resolvedMatchup = p.matchup || matchMatchupMap.get(mId) || teamMatchupMap.get(p.teamId) || "";
+        return { ...p, matchId: mId, matchup: resolvedMatchup, livePoints: curGamePoints, matchStatus: mst, matchDay: resolvedDay, isStarter: false };
       });
     }
 
-    // Enrich players with matchDetails events (exact match minute, goals, substitutions)
+    // Enrich players with playerCenter (exact event minutes & sub events), sold player MV, and matchDetails
     const matchEventMap = new Map();
-    const matchIds = [...new Set([...starters, ...bench].map((p) => p.matchId).filter(Boolean))];
+    const realMatchBenchSet = new Set();
+    const realMatchStarterSet = new Set();
+    const allLineupPlayers = [...starters, ...bench];
+
+    // 1. Fetch playerCenter (for exact player events & minutes) and player info (for sold players missing marketValue)
+    await Promise.all(allLineupPlayers.map(async (p) => {
+      if (!p.id) return;
+      const tasks = [];
+      if ((!p.marketValue || p.marketValue <= 0) && S.api.player) {
+        tasks.push(
+          S.api.player(ctx.l, p.id).then((pInfo) => {
+            if (pInfo && pInfo.mv) p.marketValue = Number(pInfo.mv);
+          }).catch(() => {})
+        );
+      }
+      if (S.api.playerCenter) {
+        tasks.push(
+          S.api.playerCenter(compId, p.id).then((pc) => {
+            if (!pc) return;
+            if (pc.mi && !p.matchId) p.matchId = String(pc.mi);
+            if (pc.md && !p.matchDay) {
+              const fDay = formatMatchDay(pc.md);
+              if (fDay) p.matchDay = fDay;
+            }
+            const pid = String(p.id);
+            if (!matchEventMap.has(pid)) matchEventMap.set(pid, []);
+            if (Array.isArray(pc.events)) {
+              for (const ev of pc.events) {
+                matchEventMap.get(pid).push(ev);
+              }
+            }
+            if (Array.isArray(pc.k)) {
+              for (const kId of pc.k) {
+                matchEventMap.get(pid).push(kId);
+              }
+            }
+          }).catch(() => {})
+        );
+      }
+      await Promise.all(tasks);
+    }));
+
+    // 2. Fetch matchDetails for all discovered matchIds
+    const matchIds = [...new Set([...starters, ...bench].map((p) => p.matchId || teamToMatchMap.get(p.teamId)).filter(Boolean))];
     if (matchIds.length && S.api.matchDetails) {
       await Promise.all(matchIds.map(async (mId) => {
         try {
           const details = await S.api.matchDetails(mId);
-          if (details && Array.isArray(details.events)) {
-            for (const ev of details.events) {
-              if (ev.pi) {
-                const pid = String(ev.pi);
-                if (!matchEventMap.has(pid)) matchEventMap.set(pid, []);
-                matchEventMap.get(pid).push(ev);
-              }
-              if (ev.rev && ev.rev.pi) {
-                const rpid = String(ev.rev.pi);
-                if (!matchEventMap.has(rpid)) matchEventMap.set(rpid, []);
-                matchEventMap.get(rpid).push({ ...ev.rev, mt: ev.mt });
+          if (details) {
+            const dDate = details.md || details.dt || details.d || details.date || details.startTime || details.t;
+            const formatted = formatMatchDay(dDate);
+            if (formatted) {
+              matchScheduleMap.set(mId, formatted);
+              if (details.t1) teamScheduleMap.set(String(details.t1), formatted);
+              if (details.t2) teamScheduleMap.set(String(details.t2), formatted);
+            }
+            const t1sy = details.t1sy || "";
+            const t2sy = details.t2sy || "";
+            if (t1sy && t2sy) {
+              const hasScore = (details.mst > 0 || details.il) && details.t1g !== undefined && details.t2g !== undefined;
+              const matchupStr = hasScore ? `${t1sy} ${details.t1g}:${details.t2g} ${t2sy}` : `${t1sy} vs ${t2sy}`;
+              matchMatchupMap.set(mId, matchupStr);
+              if (details.t1) teamMatchupMap.set(String(details.t1), matchupStr);
+              if (details.t2) teamMatchupMap.set(String(details.t2), matchupStr);
+            }
+            for (const sp of [...(details.t1lp || []), ...(details.t2lp || [])]) {
+              const spId = String(sp.i || sp.pi || sp.id || "");
+              if (spId) realMatchStarterSet.add(spId);
+            }
+            for (const bp of [...(details.t1nlp || []), ...(details.t2nlp || [])]) {
+              const bpId = String(bp.i || bp.pi || bp.id || "");
+              if (bpId) realMatchBenchSet.add(bpId);
+            }
+            if (Array.isArray(details.events)) {
+              for (const ev of details.events) {
+                const mt = ev.mt ?? ev.m ?? ev.minute ?? null;
+                const p1 = String(ev.pi || ev.p || ev.id || ev.playerId || "");
+                const ke1 = ev.ke !== undefined ? Number(ev.ke) : (ev.eti !== undefined ? Number(ev.eti) : null);
+                if (p1) {
+                  if (!matchEventMap.has(p1)) matchEventMap.set(p1, []);
+                  matchEventMap.get(p1).push({ ...ev, mt });
+                }
+                if (ev.rev) {
+                  const rpid = String(ev.rev.pi || ev.rev.p || ev.rev.id || "");
+                  let rke = ev.rev.ke !== undefined ? Number(ev.rev.ke) : (ev.rev.eti !== undefined ? Number(ev.rev.eti) : null);
+                  if ((rke === null || rke === 0) && ke1 === -1) rke = -2;
+                  if ((rke === null || rke === 0) && ke1 === -2) rke = -1;
+                  if (rpid) {
+                    if (!matchEventMap.has(rpid)) matchEventMap.set(rpid, []);
+                    matchEventMap.get(rpid).push({ ...ev.rev, ke: rke ?? ev.rev.ke, mt });
+                  }
+                }
+                if (ev.in && (ev.in.pi || ev.in.p || ev.in.id)) {
+                  const inPid = String(ev.in.pi || ev.in.p || ev.in.id);
+                  if (!matchEventMap.has(inPid)) matchEventMap.set(inPid, []);
+                  matchEventMap.get(inPid).push({ ...ev.in, id: -1, eti: -1, mt, text: "sub_in" });
+                }
+                if (ev.out && (ev.out.pi || ev.out.p || ev.out.id)) {
+                  const outPid = String(ev.out.pi || ev.out.p || ev.out.id);
+                  if (!matchEventMap.has(outPid)) matchEventMap.set(outPid, []);
+                  matchEventMap.get(outPid).push({ ...ev.out, id: -2, eti: -2, mt, text: "sub_out" });
+                }
               }
             }
           }
         } catch (e) {}
       }));
-      const enrichWithMatchDetails = (p) => {
-        const extra = matchEventMap.get(String(p.id)) || [];
-        if (!extra.length) return p;
-        return { ...p, events: [...(p.events || []), ...extra] };
-      };
-      starters = starters.map(enrichWithMatchDetails);
-      bench = bench.map(enrichWithMatchDetails);
     }
+
+    const enrichPlayerFinal = (p) => {
+      const pid = String(p.id);
+      const mId = p.matchId || teamToMatchMap.get(p.teamId) || "";
+      const extra = matchEventMap.get(pid) || [];
+      const schDay = matchScheduleMap.get(mId) || teamScheduleMap.get(p.teamId);
+      const resolvedDay = p.matchDay || schDay || "";
+      const resolvedMatchup = p.matchup || matchMatchupMap.get(mId) || teamMatchupMap.get(p.teamId) || "";
+      const combinedEvents = extra.length ? [...extra, ...(p.events || [])] : [...(p.events || [])];
+
+      // If player started on real-life match bench (t1nlp/t2nlp) and played/scored points, ensure sub_in is recorded
+      if (realMatchBenchSet.has(pid) && !realMatchStarterSet.has(pid) && (p.livePoints !== 0 || combinedEvents.length > 0)) {
+        combinedEvents.push({ eti: -1, text: "sub_in" });
+      }
+
+      return {
+        ...p,
+        matchId: mId,
+        matchDay: resolvedDay,
+        matchup: resolvedMatchup,
+        events: combinedEvents
+      };
+    };
+    starters = starters.map(enrichPlayerFinal);
+    bench = bench.map(enrichPlayerFinal);
 
     const liveTotalPoints = starters.reduce((s, p) => s + (p.livePoints || 0), 0);
     const benchTotalPoints = bench.reduce((s, p) => s + (p.livePoints || 0), 0);
@@ -5077,9 +6977,10 @@ Analyze my squad strictly under Kickbase rules:
       if (p.matchStatus === 1) {
         return `<span class="pill-live"><span class="live-dot" style="display:inline-block;vertical-align:middle;margin-right:4px"></span>LIVE ${p.matchMinute ? p.matchMinute + "'" : ""}</span>`;
       } else if (p.matchStatus === 2) {
-        return `<span class="pill-ft">FT</span>`;
+        return `<span class="pill-ft" title="Match Finished (Full Time)">Finished</span>`;
       } else {
-        return `<span class="pill-upcoming">${esc(p.matchup || "Upcoming")}</span>`;
+        const dayLabel = p.matchDay || "Upcoming";
+        return `<span class="pill-upcoming">${esc(dayLabel)}</span>`;
       }
     }
 
@@ -5087,59 +6988,82 @@ Analyze my squad strictly under Kickbase rules:
       if (!events || !events.length) return [];
       const parsed = [];
       const seen = new Set();
+      let hadSubAction = false;
 
-      for (const ev of events) {
+      // Sort events so objects with explicit minute (mt/minute) come before raw event type numbers
+      const sortedEvents = [...events].sort((a, b) => {
+        const aHasMin = a && typeof a === "object" && (a.mt ?? a.minute ?? a.min ?? a.m ?? a.time) != null ? 0 : 1;
+        const bHasMin = b && typeof b === "object" && (b.mt ?? b.minute ?? b.min ?? b.m ?? b.time) != null ? 0 : 1;
+        return aHasMin - bHasMin;
+      });
+
+      for (const ev of sortedEvents) {
         let id = null;
         let minute = null;
         let text = "";
+        let eti = null;
 
         if (typeof ev === "number") {
           id = ev;
+          eti = ev;
         } else if (ev && typeof ev === "object") {
-          id = Number(ev.ke ?? ev.i ?? ev.k ?? ev.id ?? ev.t ?? 0);
-          minute = ev.mt ?? ev.m ?? ev.minute ?? null;
+          const rawId = ev.eti ?? ev.ke ?? ev.i ?? ev.k ?? ev.id ?? ev.t;
+          id = (rawId !== undefined && rawId !== null && rawId !== "") ? Number(rawId) : null;
+          eti = ev.eti !== undefined ? Number(ev.eti) : id;
+          minute = ev.minute ?? ev.min ?? ev.mt ?? ev.m ?? ev.time ?? null;
           text = String(ev.ti ?? ev.text ?? ev.t ?? ev.name ?? "").toLowerCase();
         } else if (typeof ev === "string") {
           text = ev.toLowerCase();
-          if (!Number.isNaN(Number(ev))) id = Number(ev);
+          if (ev.trim() !== "" && !Number.isNaN(Number(ev))) {
+            id = Number(ev);
+            eti = id;
+          }
         }
 
-        const minStr = minute ? `${minute}'` : (playerMatchMinute ? `${playerMatchMinute}'` : "");
+        const minStr = (minute !== null && minute !== undefined && minute !== "" && Number(minute) > 0) ? `${minute}'` : "";
+
+        // Substitute-specific goal/assist/setup events in Kickbase: 185, 186, 187
+        if (id === 185 || id === 186 || id === 187 || eti === 185 || eti === 186 || eti === 187) {
+          hadSubAction = true;
+        }
 
         // Goals: 87 (pen), 173 (GK), 174 (MID), 175 (DEF), 176 (FWD), 185 (Sub), 205 (pen)
-        if (id === 173 || id === 174 || id === 175 || id === 176 || id === 185 || id === 87 || id === 205 || text.includes("goal") || text.includes("tor")) {
-          const key = `goal_${minStr}`;
-          if (!seen.has(key)) {
+        if (id === 173 || id === 174 || id === 175 || id === 176 || id === 185 || id === 87 || id === 205 || eti === 1 || text.includes("goal") || text.includes("tor")) {
+          const key = `goal_${minStr || parsed.filter((x) => x.type === "goal").length}`;
+          // Avoid duplicate minuteless goal if a goal with minute was already added
+          const alreadyHasGoal = minStr ? seen.has(key) : parsed.some((x) => x.type === "goal");
+          if (!alreadyHasGoal) {
             seen.add(key);
-            parsed.push({ type: "goal", icon: "⚽", label: "Goal", minute: minStr });
+            parsed.push({ type: "goal", icon: "⚽", label: "Goal", minute: minStr, rawMinute: minute });
           }
         }
         // Assists: 177, 178, 179, 180, 186, 120, 80-84
-        else if (id === 177 || id === 178 || id === 179 || id === 180 || id === 186 || id === 120 || id === 80 || id === 81 || id === 83 || id === 84 || text.includes("assist") || text.includes("vorlage")) {
-          const key = `assist_${minStr}`;
-          if (!seen.has(key)) {
+        else if (id === 177 || id === 178 || id === 179 || id === 180 || id === 186 || id === 120 || id === 80 || id === 81 || id === 83 || id === 84 || eti === 2 || text.includes("assist") || text.includes("vorlage")) {
+          const key = `assist_${minStr || parsed.filter((x) => x.type === "assist").length}`;
+          const alreadyHasAssist = minStr ? seen.has(key) : parsed.some((x) => x.type === "assist");
+          if (!alreadyHasAssist) {
             seen.add(key);
-            parsed.push({ type: "assist", icon: "🎯", label: "Assist", minute: minStr });
+            parsed.push({ type: "assist", icon: "🎯", label: "Assist", minute: minStr, rawMinute: minute });
           }
         }
-        // Substituted OUT: -2, "ausgewechselt", "sub_out"
-        else if (id === -2 || text.includes("ausgewechselt") || text.includes("sub_out") || text.includes("subbed out")) {
+        // Substituted OUT: -2, "ausgewechselt", "sub_out", "out"
+        else if (id === -2 || eti === -2 || eti === 12 || text.includes("ausgewechselt") || text.includes("sub_out") || text.includes("subbed out")) {
           const key = `sub_out`;
           if (!seen.has(key)) {
             seen.add(key);
-            parsed.push({ type: "sub_out", icon: "🔻", label: "Ausgewechselt", minute: minStr });
+            parsed.push({ type: "sub_out", icon: "🔻", label: "Ausgewechselt", minute: minStr, rawMinute: minute });
           }
         }
-        // Substituted IN: -1, "eingewechselt", "sub_in"
-        else if (id === -1 || text.includes("eingewechselt") || text.includes("sub_in") || text.includes("subbed in")) {
+        // Substituted IN: -1, "eingewechselt", "sub_in", "in"
+        else if (id === -1 || eti === -1 || eti === 11 || text.includes("eingewechselt") || text.includes("sub_in") || text.includes("subbed in")) {
           const key = `sub_in`;
           if (!seen.has(key)) {
             seen.add(key);
-            parsed.push({ type: "sub_in", icon: "🔺", label: "Eingewechselt", minute: minStr });
+            parsed.push({ type: "sub_in", icon: "🔺", label: "Eingewechselt", minute: minStr, rawMinute: minute });
           }
         }
         // Yellow-Red: 139
-        else if (id === 139 || text.includes("yellow_red") || text.includes("gelb_rot") || text.includes("2nd yellow")) {
+        else if (id === 139 || eti === 139 || text.includes("yellow_red") || text.includes("gelb_rot") || text.includes("2nd yellow")) {
           const key = `yellow_red`;
           if (!seen.has(key)) {
             seen.add(key);
@@ -5147,15 +7071,15 @@ Analyze my squad strictly under Kickbase rules:
           }
         }
         // Yellow: 155
-        else if (id === 155 || text.includes("yellow") || text.includes("gelb")) {
-          const key = `yellow_${minStr}`;
+        else if (id === 155 || eti === 155 || text.includes("yellow") || text.includes("gelb")) {
+          const key = `yellow`;
           if (!seen.has(key)) {
             seen.add(key);
             parsed.push({ type: "yellow", icon: "🟨", label: "Gelbe Karte", minute: minStr });
           }
         }
         // Red: 136
-        else if (id === 136 || text.includes("red") || text.includes("rot")) {
+        else if (id === 136 || eti === 136 || text.includes("red") || text.includes("rot")) {
           const key = `red`;
           if (!seen.has(key)) {
             seen.add(key);
@@ -5163,6 +7087,12 @@ Analyze my squad strictly under Kickbase rules:
           }
         }
       }
+
+      if (hadSubAction && !seen.has("sub_in")) {
+        seen.add("sub_in");
+        parsed.push({ type: "sub_in", icon: "🔺", label: "Eingewechselt", minute: "", rawMinute: null });
+      }
+
       return parsed;
     }
 
@@ -5219,7 +7149,7 @@ Analyze my squad strictly under Kickbase rules:
         const slots = list.map((p) => `
           <div class="pitch-card ${p.matchStatus === 1 ? "pitch-card-live" : ""} ${p.rawStatus !== 0 ? "injured" : ""}" style="--pawn-col:${p.color}; border-top:3px solid ${p.color}; ${p.matchStatus === 1 ? "box-shadow: 0 0 14px rgba(16, 185, 129, 0.45); border-color: #34d399;" : ""}">
             ${ui.pawn(p, 42, { center: true })}
-            <div class="pname" title="${esc(p.name)}">${esc(p.name)}</div>
+            <div class="pname" title="${esc(p.name)}">${esc(p.name)} ${p.isSold ? `<span class="pill" style="font-size:9px;padding:1px 4px;background:rgba(255,255,255,0.08);color:#94a3b8" title="Player was sold mid-matchday but still scores for this game">Sold</span>` : ""}</div>
             <div class="live-pts-badge ${(p.livePoints || 0) >= 0 ? "up" : "down"}" style="font-size:13px;font-weight:800;margin:3px 0">
               ⚡ ${(p.livePoints || 0) > 0 ? "+" : ""}${p.livePoints ?? 0} pts
             </div>
@@ -5259,7 +7189,7 @@ Analyze my squad strictly under Kickbase rules:
                   </div>
                 </div>
                 <div style="margin-top:10px;font-size:13px;color:#cbd5e1;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-                  <span><b>Starters:</b> <span style="color:#34d399">${playingNow.length} Live</span> · <span style="color:#94a3b8">${finishedMatches.length} FT</span> · <span style="color:#fde047">${upcomingMatches.length} Upcoming</span></span>
+                  <span><b>Starters:</b> <span style="color:#34d399">${playingNow.length} Live</span> · <span style="color:#94a3b8">${finishedMatches.length} Finished</span> · <span style="color:#fde047">${upcomingMatches.length} Upcoming</span></span>
                   <span>•</span>
                   <span><b>Bench Points:</b> +${benchTotalPoints} pts</span>
                   <span>•</span>
@@ -5387,7 +7317,7 @@ Analyze my squad strictly under Kickbase rules:
                 <div class="bench-card" style="border-left:3px solid ${p.color};">
                   ${ui.pawn(p, 36)}
                   <div class="b-info">
-                    <div class="b-name">${esc(p.name)} ${ui.pos(p.position)}</div>
+                    <div class="b-name">${esc(p.name)} ${ui.pos(p.position)} ${p.isSold ? `<span class="pill" style="font-size:9px;padding:1px 4px;background:rgba(255,255,255,0.08);color:#94a3b8" title="Player was sold mid-matchday but still scores for this game">Sold</span>` : ""}</div>
                     <div class="b-sub">
                       <span class="live-pts-badge ${(p.livePoints || 0) >= 0 ? "up" : "down"}" style="padding:1px 6px;border-radius:6px;font-size:11px">⚡ ${(p.livePoints || 0) > 0 ? "+" : ""}${p.livePoints ?? 0} pts</span>
                       <span>${getStatusPill(p)}</span>
@@ -5411,7 +7341,7 @@ Analyze my squad strictly under Kickbase rules:
             <div style="display:flex;gap:6px;background:var(--surface-2);padding:4px;border-radius:10px;border:1px solid var(--border)">
               <button class="btn sm ${filterMode === "all" ? "primary" : "ghost"}" data-filter="all" style="height:26px;padding:0 10px;font-size:12px">All (11)</button>
               <button class="btn sm ${filterMode === "live" ? "primary" : "ghost"}" data-filter="live" style="height:26px;padding:0 10px;font-size:12px">● Live (${playingNow.length})</button>
-              <button class="btn sm ${filterMode === "ft" ? "primary" : "ghost"}" data-filter="ft" style="height:26px;padding:0 10px;font-size:12px">FT (${finishedMatches.length})</button>
+              <button class="btn sm ${filterMode === "ft" ? "primary" : "ghost"}" data-filter="ft" style="height:26px;padding:0 10px;font-size:12px">Finished (${finishedMatches.length})</button>
               <button class="btn sm ${filterMode === "top" ? "primary" : "ghost"}" data-filter="top" style="height:26px;padding:0 10px;font-size:12px">Top (>50 pts)</button>
             </div>
           </div>
@@ -5511,9 +7441,9 @@ Analyze my squad strictly under Kickbase rules:
           } else if (subIn) {
             subText = `<span class="event-chip sub-in">🔺 In ${subIn.minute || ""}</span>`;
           } else if (p.matchStatus === 2) {
-            subText = `<span style="font-size:11px;color:var(--muted)">⏱️ 90' Full</span>`;
+            subText = `<span style="font-size:11px;color:var(--muted)">✓ Match Finished</span>`;
           } else if (p.matchStatus === 1) {
-            subText = `<span style="font-size:11px;color:#34d399">⏱️ Playing</span>`;
+            subText = `<span style="font-size:11px;color:#34d399">⏱️ In Game ${p.matchMinute ? `(${p.matchMinute}')` : ""}</span>`;
           }
 
           let goalsHtml = `<span class="muted" style="font-size:11.5px">—</span>`;
@@ -5558,7 +7488,7 @@ Analyze my squad strictly under Kickbase rules:
                     <span class="player-color-dot" style="background:${r.color};box-shadow:0 0 6px ${r.color}88"></span>
                     ${esc(r.name)}
                   </div>
-                  <div style="font-size:11px;color:var(--muted)">${r.isStarter ? '<span class="pill up" style="font-size:9px;padding:1px 5px">Starter</span>' : '<span class="pill" style="font-size:9px;padding:1px 5px">Bench</span>'} ${r.matchup ? `· ${esc(r.matchup)}` : ""}</div>
+                  <div style="font-size:11px;color:var(--muted)">${r.isStarter ? '<span class="pill up" style="font-size:9px;padding:1px 5px">Starter</span>' : '<span class="pill" style="font-size:9px;padding:1px 5px">Bench</span>'} ${r.isSold ? '<span class="pill" style="font-size:9px;padding:1px 5px;background:rgba(255,255,255,0.08);color:#94a3b8" title="Player was sold mid-matchday but still scores for this game">Sold</span>' : ''} ${r.matchup ? `· ${esc(r.matchup)}` : ""}</div>
                 </div>
               </div>
             `
@@ -5605,7 +7535,7 @@ Analyze my squad strictly under Kickbase rules:
             label: "Market Value",
             kind: "money",
             right: true,
-            fmt: (v) => (v && v > 0) ? money(v) : "—"
+            fmt: (v, r) => (v && v > 0) ? money(v) : (r.isSold ? '<span class="muted" style="font-size:11px" title="Market value unknown (Player sold)">Sold</span>' : "—")
           }
         ];
 
@@ -5635,6 +7565,8 @@ Analyze my squad strictly under Kickbase rules:
           S.api.clearCache(`/v4/leagues/${ctx.l}/teamcenter`);
           S.api.clearCache(`/v4/leagues/${ctx.l}/ranking`);
           S.api.clearCache(`/v4/leagues/${ctx.l}/squad`);
+          S.api.clearCache(`/v4/competitions/`);
+          S.api.clearCache(`/v4/matches/`);
         }
         ui.toast("Refreshing live matchday data…");
         pageLive(el, ctx);
@@ -5664,11 +7596,26 @@ Analyze my squad strictly under Kickbase rules:
             }
 
             const rivalStarters = rivalTc.lp.map((raw) => {
-              const p = tf.player(raw);
+              const p = tf.player({ ...raw, st: undefined }); // teamcenter "st" is not injury status
               const mst = raw.mst !== undefined ? Number(raw.mst) : (p.matchStatus !== undefined ? Number(p.matchStatus) : 0);
               const curGamePoints = (mst !== 0 && raw.p !== undefined && raw.p !== null) ? Number(raw.p) : 0;
-              const rEvents = raw.k || raw.ev || raw.events || (matchEventMap.get(String(raw.i || raw.pi || p.id)) || []);
-              return { ...p, livePoints: curGamePoints, matchStatus: mst, matchMinute: raw.mt, events: rEvents };
+              const pid = String(raw.i || raw.pi || p.id);
+              const extraEv = matchEventMap.get(pid) || [];
+              const rEvents = [...extraEv, ...(raw.k || raw.ev || raw.events || [])];
+              const tId = String(raw.tid || p.teamId || "");
+              const matchId = String(raw.mi || p.matchId || teamToMatchMap.get(tId) || "");
+              const rawDate = raw.md || raw.d || raw.dt || raw.date || raw.startTime || raw.t || raw.matchDate;
+              const resolvedDay = formatMatchDay(rawDate) || matchScheduleMap.get(matchId) || teamScheduleMap.get(tId) || "";
+              const resolvedMatchup = matchMatchupMap.get(matchId) || teamMatchupMap.get(tId) || p.matchup || "";
+              return {
+                ...p,
+                livePoints: curGamePoints,
+                matchStatus: mst,
+                matchMinute: raw.mt,
+                matchup: resolvedMatchup,
+                matchDay: resolvedDay,
+                events: rEvents
+              };
             });
             const rivalTotal = rivalStarters.reduce((sum, p) => sum + (p.livePoints || 0), 0);
 
