@@ -2672,6 +2672,60 @@ Analyze my squad strictly under Kickbase rules:
     return (rank.find((r) => r.id === String(s.userId)) || rank.find((r) => r.name === s.userName) || {}).id || null;
   }
 
+  async function findUserJoinDate(leagueId, managerId, userTransfers = []) {
+    let earliest = null;
+    // 1. Check earliest user transfer (Buy or Sell)
+    if (userTransfers && userTransfers.length) {
+      for (const t of userTransfers) {
+        if (t.date instanceof Date && !isNaN(t.date.getTime())) {
+          if (!earliest || t.date.getTime() < earliest.getTime()) earliest = t.date;
+        }
+      }
+    }
+    // 2. Check activitiesFeed for registration/transfer events if available
+    try {
+      const feedRaw = await S.api.activitiesFeed(leagueId, 300).catch(() => ({ af: [] }));
+      for (const item of (feedRaw?.af || [])) {
+        const d = item.data || item.meta;
+        const dt = (item.dt || item.date) ? new Date(item.dt || item.date) : null;
+        if (dt && !isNaN(dt.getTime())) {
+          const userMatches = String(item.u || item.userId || d?.ui || d?.uid || "") === String(managerId) ||
+            String(d?.byr || "").toLowerCase() === String(S.session?.userName || "").toLowerCase() ||
+            String(d?.slr || "").toLowerCase() === String(S.session?.userName || "").toLowerCase();
+          if (userMatches) {
+            if (!earliest || dt.getTime() < earliest.getTime()) earliest = dt;
+          }
+        }
+      }
+    } catch (e) {}
+    // 3. Check performance matchdays
+    try {
+      if (managerId) {
+        const perfRaw = await S.api.managerPerformance(leagueId, managerId).catch(() => ({ it: [] }));
+        const pRows = tf.managerPerformance(perfRaw, S.session?.userName || "");
+        const played = pRows.filter((r) => (r.points && r.points > 0) || r.current);
+        if (played.length && !earliest) {
+          const compDays = await S.api.competitionMatchdays(1).catch(() => null);
+          const firstDay = played[0].matchday;
+          const mdInfo = (compDays?.it || []).find((m) => m.day === firstDay);
+          if (mdInfo && mdInfo.d) {
+            const dt = new Date(mdInfo.d);
+            if (!isNaN(dt.getTime())) earliest = dt;
+          }
+        }
+      }
+    } catch (e) {}
+    // 4. Fallback to league selection or now
+    if (!earliest) {
+      const lg = (S.leagues || []).find((l) => l.i === leagueId);
+      if (lg && (lg.cd || lg.createdAt)) {
+        const dt = new Date(lg.cd || lg.createdAt);
+        if (!isNaN(dt.getTime())) earliest = dt;
+      }
+    }
+    return earliest || new Date();
+  }
+
   async function leagueData(l) {
     const [rank, feedRaw] = await Promise.all([
       rankingRows(l),
@@ -2806,6 +2860,9 @@ Analyze my squad strictly under Kickbase rules:
     }
     if (ctx.stale()) return;
 
+    // Resolve user league join / registration date for initial squad assignment
+    const userJoinDate = await findUserJoinDate(ctx.l, myId, myTransfers);
+
     squad.forEach((p) => {
       const buys = myTransfers.filter((t) =>
         (String(t.playerId) === String(p.id) || (t.player && t.player.toLowerCase() === p.name.toLowerCase())) &&
@@ -2816,9 +2873,14 @@ Analyze my squad strictly under Kickbase rules:
         p.purchasePrice = buy.price;
         p.purchaseDate = buy.date || null;
         p.buyCounterpart = buy.counterpart || "Kickbase";
+        p.isAssignedAtRegistration = false;
       } else {
-        p.purchaseDate = null;
-        p.buyCounterpart = "Initial Squad / Kickbase";
+        // Player randomly assigned upon league registration
+        p.purchaseDate = userJoinDate;
+        p.buyCounterpart = "Initial Squad (Assigned on Registration)";
+        p.isAssignedAtRegistration = true;
+        // If purchasePrice is not set by API, default to current market value or initial value
+        if (!p.purchasePrice) p.purchasePrice = p.marketValue;
       }
       if (p.purchasePrice && p.marketValue) {
         p.profit = p.marketValue - p.purchasePrice;
@@ -3101,8 +3163,10 @@ Analyze my squad strictly under Kickbase rules:
             const isSel = selectedPitchPlayerId === p.id;
             slots.push(`
               <div class="pitch-card ${isSel ? "selected" : ""} ${p.rawStatus !== 0 ? "injured" : ""}" data-pitch-id="${p.id}" style="--pawn-col:${p.color}; border-top:3px solid ${p.color}">
-                ${ui.pawn(p, 42, { center: true })}
-                <div class="pname" title="${esc(p.name)}">${esc(p.name)}</div>
+                <div data-view-player="${p.id}" style="cursor:pointer" title="Click to view ${esc(p.name)} stats & MW history">
+                  ${ui.pawn(p, 42, { center: true })}
+                  <div class="pname" style="text-decoration:underline;text-decoration-color:rgba(255,255,255,0.25)" title="${esc(p.name)}">${esc(p.name)}</div>
+                </div>
                 <div class="ppts">★ ${p.avgPoints} pts <span class="muted" style="font-size:10px">(${p.totalPoints})</span></div>
                 <div class="pmv">${money(p.marketValue)}</div>
                 ${p.rawStatus !== 0 ? `<span class="status-badge injured">${esc(p.status)}</span>` : ""}
@@ -3175,6 +3239,14 @@ Analyze my squad strictly under Kickbase rules:
         </div>
       `;
 
+      pitchEl.querySelectorAll("[data-view-player]").forEach((elView) => {
+        elView.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const p = squad.find((x) => x.id === elView.dataset.viewPlayer);
+          if (p) openPlayerModal(ctx, p, { budget, market, squad });
+        });
+      });
+
       pitchEl.querySelectorAll("[data-pitch-id]").forEach((elCard) => {
         elCard.addEventListener("click", () => {
           const id = elCard.dataset.pitchId;
@@ -3241,13 +3313,15 @@ Analyze my squad strictly under Kickbase rules:
         <div class="bench-grid">
           ${benchPlayers.map((p) => `
             <div class="bench-card" data-bench-id="${p.id}" style="border-left:3px solid ${p.color}">
-              ${ui.pawn(p, 36)}
-              <div class="b-info">
-                <div class="b-name">${esc(p.name)} ${ui.pos(p.position)}</div>
-                <div class="b-sub">
-                  <span>★ ${p.avgPoints} pts <span class="muted" style="font-size:10px">(${p.totalPoints})</span></span>
-                  <span>${money(p.marketValue)}</span>
-                  ${p.rawStatus !== 0 ? `<span class="status-badge injured">${esc(p.status)}</span>` : ""}
+              <div data-view-player="${p.id}" style="display:flex;align-items:center;gap:10px;flex:1;cursor:pointer" title="Click to view ${esc(p.name)} stats & MW history">
+                ${ui.pawn(p, 36)}
+                <div class="b-info">
+                  <div class="b-name" style="text-decoration:underline;text-decoration-color:rgba(255,255,255,0.25)">${esc(p.name)} ${ui.pos(p.position)}</div>
+                  <div class="b-sub">
+                    <span>★ ${p.avgPoints} pts <span class="muted" style="font-size:10px">(${p.totalPoints})</span></span>
+                    <span>${money(p.marketValue)}</span>
+                    ${p.rawStatus !== 0 ? `<span class="status-badge injured">${esc(p.status)}</span>` : ""}
+                  </div>
                 </div>
               </div>
               <div class="b-actions">
@@ -3262,6 +3336,14 @@ Analyze my squad strictly under Kickbase rules:
           `).join("")}
         </div>
       `;
+
+      benchEl.querySelectorAll("[data-view-player]").forEach((elView) => {
+        elView.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const p = squad.find((x) => x.id === elView.dataset.viewPlayer);
+          if (p) openPlayerModal(ctx, p, { budget, market, squad });
+        });
+      });
 
       benchEl.querySelectorAll("[data-sub-in]").forEach((btn) => {
         btn.addEventListener("click", () => {
@@ -3342,12 +3424,15 @@ Analyze my squad strictly under Kickbase rules:
     const tSquadEl = el.querySelector("#t-squad");
     ui.table(tSquadEl, squad, squadCols, {
       sort: "marketValue",
-      rowClass: (p) => (startingIds.includes(p.id) ? "me" : "")
+      rowClass: (p) => (startingIds.includes(p.id) ? "me" : ""),
+      onRowClick: (p) => openPlayerModal(ctx, p, { budget, market, squad }),
+      rowTitle: (p) => `Click to view player stats & MW history for ${p.name}`
     });
 
     tSquadEl?.addEventListener("click", (e) => {
       const sellBtn = e.target.closest("[data-t-sell]");
       if (sellBtn) {
+        e.stopPropagation();
         const p = squad.find((x) => x.id === sellBtn.dataset.tSell);
         if (p) sellDialog(ctx, p, budget);
       }
@@ -4547,6 +4632,8 @@ Analyze my squad strictly under Kickbase rules:
 
     // Pool of all players across all managers & market
     const pool = new Map();
+    const myJoinDate = await findUserJoinDate(ctx.l, meId, d.transfers.filter((t) => t.buyer === meName || t.managerId === meId));
+
     managers.forEach((m) => {
       m.players.forEach((p) => {
         // Resolve purchase data if available
@@ -4557,8 +4644,16 @@ Analyze my squad strictly under Kickbase rules:
         ).sort((a, b) => (b.date ? +b.date : 0) - (a.date ? +a.date : 0));
 
         const buy = buys[0] || null;
-        const buyPrice = buy ? buy.price : (p.purchasePrice || null);
-        const buyDate = buy ? buy.date : null;
+        let buyPrice = buy ? buy.price : (p.purchasePrice || null);
+        let buyDate = buy ? buy.date : null;
+        let buyCounterpart = buy ? buy.counterpart : "Kickbase";
+
+        if (!buy && p.isMine) {
+          buyDate = myJoinDate;
+          buyCounterpart = "Initial Squad (Assigned on Registration)";
+          if (!buyPrice) buyPrice = p.marketValue;
+        }
+
         const profit = buyPrice ? (p.marketValue - buyPrice) : (p.profit || 0);
         const profitPct = buyPrice && buyPrice > 0 ? (Math.round((profit / buyPrice) * 1000) / 10) : 0;
 
@@ -4566,7 +4661,7 @@ Analyze my squad strictly under Kickbase rules:
         p.purchaseDate = buyDate;
         p.profit = profit;
         p.profitPct = profitPct;
-        p.buyCounterpart = buy ? buy.counterpart : "Kickbase";
+        p.buyCounterpart = buyCounterpart;
 
         pool.set(p.id, p);
       });
@@ -6758,9 +6853,10 @@ Analyze my squad strictly under Kickbase rules:
       // Async loader for full player data and chart rendering
       (async () => {
         // Parallel data fetch
-        const [pInfo, mvData] = await Promise.all([
+        const [pInfo, mvData, rankData] = await Promise.all([
           S.api.player(ctx.l, pid).catch(() => null),
-          fetchPlayerMvHistory(ctx.l, pid).catch(() => ({ list: [], latestMv: null }))
+          fetchPlayerMvHistory(ctx.l, pid).catch(() => ({ list: [], latestMv: null })),
+          rankingRows(ctx.l).catch(() => [])
         ]);
 
         // Merge fetched profile into player object
@@ -6776,6 +6872,68 @@ Analyze my squad strictly under Kickbase rules:
             avgPoints: pInfo.ap ?? p.avgPoints,
             status: pInfo.st !== undefined ? (({ 0: "Fit", 1: "Injured", 2: "Stricken", 4: "Suspended" })[pInfo.st] || pInfo.st) : p.status
           };
+        }
+
+        // Identify if current user purchased this player (in squad or via transfer history)
+        let userPurchase = null;
+        const squadPlayer = (opts.squad || []).find((x) => String(x.id) === pid);
+        if (squadPlayer && squadPlayer.purchasePrice) {
+          userPurchase = {
+            price: squadPlayer.purchasePrice,
+            date: squadPlayer.purchaseDate ? new Date(squadPlayer.purchaseDate) : null,
+            counterpart: squadPlayer.buyCounterpart || "Kickbase",
+            isAssignedAtRegistration: Boolean(squadPlayer.isAssignedAtRegistration),
+            source: "squad"
+          };
+        } else if (p.purchasePrice) {
+          userPurchase = {
+            price: p.purchasePrice,
+            date: p.purchaseDate ? new Date(p.purchaseDate) : (p.date ? new Date(p.date) : null),
+            counterpart: p.buyCounterpart || p.seller || "Kickbase",
+            isAssignedAtRegistration: Boolean(p.isAssignedAtRegistration),
+            source: "prop"
+          };
+        }
+
+        if (!userPurchase && Array.isArray(rankData) && rankData.length) {
+          try {
+            const myId = myManagerId(rankData);
+            if (myId) {
+              const myTrRaw = await S.api.managerTransfers(ctx.l, myId).catch(() => ({ it: [] }));
+              const myTrs = tf.transfers(myTrRaw, "Me");
+              const matchingBuy = myTrs.find((t) => String(t.playerId) === pid && (t.type === "Buy" || !t.type) && t.price > 0);
+              if (matchingBuy) {
+                userPurchase = {
+                  price: matchingBuy.price,
+                  date: matchingBuy.date ? new Date(matchingBuy.date) : null,
+                  counterpart: matchingBuy.counterpart || matchingBuy.seller || "Kickbase",
+                  isAssignedAtRegistration: false,
+                  source: "history"
+                };
+              }
+            }
+          } catch (e) {
+            // fallback gracefully
+          }
+        }
+
+        // If player is in user's squad but was randomly assigned upon registration (no buy transfer),
+        // determine the user's registration join date and attach it!
+        if (squadPlayer && (!userPurchase || !userPurchase.date)) {
+          try {
+            const myId = myManagerId(rankData);
+            const myJoinDate = await findUserJoinDate(ctx.l, myId);
+            userPurchase = {
+              price: userPurchase?.price || squadPlayer.marketValue || p.marketValue || 0,
+              date: myJoinDate,
+              counterpart: "Initial Squad (Assigned on Registration)",
+              isAssignedAtRegistration: true,
+              source: "registration"
+            };
+            squadPlayer.purchaseDate = myJoinDate;
+            squadPlayer.purchasePrice = userPurchase.price;
+            squadPlayer.buyCounterpart = userPurchase.counterpart;
+          } catch (e) {}
         }
 
         // Update Header
@@ -6815,9 +6973,8 @@ Analyze my squad strictly under Kickbase rules:
         if (gpEl) gpEl.textContent = ui.int(games);
         if (stEl) stEl.textContent = starts !== null ? ui.int(starts) : "–";
 
-        // Check Transfermarkt / Bidding status
+        // Check Transfermarkt / Bidding status & Ownership
         const marketPlayer = (opts.market || []).find((x) => String(x.id) === pid);
-        const squadPlayer = (opts.squad || []).find((x) => String(x.id) === pid);
         const mktSec = body.querySelector("#pm-market-section");
         const ownTag = body.querySelector("#pm-ownership-tag");
 
@@ -6828,6 +6985,25 @@ Analyze my squad strictly under Kickbase rules:
           const currentBid = Number(marketPlayer.myOfferPrice || 0);
           const base = Math.ceil(Math.max(marketPlayer.marketValue || p.marketValue || 0, marketPlayer.price || 0)) || 1;
           const initialPrice = isUpdate && currentBid > 0 ? currentBid : base;
+
+          let purchaseHtml = "";
+          if (userPurchase) {
+            const curMv = p.marketValue || 0;
+            const profit = curMv - userPurchase.price;
+            const profitPct = userPurchase.price > 0 ? Math.round((profit / userPurchase.price) * 1000) / 10 : 0;
+            const dateStr = userPurchase.date instanceof Date && !isNaN(userPurchase.date) ? userPurchase.date.toLocaleDateString("de-DE") : "Previously";
+            purchaseHtml = `
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:10px;background:rgba(255,90,31,0.08);border:1px solid rgba(255,90,31,0.25);margin-bottom:12px;font-size:12px">
+                <div>
+                  <span style="font-weight:700;color:#ff5a1f">🏷️ Your Purchase Record:</span>
+                  <span> Bought for <b class="num" style="color:#fff">${money(userPurchase.price)}</b> (${ui.moneyFull(userPurchase.price)}) on <b>${dateStr}</b></span>
+                </div>
+                <div>
+                  <span style="color:${profit >= 0 ? "#34d399" : "#f87171"};font-weight:700" class="num">${signedMoney(profit)} (${profit >= 0 ? "+" : ""}${profitPct}%)</span>
+                </div>
+              </div>
+            `;
+          }
 
           mktSec.innerHTML = `
             <div style="background:rgba(255,90,31,0.06);border:1px solid rgba(255,90,31,0.28);border-radius:14px;padding:14px">
@@ -6841,6 +7017,8 @@ Analyze my squad strictly under Kickbase rules:
                 </div>
                 ${exp ? `<div style="text-align:right;font-size:11.5px;color:${exp.color};background:${exp.bg};border:1px solid ${exp.border};padding:4px 10px;border-radius:8px">⏱️ Ends in <b>${esc(exp.durationStr)}</b> <span style="opacity:0.85">(${esc(exp.clockStr)})</span></div>` : ""}
               </div>
+
+              ${purchaseHtml}
 
               ${isUpdate ? `
                 <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:8px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.32);margin-bottom:12px;font-size:12.5px">
@@ -6938,21 +7116,30 @@ Analyze my squad strictly under Kickbase rules:
               bPlace.textContent = isUpdate ? "Update Bid" : "Place Bid";
             }
           });
-        } else if (squadPlayer) {
-          if (ownTag) ownTag.innerHTML = `· <span style="color:#34d399;font-weight:700">⚽ In Your Squad</span>`;
-          const profit = squadPlayer.purchasePrice && squadPlayer.marketValue ? (squadPlayer.marketValue - squadPlayer.purchasePrice) : null;
+        } else if (squadPlayer || userPurchase) {
+          if (squadPlayer && ownTag) {
+            ownTag.innerHTML = `· <span style="color:#34d399;font-weight:700">⚽ In Your Squad</span>`;
+          }
+          const pPrice = userPurchase?.price || squadPlayer?.purchasePrice || 0;
+          const curMv = p.marketValue || squadPlayer?.marketValue || 0;
+          const profit = pPrice && curMv ? (curMv - pPrice) : null;
+          const profitPct = pPrice > 0 && profit !== null ? Math.round((profit / pPrice) * 1000) / 10 : null;
+          const dateStr = userPurchase?.date instanceof Date && !isNaN(userPurchase.date) ? userPurchase.date.toLocaleDateString("de-DE") : (squadPlayer?.purchaseDate ? new Date(squadPlayer.purchaseDate).toLocaleDateString("de-DE") : null);
+
           mktSec.innerHTML = `
             <div style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.28);border-radius:14px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
               <div>
-                <b style="color:#34d399">⚽ Player is in your squad</b>
-                <div style="font-size:12px;color:var(--muted)">
-                  ${squadPlayer.purchasePrice ? `Bought for <b>${money(squadPlayer.purchasePrice)}</b>` : "Initial squad player"}
-                  ${profit !== null && profit !== 0 ? ` · Profit: <b style="color:${profit > 0 ? "#34d399" : "#f87171"}">${signedMoney(profit)}</b>` : ""}
+                <b style="color:#34d399">🛒 ${squadPlayer ? "In Your Squad" : "Your Purchase History"}</b>
+                <div style="font-size:12px;color:var(--muted);margin-top:2px">
+                  ${pPrice ? `Bought for <b>${money(pPrice)}</b> (${ui.moneyFull(pPrice)})${dateStr ? ` on <b>${dateStr}</b>` : ""}${userPurchase?.counterpart ? ` · from ${esc(userPurchase.counterpart)}` : ""}` : "Initial squad player"}
+                  ${profit !== null && profit !== 0 ? ` · Profit: <b style="color:${profit > 0 ? "#34d399" : "#f87171"}">${signedMoney(profit)} (${profit > 0 ? "+" : ""}${profitPct}%)</b>` : ""}
                 </div>
               </div>
-              <div style="display:flex;gap:8px">
-                <button class="btn sm primary" id="btn-pm-list" style="height:30px;padding:0 12px;font-size:12px">${ui.icon("storefront")} List on Market</button>
-              </div>
+              ${squadPlayer ? `
+                <div style="display:flex;gap:8px">
+                  <button class="btn sm primary" id="btn-pm-list" style="height:30px;padding:0 12px;font-size:12px">${ui.icon("storefront")} List on Market</button>
+                </div>
+              ` : ""}
             </div>
           `;
           mktSec.querySelector("#btn-pm-list")?.addEventListener("click", () => {
@@ -6984,14 +7171,46 @@ Analyze my squad strictly under Kickbase rules:
           const netChange = curMv - startMv;
           const netPct = startMv > 0 ? Math.round((netChange / startMv) * 1000) / 10 : 0;
 
+          // Annotations for user purchase price and date
+          const annotations = [];
+          if (userPurchase && userPurchase.price > 0) {
+            const pDate = userPurchase.date instanceof Date && !isNaN(userPurchase.date) ? userPurchase.date : new Date(pointsToUse[0].timestamp);
+            const inRange = (+pDate >= cutoff) || (days >= 365);
+            // If the purchase was made within or close to chart range, display the annotation pin
+            if (inRange || days >= 92) {
+              const diffVsBuy = curMv - userPurchase.price;
+              const diffPct = Math.round((diffVsBuy / userPurchase.price) * 1000) / 10;
+              const isAssigned = Boolean(userPurchase.isAssignedAtRegistration);
+              annotations.push({
+                x: pDate,
+                y: userPurchase.price,
+                title: isAssigned ? "Initial Squad Assignment" : "Your Purchase",
+                label: isAssigned ? `⚽ ${money(userPurchase.price)}` : `🛒 ${money(userPurchase.price)}`,
+                color: isAssigned ? "#38bdf8" : "#ff5a1f",
+                sub: isAssigned
+                  ? `Assigned on league registration for ${money(userPurchase.price)} (${ui.moneyFull(userPurchase.price)}) · Net change: ${signedMoney(diffVsBuy)} (${diffVsBuy >= 0 ? "+" : ""}${diffPct}%)`
+                  : `Bought for ${money(userPurchase.price)} (${ui.moneyFull(userPurchase.price)}) · Gain: ${signedMoney(diffVsBuy)} (${diffVsBuy >= 0 ? "+" : ""}${diffPct}%) · Source: ${userPurchase.counterpart || "Kickbase"}`
+              });
+            }
+          }
+
           if (graphSub) {
-            graphSub.textContent = `${days === 30 ? "Last 30 Days" : days === 92 ? "Last 3 Months" : "Last 1 Year"} · Trend: ${signedMoney(netChange)} (${netChange > 0 ? "+" : ""}${netPct}%)`;
+            const trendStr = `${days === 30 ? "Last 30 Days" : days === 92 ? "Last 3 Months" : "Last 1 Year"} · Trend: ${signedMoney(netChange)} (${netChange > 0 ? "+" : ""}${netPct}%)`;
+            const buyNote = userPurchase
+              ? (userPurchase.isAssignedAtRegistration ? ` · ⚽ Assigned: ${money(userPurchase.price)}` : ` · 🛒 Bought: ${money(userPurchase.price)}`)
+              : "";
+            graphSub.textContent = trendStr + buyNote;
           }
           if (graphStats) {
+            const pDiff = userPurchase ? (curMv - userPurchase.price) : null;
+            const pDiffPct = userPurchase && userPurchase.price > 0 ? Math.round((pDiff / userPurchase.price) * 1000) / 10 : null;
+            const tagLabel = userPurchase?.isAssignedAtRegistration ? "⚽ Assigned:" : "🛒 Bought:";
+            const tagColor = userPurchase?.isAssignedAtRegistration ? "#38bdf8" : "#ff5a1f";
             graphStats.innerHTML = `
               <span>Low: <b>${money(minMv)}</b></span>
               <span>High: <b>${money(maxMv)}</b></span>
-              <span>Period change: <b style="color:${netChange >= 0 ? "#34d399" : "#f87171"}">${signedMoney(netChange)} (${netChange >= 0 ? "+" : ""}${netPct}%)</b></span>
+              <span>Period: <b style="color:${netChange >= 0 ? "#34d399" : "#f87171"}">${signedMoney(netChange)} (${netChange >= 0 ? "+" : ""}${netPct}%)</b></span>
+              ${userPurchase ? `<span style="padding-left:8px;border-left:1px solid rgba(255,255,255,0.1)">${tagLabel} <b style="color:${tagColor}">${money(userPurchase.price)}</b> (<b style="color:${pDiff >= 0 ? "#34d399" : "#f87171"}">${signedMoney(pDiff)} / ${pDiff >= 0 ? "+" : ""}${pDiffPct}%</b>)</span>` : ""}
             `;
           }
 
@@ -7001,6 +7220,7 @@ Analyze my squad strictly under Kickbase rules:
             height: 220,
             markers: pointsToUse.length <= 40,
             yFmt: money,
+            annotations,
             series: [{
               name: pName,
               color: pCol || "#10b981",
