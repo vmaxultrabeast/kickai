@@ -235,6 +235,8 @@ svg.chart.dim .series.hl { opacity: 1; }
 /* ---------- Dialog & toast ---------- */
 dialog { border: 1px solid var(--border-2); border-radius: 18px; background: var(--surface); color: var(--text);
   padding: 0; width: min(480px, 92vw); box-shadow: 0 30px 80px rgba(0, 0, 0, .6); }
+dialog.dialog-wide { width: min(780px, 95vw); max-height: 92vh; }
+dialog.dialog-wide .db { max-height: calc(92vh - 65px); overflow-y: auto; }
 dialog::backdrop { background: rgba(5, 7, 10, .65); backdrop-filter: blur(3px); }
 dialog .dh { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px 0; }
 dialog .dh h3 { margin: 0; font-size: 18px; }
@@ -1101,13 +1103,28 @@ table.data tr.tr-user-deal td {
     const pid = String(first(p, "i", "pi") ?? "");
     const pName = `${fn} ${ln}`.trim();
     const col = playerColor(pid, pName);
-    const smc = first(p, "smc");
+    const rawIsmc = first(p, "ismc");
+    const starts = (rawIsmc !== undefined && rawIsmc !== null) ? Number(rawIsmc) : null;
+    const smdc = first(p, "smdc") !== undefined ? Number(first(p, "smdc")) : null;
     const phArr = Array.isArray(p?.ph) ? p.ph : null;
-    const gamesPlayed = (smc !== undefined && smc !== null)
-      ? Number(smc)
-      : (phArr
-          ? phArr.filter((x) => x && (x.hp || (x.p !== undefined && x.p !== 0))).length
-          : (pts && avg ? Math.max(1, Math.round(Math.abs(pts / avg))) : 0));
+    const phPlayed = phArr ? phArr.filter((x) => x && (x.hp || (x.p !== undefined && x.p !== 0))).length : 0;
+    let gamesPlayed = 0;
+    if (phPlayed > 0) {
+      gamesPlayed = phPlayed;
+    } else if (starts !== null) {
+      gamesPlayed = starts;
+    }
+    if (gamesPlayed <= 0 && pts && avg) {
+      gamesPlayed = Math.max(1, Math.round(Math.abs(pts / avg)));
+    } else if (gamesPlayed <= 0 && pts) {
+      gamesPlayed = 1;
+    }
+    if (starts !== null && starts > gamesPlayed) {
+      gamesPlayed = starts;
+    }
+    if (smdc && smdc > 0 && gamesPlayed > smdc) {
+      gamesPlayed = smdc;
+    }
     return {
       id: pid,
       name: pName,
@@ -1129,8 +1146,8 @@ table.data tr.tr-user-deal td {
       totalPoints: pts,
       avgPoints: avg,
       gamesPlayed,
-      startsCount: first(p, "ismc") !== undefined ? Number(first(p, "ismc")) : null,
-      seasonMatchdays: first(p, "smdc") !== undefined ? Number(first(p, "smdc")) : null,
+      startsCount: starts,
+      seasonMatchdays: smdc,
       ppm: mv ? Math.round((avg / (mv / 1e6)) * 100) / 100 : null,
       image: KB.imageUrl ? KB.imageUrl(first(p, "pim")) : null,
       price: first(p, "prc") ?? null,
@@ -1532,8 +1549,9 @@ table.data tr.tr-user-deal td {
   }
 
   /** Opens a modal dialog. build(body, close) fills the body. Returns the dialog element. */
-  function dialog(title, build) {
-    const d = h(`<dialog><div class="dh"><h3>${esc(title)}</h3><button class="x" aria-label="Close">${icon("close")}</button></div><div class="db"></div></dialog>`);
+  function dialog(title, build, opts = {}) {
+    const cls = opts.wide ? ' class="dialog-wide"' : '';
+    const d = h(`<dialog${cls}><div class="dh"><h3>${esc(title)}</h3><button class="x" aria-label="Close">${icon("close")}</button></div><div class="db"></div></dialog>`);
     document.body.appendChild(d);
     const close = () => { d.close(); d.remove(); };
     d.querySelector(".x").addEventListener("click", close);
@@ -2731,13 +2749,29 @@ Analyze my squad strictly under Kickbase rules:
       key: "gamesPlayed",
       label: "Games",
       kind: "int",
-      title: "Games played this season (appearances)",
+      title: "Games played this season (appearances: starts + subs)",
       fmt: (v, r) => {
         if (v === null || v === undefined) return `<span class="muted">–</span>`;
-        const startsSub = (r && r.startsCount !== null && r.startsCount !== undefined)
-          ? `<span class="muted" style="font-size:10.5px;margin-left:4px" title="${r.startsCount} starts out of ${v} games played">(${r.startsCount} S)</span>`
-          : "";
-        return `<span class="num"><b>${ui.int(v)}</b>${startsSub}</span>`;
+        let starts = (r && r.startsCount !== null && r.startsCount !== undefined) ? Number(r.startsCount) : null;
+        const maxDays = (r && r.seasonMatchdays && Number(r.seasonMatchdays) > 0) ? Number(r.seasonMatchdays) : null;
+        let total = Number(v) || 0;
+        if (starts !== null && starts > total) total = starts;
+        const pts = Number(r?.totalPoints || 0);
+        if (total === 0 && pts !== 0) {
+          const avg = Number(r?.avgPoints || 0);
+          total = avg ? Math.max(1, Math.round(Math.abs(pts / avg))) : 1;
+        }
+        if (starts !== null && starts > total) total = starts;
+        if (maxDays && total > maxDays) total = maxDays;
+        if (maxDays && starts !== null && starts > maxDays) starts = maxDays;
+
+        if (starts !== null) {
+          const subs = Math.max(0, total - starts);
+          const tooltip = `${total} match appearance${total === 1 ? "" : "s"}: ${starts} in starting XI${subs > 0 ? `, ${subs} as substitute` : ""}`;
+          const subBadge = subs > 0 ? ` · ${subs} Sub` : "";
+          return `<span class="num" title="${tooltip}"><b>${ui.int(total)}</b><span class="muted" style="font-size:10.5px;margin-left:4px">(${starts} S${subBadge})</span></span>`;
+        }
+        return `<span class="num" title="${total} match appearance${total === 1 ? "" : "s"}"><b>${ui.int(total)}</b></span>`;
       }
     },
     ppm: { key: "ppm", label: "Ø pts / €1M", kind: "f1", title: "Average points per million market value" },
@@ -3584,6 +3618,7 @@ Analyze my squad strictly under Kickbase rules:
   }
 
   const playerHistCache = new Map();
+  const playerHistInFlight = new Map();
 
   async function fetchPlayerMvHistory(leagueId, playerId) {
     if (!playerId) return { list: [], latestMv: null };
@@ -3591,36 +3626,85 @@ Analyze my squad strictly under Kickbase rules:
     if (playerHistCache.has(cacheKey)) {
       return playerHistCache.get(cacheKey);
     }
-    try {
-      const raw = await S.api.playerMarketValue(leagueId, playerId, 92);
-      const list = (raw && raw.it ? raw.it : []).map((x) => ({
-        timestamp: x.dt * 86400000,
-        marketValue: x.mv || 0
-      })).sort((a, b) => a.timestamp - b.timestamp);
-      const latestMv = list.length ? list[list.length - 1].marketValue : null;
-      const res = { list, latestMv };
-      playerHistCache.set(cacheKey, res);
-      return res;
-    } catch (e) {
-      const res = { list: [], latestMv: null };
-      playerHistCache.set(cacheKey, res);
-      return res;
+    if (playerHistInFlight.has(cacheKey)) {
+      return playerHistInFlight.get(cacheKey);
     }
+    const prom = (async () => {
+      try {
+        const raw = await S.api.playerMarketValue(leagueId, playerId, 365);
+        const items = Array.isArray(raw) ? raw : (raw && Array.isArray(raw.it) ? raw.it : []);
+        const list = items.map((x) => ({
+          timestamp: (typeof x.dt === "number" && x.dt < 100000) ? (x.dt * 86400000) : (x.dt ? new Date(x.dt).getTime() : 0),
+          marketValue: Number(x.mv ?? x.v ?? x.p ?? 0)
+        })).filter((x) => x.timestamp > 0 && x.marketValue > 0).sort((a, b) => a.timestamp - b.timestamp);
+        const latestMv = list.length ? list[list.length - 1].marketValue : null;
+        const res = { list, latestMv };
+        playerHistCache.set(cacheKey, res);
+        return res;
+      } catch (e) {
+        const res = { list: [], latestMv: null };
+        playerHistCache.set(cacheKey, res);
+        return res;
+      } finally {
+        playerHistInFlight.delete(cacheKey);
+      }
+    })();
+    playerHistInFlight.set(cacheKey, prom);
+    return prom;
   }
 
-  function findHistoricalMw(mvData, date) {
+  function findHistoricalMw(mvData, date, price = null, isFromKickbase = false) {
     if (!mvData || !mvData.list || !mvData.list.length || !date) return null;
     const targetTime = date instanceof Date ? date.getTime() : new Date(date).getTime();
-    let closest = null;
-    let minDiff = Infinity;
-    for (const item of mvData.list) {
-      const diff = Math.abs(item.timestamp - targetTime);
-      if (diff < minDiff) {
-        minDiff = diff;
-        closest = item;
+    if (isNaN(targetTime) || targetTime <= 0) return null;
+
+    const dt = new Date(targetTime);
+    // Midnight UTC timestamp of the transfer calendar day
+    const targetDay = Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate());
+
+    let exactDayItem = null;
+    let closestPastItem = null;
+    let minPastDiff = Infinity;
+    let fallbackClosest = mvData.list[0];
+    let minAbsDiff = Infinity;
+
+    for (let i = 0; i < mvData.list.length; i++) {
+      const item = mvData.list[i];
+      if (item.timestamp === targetDay) {
+        exactDayItem = item;
+      }
+      const diff = targetTime - item.timestamp;
+      // Item is on or before transfer day (allowing up to 12h buffer)
+      if (diff >= -12 * 3600 * 1000 && Math.abs(diff) < minPastDiff) {
+        minPastDiff = Math.abs(diff);
+        closestPastItem = item;
+      }
+      if (Math.abs(diff) < minAbsDiff) {
+        minAbsDiff = Math.abs(diff);
+        fallbackClosest = item;
       }
     }
-    return closest ? closest.marketValue : null;
+
+    let selected = exactDayItem || closestPastItem || fallbackClosest;
+    let selectedVal = selected ? selected.marketValue : null;
+
+    // For purchases from Kickbase (computer auction), Kickbase strictly forbids bidding below starting MW.
+    // An auction listing starts 24-36h before completion, so if a player's MW increased during the auction
+    // and selectedVal > price, check the previous day's MW (the day the listing was created).
+    if (isFromKickbase && price && price > 0 && selectedVal && selectedVal > price) {
+      const selIdx = mvData.list.indexOf(selected);
+      if (selIdx > 0) {
+        const prevItem = mvData.list[selIdx - 1];
+        if (prevItem && prevItem.marketValue <= price) {
+          return prevItem.marketValue;
+        }
+      }
+      // If even the previous day is above price or no earlier data exists,
+      // the bid was at exact starting MW of the auction
+      return price;
+    }
+
+    return selectedVal;
   }
 
   async function pageManagers(el, ctx) {
@@ -4206,7 +4290,9 @@ Analyze my squad strictly under Kickbase rules:
         return list.map((t) => {
           const mvHist = playerHistCache.get(`${t.playerId}_mv_data`);
           const currentMv = squadMvMap.get(t.playerId) || (mvHist ? mvHist.latestMv : null) || null;
-          const mwAtSale = t.marketValueAtSale || findHistoricalMw(mvHist, t.date);
+          const isFromKickbase = !t.isUserTransfer && (t.counterpart === "Kickbase" || t.seller === "Kickbase" || !t.seller);
+          const histMw = findHistoricalMw(mvHist, t.date, t.price, isFromKickbase);
+          const mwAtSale = histMw || (t.date && Math.abs(Date.now() - new Date(t.date).getTime()) < 24 * 3600 * 1000 ? ((isFromKickbase && t.price && currentMv && currentMv > t.price) ? t.price : (currentMv || t.marketValueAtSale)) : (playerHistCache.has(`${t.playerId}_mv_data`) ? ((isFromKickbase && t.price && t.marketValueAtSale && t.marketValueAtSale > t.price) ? t.price : (t.marketValueAtSale || currentMv)) : null));
           return {
             ...t,
             currentMv,
@@ -5351,10 +5437,10 @@ Analyze my squad strictly under Kickbase rules:
         {
           sort: "ppm",
           rowClass: (p) => (p.myOfferId || p.myOfferPrice) ? "me" : (p.seller ? "tr-user-deal" : ""),
-          onRowClick: (p) => bidDialog(ctx, p, me.b),
+          onRowClick: (p) => openPlayerModal(ctx, p, { budget: me.b, market, squad }),
           rowTitle: (p) => (p.myOfferId || p.myOfferPrice)
-            ? `Click to update or withdraw your bid (${money(p.myOfferPrice)}) for ${p.name}`
-            : `Click to place a bid on ${p.name}`
+            ? `Click to view player stats, MW history & update bid (${money(p.myOfferPrice)}) for ${p.name}`
+            : `Click to view player stats, MW history & place bid on ${p.name}`
         });
 
       // Market player points (colored by position / pawn color)
@@ -5408,23 +5494,52 @@ Analyze my squad strictly under Kickbase rules:
     });
     draw();
 
-    // Enrich market players with exact season appearances (smc) & total points (tp) from player profile endpoint
+    // Enrich market players with exact season appearances & total points from player profile endpoint
     if (market.length && S.api.player) {
+      let leagueSmdc = null;
       Promise.all(market.map(async (p) => {
         if (!p.id) return false;
         const pInfo = await S.api.player(ctx.l, p.id);
         if (!pInfo) return false;
         if (pInfo.tp !== undefined && pInfo.tp !== null) p.totalPoints = Number(pInfo.tp);
         if (pInfo.ap !== undefined && pInfo.ap !== null) p.avgPoints = Number(pInfo.ap);
-        if (pInfo.smc !== undefined && pInfo.smc !== null) {
-          p.gamesPlayed = Number(pInfo.smc);
-        } else if (Array.isArray(pInfo.ph)) {
-          p.gamesPlayed = pInfo.ph.filter((x) => x && (x.hp || (x.p !== undefined && x.p !== 0))).length;
+        if (pInfo.smdc !== undefined && pInfo.smdc !== null && Number(pInfo.smdc) > 0) {
+          p.seasonMatchdays = Number(pInfo.smdc);
+          leagueSmdc = Math.max(leagueSmdc || 0, p.seasonMatchdays);
         }
-        if (pInfo.ismc !== undefined && pInfo.ismc !== null) p.startsCount = Number(pInfo.ismc);
-        if (pInfo.smdc !== undefined && pInfo.smdc !== null) p.seasonMatchdays = Number(pInfo.smdc);
+        const starts = (pInfo.ismc !== undefined && pInfo.ismc !== null) ? Number(pInfo.ismc) : (p.startsCount ?? null);
+        const phArr = Array.isArray(pInfo.ph) ? pInfo.ph : null;
+        const phPlayed = phArr ? phArr.filter((x) => x && (x.hp || (x.p !== undefined && x.p !== 0))).length : 0;
+        let games = 0;
+        if (phPlayed > 0) {
+          games = phPlayed;
+        } else if (starts !== null) {
+          games = starts;
+        }
+        const pts = p.totalPoints || 0;
+        const avg = p.avgPoints || 0;
+        if (games <= 0 && pts && avg) {
+          games = Math.max(1, Math.round(Math.abs(pts / avg)));
+        } else if (games <= 0 && pts) {
+          games = 1;
+        }
+        if (starts !== null && starts > games) {
+          games = starts;
+        }
+        const curSmdc = p.seasonMatchdays || leagueSmdc;
+        if (curSmdc && games > curSmdc) {
+          games = curSmdc;
+        }
+        p.gamesPlayed = games;
+        if (starts !== null) p.startsCount = starts;
         return true;
       })).then((results) => {
+        if (leagueSmdc) {
+          for (const p of market) {
+            if (!p.seasonMatchdays) p.seasonMatchdays = leagueSmdc;
+            if (p.gamesPlayed > leagueSmdc) p.gamesPlayed = leagueSmdc;
+          }
+        }
         if (!ctx.stale() && results.some(Boolean)) {
           draw();
           renderBidding(el.querySelector("#bidding"), ctx, market, me.b, squad);
@@ -5736,7 +5851,18 @@ Analyze my squad strictly under Kickbase rules:
         const meta = playerMeta.get(String(t.playerId)) || {};
         const mvHist = playerHistCache.get(`${t.playerId}_mv_data`);
         const currentMv = meta.currentMv || (mvHist ? mvHist.latestMv : null) || null;
-        const mwAtSale = t.marketValueAtSale || findHistoricalMw(mvHist, t.date) || null;
+        const isFromKickbase = !t.isUserTransfer && (t.counterpart === "Kickbase" || t.seller === "Kickbase" || !t.seller);
+        const histMw = findHistoricalMw(mvHist, t.date, t.price, isFromKickbase);
+        let mwAtSale = null;
+        if (histMw) {
+          mwAtSale = histMw;
+        } else if (t.date && Math.abs(Date.now() - new Date(t.date).getTime()) < 24 * 3600 * 1000) {
+          mwAtSale = (isFromKickbase && t.price && currentMv && currentMv > t.price) ? t.price : (currentMv || t.marketValueAtSale || null);
+        } else if (playerHistCache.has(`${t.playerId}_mv_data`)) {
+          mwAtSale = (isFromKickbase && t.price && t.marketValueAtSale && t.marketValueAtSale > t.price) ? t.price : (t.marketValueAtSale || currentMv || null);
+        } else {
+          mwAtSale = null;
+        }
         const pName = meta.name || t.player || "Player";
         const pPos = (t.position && t.position !== "?") ? t.position : (meta.position || null);
         const pImg = t.image || meta.image || null;
@@ -5804,18 +5930,38 @@ Analyze my squad strictly under Kickbase rules:
 
       const openLogBidDialog = (tRow) => {
         const existing = getMyBidForTransfer(tRow);
-        const defaultVal = existing?.price || tRow.myBidPrice || tRow.mwAtSale || tRow.price || 1000000;
+        const baseVal = tRow.mwAtSale || tRow.currentMv || tRow.price || 1000000;
+        const defaultVal = existing?.price || tRow.myBidPrice || (tRow.price ? Math.max(1, tRow.price - 100000) : baseVal);
         ui.dialog(`Did you bid on ${tRow.player}?`, (body, close) => {
           body.innerHTML = `
-            <p style="font-size:13px;color:var(--muted);margin-top:0">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
+              ${ui.pawn(tRow, 40)}
+              <div style="flex:1">
+                <div style="font-size:17px;font-weight:700">${esc(tRow.player)} ${tRow.position && tRow.position !== "?" ? ui.pos(tRow.position) : ""}</div>
+                <div style="font-size:12px;color:var(--muted)">
+                  ${tRow.isUnwonBid
+                    ? "Transfer window expired with no winner"
+                    : `Won by 🏆 <b>${esc(tRow.buyer)}</b> for <b style="color:#fff">${money(tRow.price)}</b> (${ui.moneyFull(tRow.price)})`}
+                  ${tRow.mwAtSale ? ` · MW: ${money(tRow.mwAtSale)}` : ""}
+                </div>
+              </div>
+            </div>
+            <p style="font-size:12.5px;color:var(--muted);margin-top:0">
               ${tRow.isUnwonBid
-                ? `You bid on <b>${esc(tRow.player)}</b> and did not win the bid.`
-                : `<b>${esc(tRow.buyer)}</b> won the bid for <b>${esc(tRow.player)}</b> at <b>${ui.moneyFull(tRow.price)}</b>.`}
-              Record your bid below to track that you bid on this player and did not win.
+                ? `You placed a bid on <b>${esc(tRow.player)}</b> that was not accepted.`
+                : `If you also bid on <b>${esc(tRow.player)}</b> in the Kickbase app but <b>${esc(tRow.buyer)}</b> won by bidding higher, enter your bid below to add it to your transfer history.`}
             </p>
             <div class="field">
-              <label for="log-bid-price">Your bid amount (€) <span class="muted">(optional – leave as is or enter exact €)</span></label>
+              <label for="log-bid-price">Your bid amount (€)</label>
               <input class="input num" id="log-bid-price" type="number" min="0" step="10000" value="${defaultVal}">
+            </div>
+            <div style="font-size:11px;color:var(--muted);margin:8px 0 4px">Quick Presets:</div>
+            <div class="steps" style="margin-bottom:12px">
+              ${tRow.mwAtSale ? `<button class="btn sm" id="btn-set-mw">Exact MW (${money(tRow.mwAtSale)})</button>` : ""}
+              ${tRow.price && tRow.price > 100000 ? `<button class="btn sm" id="btn-set-just-under">Just below winning (-100k)</button>` : ""}
+              <button class="btn sm" data-bump-val="50000">+50k</button>
+              <button class="btn sm" data-bump-val="100000">+100k</button>
+              <button class="btn sm" data-bump-val="500000">+500k</button>
             </div>
             <div class="row" style="margin-top:16px">
               <button class="btn primary" id="btn-save-log-bid" style="flex:1">${ui.icon("check")} Save My Lost Bid</button>
@@ -5823,9 +5969,22 @@ Analyze my squad strictly under Kickbase rules:
               <button class="btn ghost" id="btn-cancel-log-bid">Cancel</button>
             </div>
           `;
+          const priceInput = body.querySelector("#log-bid-price");
+          body.querySelector("#btn-set-mw")?.addEventListener("click", () => {
+            if (tRow.mwAtSale) priceInput.value = tRow.mwAtSale;
+          });
+          body.querySelector("#btn-set-just-under")?.addEventListener("click", () => {
+            if (tRow.price) priceInput.value = Math.max(1, tRow.price - 100000);
+          });
+          body.querySelectorAll("[data-bump-val]").forEach((b) => {
+            b.addEventListener("click", () => {
+              const cur = Number(priceInput.value) || 0;
+              priceInput.value = cur + Number(b.dataset.bumpVal);
+            });
+          });
           body.querySelector("#btn-cancel-log-bid")?.addEventListener("click", close);
           body.querySelector("#btn-save-log-bid")?.addEventListener("click", () => {
-            const val = Math.floor(Number(body.querySelector("#log-bid-price").value) || 0);
+            const val = Math.floor(Number(priceInput.value) || 0);
             const storedBids = store.get(`kb.myBids.${ctx.l}`, {});
             storedBids[tRow.transferKey] = {
               ...(storedBids[tRow.transferKey] || {}),
@@ -6011,11 +6170,11 @@ Analyze my squad strictly under Kickbase rules:
         const buysWithOverpay = recentBuys.filter((t) => t.overpay !== null && t.overpay > 0);
         const topOverpay = [...buysWithOverpay].sort((a, b) => (b.overpay || 0) - (a.overpay || 0))[0] || null;
         const myWonCount = wonBids.filter((t) => t.buyerIsMe).length;
-        const myLostCount = lostBids.length;
+        const totalManagerSpending = wonBids.reduce((sum, t) => sum + (Number(t.price) || 0), 0);
 
         box.innerHTML = `
           ${ui.section("Last manager transfers & winning bids", `${wonBids.length} manager buys & bids · ${enrichedAll.length} total league transfers`)}
-          ${(recentBuys.length || myLostCount) ? ui.kpis([
+          ${recentBuys.length ? ui.kpis([
             {
               label: "Latest Winning Bid",
               value: lastWon ? money(lastWon.price) : "–",
@@ -6034,23 +6193,21 @@ Analyze my squad strictly under Kickbase rules:
               sub: `in last ${recentBuys.length} manager buys`
             },
             {
-              label: "Your Bids (Won vs. Not Won)",
-              value: `${myWonCount} Won · ${myLostCount} Not Won`,
-              sub: "Click '+ I bid' on any row or '+ Log Lost Bid' to add mobile app bids"
+              label: "Total Manager Spending",
+              value: money(totalManagerSpending),
+              sub: `${wonBids.length} manager purchases across league`
             }
           ]) : ""}
 
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:12px 0">
             <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px">
               <div class="seg" id="mkt-tr-filter">
-                <button data-f="buys" class="${filterMode === "buys" ? "on" : ""}">🏆 Won Bid / Manager Buys (${wonBids.length})</button>
-                <button data-f="lost" class="${filterMode === "lost" ? "on" : ""}">❌ Did Not Win (${lostBids.length})</button>
-                <button data-f="mine" class="${filterMode === "mine" ? "on" : ""}">🎯 My Bids & Deals (${myActivity.length})</button>
+                <button data-f="buys" class="${filterMode === "buys" ? "on" : ""}">🏆 Manager Buys (${wonBids.length})</button>
+                <button data-f="mine" class="${filterMode === "mine" ? "on" : ""}">🎯 My Purchases (${myActivity.length})</button>
                 <button data-f="all" class="${filterMode === "all" ? "on" : ""}">All Transfers (${enrichedAll.length})</button>
                 <button data-f="trades" class="${filterMode === "trades" ? "on" : ""}">🤝 Manager Trades (${peerTrades.length})</button>
                 <button data-f="sells" class="${filterMode === "sells" ? "on" : ""}">🏪 Sold to Kickbase (${kbSales.length})</button>
               </div>
-              <button class="btn sm" id="btn-add-lost-bid" title="Record a bid you placed in the Kickbase app that you did not win" style="border-color:rgba(245,158,11,0.4);color:#fbbf24">+ Log Lost Bid</button>
             </div>
             <div style="display:flex;align-items:center;gap:8px">
               <span style="font-size:12px;color:var(--muted)">Show:</span>
@@ -6063,13 +6220,9 @@ Analyze my squad strictly under Kickbase rules:
           <div id="mkt-tr-table"></div>
         `;
 
-        box.querySelector("#btn-add-lost-bid")?.addEventListener("click", openAddLostBidDialog);
-
         const tableEl = box.querySelector("#mkt-tr-table");
         if (!visibleRows.length) {
-          tableEl.innerHTML = ui.alert("info", filterMode === "lost"
-            ? `No lost/outbid offers recorded yet. Active bids placed here or on the Transfermarkt are tracked automatically — or click <b>+ I bid</b> on any manager buy row (or <b>+ Log Lost Bid</b> above) to mark players you bid on in the mobile app and did not win.`
-            : "No transfers match the selected filter.");
+          tableEl.innerHTML = ui.alert("info", "No transfers match the selected filter.");
         } else {
           const trCols = [
             {
@@ -6084,12 +6237,12 @@ Analyze my squad strictly under Kickbase rules:
                 const pCol = (r && r.color) || KB.playerColor(r ? (r.playerId || v) : v);
                 const pObj = { id: r ? r.playerId : "", name: v, color: pCol, image: r ? r.image : null, position: r ? r.position : null };
                 return `
-                  <div style="display:flex;align-items:center;gap:8px">
+                  <div style="display:flex;align-items:center;gap:8px;cursor:pointer" data-view-player="${r ? r.playerId : ""}" title="Click to view player stats & MW history">
                     ${ui.pawn(pObj, 30, { showPos: false })}
                     <div>
                       <div style="display:flex;align-items:center;gap:6px">
                         <span class="player-color-dot" style="background:${pCol};box-shadow:0 0 6px ${pCol}88"></span>
-                        <b>${esc(v)}</b>
+                        <b style="color:#fff;text-decoration:underline;text-decoration-color:rgba(255,255,255,0.25)">${esc(v)}</b>
                         ${r && r.position && r.position !== "?" ? ui.pos(r.position) : ""}
                       </div>
                     </div>
@@ -6119,7 +6272,7 @@ Analyze my squad strictly under Kickbase rules:
                 }
                 const winnerBadge = r.buyerIsMe
                   ? `<span style="color:#10b981;font-weight:800">🏆 ${esc(v)} (You)</span>`
-                  : `<span style="font-weight:700;color:${r.userBidStatus === "outbid" ? "#fbbf24" : "var(--text)"}">🏆 ${esc(v)}</span>`;
+                  : `<span style="font-weight:700;color:var(--text)">🏆 ${esc(v)}</span>`;
                 const fromPart = r.isUserTransfer
                   ? `<div style="font-size:11px;color:#f87171;margin-top:2px">🤝 bought from 👤 <b>${esc(r.seller)}</b></div>`
                   : `<div style="font-size:11px;color:var(--muted);margin-top:2px">from 🏪 Kickbase Market</div>`;
@@ -6148,8 +6301,24 @@ Analyze my squad strictly under Kickbase rules:
               }
             },
             {
+              key: "mwAtSale",
+              label: "MW at Buy",
+              kind: "money",
+              title: "Market value of the player at the time of purchase",
+              fmt: (v) => {
+                if (!v) return `<span class="muted" style="font-size:11.5px">Loading MW…</span>`;
+                return `
+                  <div>
+                    <b style="font-size:13px">${money(v)}</b>
+                    <div style="font-size:10.5px;color:var(--muted)" class="num">${ui.moneyFull(v)}</div>
+                  </div>
+                `;
+              }
+            },
+            {
               key: "overpay",
-              label: "Bid vs. Market Value",
+              label: "Bid vs. MW at Buy",
+              title: "Winning bid compared to market value at the time of purchase",
               fmt: (v, r) => {
                 if (!r.mwAtSale) return `<span class="muted" style="font-size:11.5px">Loading MW…</span>`;
                 const bidCountHtml = (r.bidCount !== null && r.bidCount !== undefined && r.bidCount > 0)
@@ -6159,8 +6328,7 @@ Analyze my squad strictly under Kickbase rules:
                   const diff = r.price ? (r.price - r.mwAtSale) : 0;
                   return `
                     <div>
-                      <div style="font-size:11.5px;color:var(--muted)">MW: <b>${money(r.mwAtSale)}</b></div>
-                      ${r.price && diff !== 0 ? `<div style="font-size:10.5px;color:${diff > 0 ? "#34d399" : "#94a3b8"}">${signedMoney(diff)} vs MW</div>` : `<div style="font-size:10.5px;color:var(--muted)">At Market Value</div>`}
+                      ${r.price && diff !== 0 ? `<div style="font-size:11.5px;font-weight:600;color:${diff > 0 ? "#34d399" : "#94a3b8"}">${signedMoney(diff)} vs MW</div>` : `<div style="font-size:11px;color:var(--muted)">At exact MW</div>`}
                     </div>
                   `;
                 }
@@ -6168,10 +6336,10 @@ Analyze my squad strictly under Kickbase rules:
                   return `
                     <div>
                       <div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px">
-                        <span style="color:#fbbf24;font-weight:700;font-size:12px">🔼 Bid +${money(v)} (+${r.overpayPct}%)</span>
+                        <span style="color:#fbbf24;font-weight:700;font-size:12px">🔼 +${money(v)} (+${r.overpayPct}%)</span>
                         ${bidCountHtml}
                       </div>
-                      <div style="font-size:10.5px;color:var(--muted)" class="num">over MW ${money(r.mwAtSale)}</div>
+                      <div style="font-size:10.5px;color:var(--muted)" class="num">over MW at buy</div>
                     </div>
                   `;
                 }
@@ -6179,10 +6347,10 @@ Analyze my squad strictly under Kickbase rules:
                   return `
                     <div>
                       <div style="display:flex;align-items:center;flex-wrap:wrap;gap:2px">
-                        <span style="color:#94a3b8;font-weight:600;font-size:12px">═ Bid at exact MW</span>
+                        <span style="color:#94a3b8;font-weight:600;font-size:12px">═ Exact MW</span>
                         ${bidCountHtml}
                       </div>
-                      <div style="font-size:10.5px;color:var(--muted)" class="num">MW ${money(r.mwAtSale)}</div>
+                      <div style="font-size:10.5px;color:var(--muted)" class="num">0% overpay</div>
                     </div>
                   `;
                 }
@@ -6192,62 +6360,7 @@ Analyze my squad strictly under Kickbase rules:
                       <span style="color:#34d399;font-weight:700;font-size:12px">🔽 ${signedMoney(v)} (${r.overpayPct}%)</span>
                       ${bidCountHtml}
                     </div>
-                    <div style="font-size:10.5px;color:var(--muted)" class="num">under MW ${money(r.mwAtSale)}</div>
-                  </div>
-                `;
-              }
-            },
-            {
-              key: "didUserBid",
-              label: "Did You Bid?",
-              fmt: (v, r) => {
-                if (r.userBidStatus === "won") {
-                  return `
-                    <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;background:rgba(16,185,129,0.16);color:#34d399;border:1px solid rgba(16,185,129,0.35);font-size:11.5px;font-weight:700">
-                      ✅ Yes – You Won Bid
-                    </span>
-                  `;
-                }
-                if (r.userBidStatus === "sold") {
-                  return `
-                    <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;background:rgba(56,189,248,0.14);color:#38bdf8;border:1px solid rgba(56,189,248,0.3);font-size:11.5px;font-weight:600">
-                      📤 Your Sale
-                    </span>
-                  `;
-                }
-                if (r.userBidStatus === "lost_unwon") {
-                  return `
-                    <div>
-                      <div style="display:inline-flex;align-items:center;gap:6px">
-                        <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;background:rgba(248,113,113,0.16);color:#f87171;border:1px solid rgba(248,113,113,0.35);font-size:11.5px;font-weight:700">
-                          ❌ Did Not Win${r.myBidPrice ? ` (Bid ${money(r.myBidPrice)})` : ""}
-                        </span>
-                        <button class="btn ghost sm" data-log-bid="${esc(r.transferKey)}" style="height:20px;padding:0 5px;font-size:10px" title="Edit or remove your recorded bid">✎</button>
-                      </div>
-                    </div>
-                  `;
-                }
-                if (r.userBidStatus === "outbid") {
-                  const outbidDiff = (r.myBidPrice && r.price) ? (r.price - r.myBidPrice) : null;
-                  return `
-                    <div>
-                      <div style="display:inline-flex;align-items:center;gap:6px">
-                        <span style="display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;background:rgba(248,113,113,0.16);color:#f87171;border:1px solid rgba(248,113,113,0.35);font-size:11.5px;font-weight:700">
-                          ❌ Did Not Win – ${r.myBidPrice ? `You Bid ${money(r.myBidPrice)}` : "Outbid"}
-                        </span>
-                        <button class="btn ghost sm" data-log-bid="${esc(r.transferKey)}" style="height:20px;padding:0 5px;font-size:10px" title="Edit or remove your recorded bid">✎</button>
-                      </div>
-                      ${outbidDiff !== null && outbidDiff > 0 ? `<div style="font-size:10.5px;color:#fbbf24;margin-top:2px" class="num">Outbid by +${money(outbidDiff)} (${ui.moneyFull(outbidDiff)})</div>` : ""}
-                    </div>
-                  `;
-                }
-                if (!r.isBuyDeal) {
-                  return `<span class="muted" style="font-size:11.5px">–</span>`;
-                }
-                return `
-                  <div style="display:flex;align-items:center;gap:6px">
-                    <span class="muted" style="font-size:11.5px">No</span>
-                    <button class="btn ghost sm" data-log-bid="${esc(r.transferKey)}" style="height:21px;padding:0 6px;font-size:10.5px;opacity:0.85" title="Did you also bid on this player and not win? Click to mark your bid">+ I bid</button>
+                    <div style="font-size:10.5px;color:var(--muted)" class="num">discount vs MW</div>
                   </div>
                 `;
               }
@@ -6256,13 +6369,15 @@ Analyze my squad strictly under Kickbase rules:
               key: "currentMv",
               label: "Current MW",
               kind: "money",
+              title: "Current market value today and total gain/loss since purchase",
               fmt: (v, r) => {
                 if (!v) return `<span class="muted">–</span>`;
-                const diffSinceBuy = (r.isBuyDeal && !r.isUnwonBid && r.price) ? (v - r.price) : 0;
+                const diffSinceBuy = (r.mwAtSale && v) ? (v - r.mwAtSale) : ((r.price && v) ? (v - r.price) : 0);
+                const pctSinceBuy = (r.mwAtSale && r.mwAtSale > 0) ? Math.round((diffSinceBuy / r.mwAtSale) * 1000) / 10 : null;
                 return `
                   <div>
                     <b>${money(v)}</b>
-                    ${r.isBuyDeal && !r.isUnwonBid && diffSinceBuy !== 0 ? `<div style="font-size:10.5px;color:${diffSinceBuy > 0 ? "#34d399" : "#f87171"}" class="num">${signedMoney(diffSinceBuy)} vs bid</div>` : ""}
+                    ${diffSinceBuy !== 0 ? `<div style="font-size:10.5px;color:${diffSinceBuy > 0 ? "#34d399" : "#f87171"}" class="num">${signedMoney(diffSinceBuy)}${pctSinceBuy !== null ? ` (${diffSinceBuy > 0 ? "+" : ""}${pctSinceBuy}%)` : ""} vs buy</div>` : `<div style="font-size:10.5px;color:var(--muted)">No change</div>`}
                   </div>
                 `;
               }
@@ -6271,7 +6386,9 @@ Analyze my squad strictly under Kickbase rules:
 
           ui.table(tableEl, visibleRows, trCols, {
             sort: "date",
-            rowClass: (r) => r.buyerIsMe ? "me" : (r.isUserTransfer ? "tr-user-deal" : "")
+            rowClass: (r) => r.buyerIsMe ? "me" : (r.isUserTransfer ? "tr-user-deal" : ""),
+            onRowClick: (r) => openPlayerModal(ctx, r, { market, squad }),
+            rowTitle: (r) => `Click to view player stats & MW history for ${r.player}`
           });
         }
 
@@ -6291,10 +6408,18 @@ Analyze my squad strictly under Kickbase rules:
           });
         });
 
-        // Event delegation for "+ I bid" / edit bid buttons (persists across table column sorting)
+        // Event delegation for player clicks and "+ I bid" / edit bid buttons
         if (tableEl && !tableEl._bidListenerBound) {
           tableEl._bidListenerBound = true;
           tableEl.addEventListener("click", (e) => {
+            const vp = e.target.closest("[data-view-player]");
+            if (vp) {
+              e.stopPropagation();
+              const pid = vp.dataset.viewPlayer;
+              const target = mergedTransfers.find((x) => String(x.playerId) === String(pid)) || { id: pid };
+              openPlayerModal(ctx, target, { market, squad });
+              return;
+            }
             const btn = e.target.closest("[data-log-bid]");
             if (!btn) return;
             e.stopPropagation();
@@ -6305,38 +6430,49 @@ Analyze my squad strictly under Kickbase rules:
         }
       };
 
+      // Fetch historical market values AND missing player profile metadata (position, full name, current MV)
+      const POS_MAP = { 1: "GK", 2: "DEF", 3: "MID", 4: "FWD" };
+      const pidsToLoad = [...new Set(mergedTransfers.map((t) => t.playerId).filter((pid) => pid && !String(pid).startsWith("custom_")))];
+
+      const loadSinglePlayer = async (pid) => {
+        const meta = playerMeta.get(String(pid)) || {};
+        const tasks = [fetchPlayerMvHistory(ctx.l, pid)];
+        if (!meta.position || !meta.currentMv || !meta.name) {
+          tasks.push(S.api.player(ctx.l, pid).then((pInfo) => {
+            if (!pInfo) return;
+            const fn = pInfo.fn || "";
+            const ln = pInfo.n || pInfo.ln || pInfo.pn || "";
+            const fullName = `${fn} ${ln}`.trim() || meta.name || null;
+            playerMeta.set(String(pid), {
+              ...meta,
+              name: fullName || meta.name || null,
+              position: POS_MAP[pInfo.pos] || meta.position || null,
+              image: (KB.imageUrl && pInfo.pim ? KB.imageUrl(pInfo.pim) : null) || meta.image || null,
+              currentMv: pInfo.mv || meta.currentMv || null
+            });
+          }).catch(() => {}));
+        }
+        return Promise.all(tasks);
+      };
+
+      // Fast initial preload of top visible transfers (up to 12) so table renders with real historical MW immediately
+      const initialChunk = pidsToLoad.slice(0, 12);
+      if (initialChunk.length) {
+        await Promise.all(initialChunk.map(loadSinglePlayer));
+      }
+      if (ctx.stale()) return;
+
       drawRecentTransfers();
 
-      // Fetch historical market values AND missing player profile metadata (position, full name, current MV) in background batches
-      const POS_MAP = { 1: "GK", 2: "DEF", 3: "MID", 4: "FWD" };
-      const pidsToLoad = [...new Set(mergedTransfers.slice(0, 40).map((t) => t.playerId).filter((pid) => pid && !String(pid).startsWith("custom_")))];
-      let updatedAny = false;
-      for (let i = 0; i < pidsToLoad.length; i += 6) {
-        const chunk = pidsToLoad.slice(i, i + 6);
-        await Promise.all(chunk.map(async (pid) => {
-          const meta = playerMeta.get(String(pid)) || {};
-          const tasks = [fetchPlayerMvHistory(ctx.l, pid)];
-          if (!meta.position || !meta.currentMv || !meta.name) {
-            tasks.push(S.api.player(ctx.l, pid).then((pInfo) => {
-              if (!pInfo) return;
-              const fn = pInfo.fn || "";
-              const ln = pInfo.n || pInfo.ln || pInfo.pn || "";
-              const fullName = `${fn} ${ln}`.trim() || meta.name || null;
-              playerMeta.set(String(pid), {
-                ...meta,
-                name: fullName || meta.name || null,
-                position: POS_MAP[pInfo.pos] || meta.position || null,
-                image: (KB.imageUrl && pInfo.pim ? KB.imageUrl(pInfo.pim) : null) || meta.image || null,
-                currentMv: pInfo.mv || meta.currentMv || null
-              });
-            }).catch(() => {}));
-          }
-          await Promise.all(tasks);
-        }));
-        updatedAny = true;
-      }
-      if (updatedAny && !ctx.stale()) {
-        drawRecentTransfers();
+      // Progressive background loading for remaining players in batches of 6, refreshing table progressively
+      const remainingPids = pidsToLoad.slice(12);
+      for (let i = 0; i < remainingPids.length; i += 6) {
+        if (ctx.stale()) return;
+        const chunk = remainingPids.slice(i, i + 6);
+        await Promise.all(chunk.map(loadSinglePlayer));
+        if (!ctx.stale()) {
+          drawRecentTransfers();
+        }
       }
     } catch (err) {
       if (!ctx.stale()) {
@@ -6454,10 +6590,10 @@ Analyze my squad strictly under Kickbase rules:
         ` : "";
         return `
         <div class="bid-row" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
-          <div style="display:flex;align-items:center;gap:10px;min-width:220px;flex:1">
+          <div style="display:flex;align-items:center;gap:10px;min-width:220px;flex:1;cursor:pointer" data-view-player="${p.id}" title="Click to view player stats & MW history">
             ${ui.pawn(p, 32, { showPos: false })}
             <div>
-              <div><b>${esc(p.name)}</b> ${ui.pos(p.position)} <span class="muted" style="font-size:11.5px;margin-left:6px">${ui.int(p.totalPoints)} pts · ${ui.int(p.gamesPlayed ?? 0)} games</span></div>
+              <div><b style="text-decoration:underline;text-decoration-color:rgba(255,255,255,0.25)">${esc(p.name)}</b> ${ui.pos(p.position)} <span class="muted" style="font-size:11.5px;margin-left:6px">${ui.int(p.totalPoints)} pts · ${ui.int(p.gamesPlayed ?? 0)} games</span></div>
               ${p.seller ? `<div style="font-size:11px;color:#f87171;margin-top:2px">👤 Seller: ${esc(p.seller)}</div>` : `<div style="font-size:11px;color:var(--muted);margin-top:2px">🏪 Kickbase Transfermarkt${p.offers ? ` · ${p.offers} bid${p.offers === 1 ? "" : "s"}` : ""}</div>`}
             </div>
           </div>
@@ -6476,10 +6612,10 @@ Analyze my squad strictly under Kickbase rules:
         const pObj = { id: b.playerId, name: b.playerName || "Player", position: b.position, image: b.image, color: KB.playerColor(b.playerId, b.playerName) };
         return `
         <div class="bid-row" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;opacity:0.85;background:rgba(255,255,255,0.015)">
-          <div style="display:flex;align-items:center;gap:10px;min-width:220px;flex:1">
+          <div style="display:flex;align-items:center;gap:10px;min-width:220px;flex:1;cursor:pointer" data-view-player="${b.playerId}" title="Click to view player stats & MW history">
             ${ui.pawn(pObj, 30, { showPos: false })}
             <div>
-              <div><b>${esc(b.playerName || "Player")}</b> ${b.position && b.position !== "?" ? ui.pos(b.position) : ""}</div>
+              <div><b style="text-decoration:underline;text-decoration-color:rgba(255,255,255,0.25)">${esc(b.playerName || "Player")}</b> ${b.position && b.position !== "?" ? ui.pos(b.position) : ""}</div>
               <div style="font-size:11px;color:var(--muted)">Your bid: <b class="num">${b.price ? money(b.price) : "–"}</b>${b.marketValue ? ` · MV ${money(b.marketValue)}` : ""}</div>
             </div>
           </div>
@@ -6506,9 +6642,10 @@ Analyze my squad strictly under Kickbase rules:
     const sel = box.querySelector("#bid-player"), btn = box.querySelector("#bid-open");
     if (sel && btn) {
       sel.addEventListener("change", () => { btn.disabled = !sel.value; });
-      btn.addEventListener("click", () => bidDialog(ctx, market.find((p) => p.id === sel.value), budget));
+      btn.addEventListener("click", () => openPlayerModal(ctx, market.find((p) => p.id === sel.value), { budget, market, squad }));
     }
-    box.querySelectorAll("[data-edit-bid]").forEach((b) => b.addEventListener("click", () => bidDialog(ctx, market.find((p) => p.id === b.dataset.editBid), budget)));
+    box.querySelectorAll("[data-view-player]").forEach((el) => el.addEventListener("click", () => openPlayerModal(ctx, el.dataset.viewPlayer, { budget, market, squad })));
+    box.querySelectorAll("[data-edit-bid]").forEach((b) => b.addEventListener("click", () => openPlayerModal(ctx, market.find((p) => p.id === b.dataset.editBid), { budget, market, squad })));
     box.querySelectorAll("[data-wd]").forEach((b) => b.addEventListener("click", () => withdrawDialog(ctx, market.find((p) => p.id === b.dataset.wd))));
     box.querySelectorAll("[data-dismiss-exp]").forEach((b) => b.addEventListener("click", () => {
       const pid = b.dataset.dismissExp;
@@ -6534,6 +6671,394 @@ Analyze my squad strictly under Kickbase rules:
     ui.toast(success);
     renderPage();
     return true;
+  }
+
+  async function openPlayerModal(ctx, playerOrId, opts = {}) {
+    if (!playerOrId) return;
+    const pid = String(playerOrId.id || playerOrId.playerId || playerOrId);
+    if (!pid || pid === "undefined" || pid === "null") return;
+
+    // Resolve base player details from opts or cache
+    const market = opts.market || [];
+    const squad = opts.squad || [];
+    let p = market.find((x) => String(x.id) === pid)
+      || squad.find((x) => String(x.id) === pid)
+      || (typeof playerOrId === "object" ? { ...playerOrId, id: pid } : { id: pid });
+
+    let budget = opts.budget;
+    if (budget === undefined || budget === null) {
+      const me = await S.api.leagueMe(ctx.l).catch(() => ({}));
+      budget = me.b ?? 0;
+    }
+
+    const pName = p.name || p.player || "Player";
+    const pCol = p.color || KB.playerColor(pid, pName);
+    let mvTimeframe = 92; // default 3 months
+
+    ui.dialog(`${pName}`, (body, close) => {
+      body.innerHTML = `
+        <div style="display:flex;align-items:center;gap:14px;padding-bottom:14px;border-bottom:1px solid var(--border);margin-bottom:14px">
+          ${ui.pawn({ ...p, id: pid, name: pName, color: pCol, image: p.image }, 52)}
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <span style="font-size:20px;font-weight:800;color:#fff">${esc(pName)}</span>
+              ${p.position && p.position !== "?" ? ui.pos(p.position) : ""}
+              <span id="pm-status-badge" style="font-size:11.5px;padding:2px 8px;border-radius:999px;background:rgba(255,255,255,0.06);color:var(--muted)">…</span>
+            </div>
+            <div style="font-size:12.5px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <span id="pm-team-name">Bundesliga</span>
+              <span id="pm-ownership-tag"></span>
+            </div>
+          </div>
+          <div style="text-align:right">
+            <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em">Market Value</div>
+            <div style="font-size:20px;font-weight:800;color:#34d399" class="num" id="pm-mv-val">${p.marketValue ? money(p.marketValue) : "…"}</div>
+            <div style="font-size:11px;color:var(--muted)" class="num" id="pm-mv-full">${p.marketValue ? ui.moneyFull(p.marketValue) : ""}</div>
+          </div>
+        </div>
+
+        <!-- Buy / Transfermarkt Section (Rendered dynamically if player is on market or can be bought) -->
+        <div id="pm-market-section" style="margin-bottom:16px"></div>
+
+        <!-- KPI Grid -->
+        <div class="mini-kpis" id="pm-kpis" style="grid-template-columns:repeat(4, 1fr);margin-bottom:16px">
+          <div><small>Total points</small><b class="num" id="pm-tp">${p.totalPoints !== undefined ? ui.int(p.totalPoints) : "…"}</b></div>
+          <div><small>Ø points</small><b class="num" id="pm-ap">${p.avgPoints !== undefined ? ui.int(p.avgPoints) : "…"}</b></div>
+          <div><small>Games played</small><b class="num" id="pm-gp">${p.gamesPlayed !== undefined ? ui.int(p.gamesPlayed) : "…"}</b></div>
+          <div><small>Starts</small><b class="num" id="pm-starts">${p.startsCount !== undefined ? ui.int(p.startsCount) : "…"}</b></div>
+        </div>
+
+        <!-- Market Value Graph -->
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+            <div>
+              <b style="font-size:14px">📈 Market Value History</b>
+              <div style="font-size:11px;color:var(--muted)" id="pm-graph-sub">Loading history curve…</div>
+            </div>
+            <div class="seg" id="pm-graph-timeframe">
+              <button class="btn sm" data-tf="30">30 Days</button>
+              <button class="btn sm primary" data-tf="92">3 Months</button>
+              <button class="btn sm" data-tf="365">1 Year</button>
+            </div>
+          </div>
+          <div id="pm-graph-container" style="min-height:220px;display:flex;align-items:center;justify-content:center">
+            <div class="spinner"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;align-items:center;font-size:11.5px;color:var(--muted);margin-top:10px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.05)" id="pm-graph-stats"></div>
+        </div>
+
+        <!-- Matchday Performance History -->
+        <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:14px;padding:14px">
+          <b style="font-size:14px;display:block;margin-bottom:10px">⚽ Season Matchday Performance</b>
+          <div id="pm-perf-chart" style="min-height:140px"></div>
+          <div id="pm-perf-list" style="margin-top:10px;max-height:180px;overflow-y:auto"></div>
+        </div>
+      `;
+
+      // Async loader for full player data and chart rendering
+      (async () => {
+        // Parallel data fetch
+        const [pInfo, mvData] = await Promise.all([
+          S.api.player(ctx.l, pid).catch(() => null),
+          fetchPlayerMvHistory(ctx.l, pid).catch(() => ({ list: [], latestMv: null }))
+        ]);
+
+        // Merge fetched profile into player object
+        if (pInfo) {
+          p = {
+            ...p,
+            ...pInfo,
+            id: pid,
+            name: `${pInfo.fn || ""} ${pInfo.n || pInfo.ln || ""}`.trim() || pName,
+            position: ({ 1: "GK", 2: "DEF", 3: "MID", 4: "FWD" })[pInfo.pos] || p.position,
+            marketValue: pInfo.mv || p.marketValue || 0,
+            totalPoints: pInfo.tp ?? p.totalPoints,
+            avgPoints: pInfo.ap ?? p.avgPoints,
+            status: pInfo.st !== undefined ? (({ 0: "Fit", 1: "Injured", 2: "Stricken", 4: "Suspended" })[pInfo.st] || pInfo.st) : p.status
+          };
+        }
+
+        // Update Header
+        const statusBadge = body.querySelector("#pm-status-badge");
+        if (statusBadge) {
+          const st = String(p.status || "Fit").toLowerCase();
+          const isFit = st.includes("fit") || st.includes("verf");
+          const isInj = st.includes("inj") || st.includes("verl");
+          statusBadge.textContent = p.status || "Fit";
+          statusBadge.style.background = isFit ? "rgba(16,185,129,0.15)" : (isInj ? "rgba(248,113,113,0.15)" : "rgba(251,191,36,0.15)");
+          statusBadge.style.color = isFit ? "#34d399" : (isInj ? "#f87171" : "#fbbf24");
+        }
+
+        const teamEl = body.querySelector("#pm-team-name");
+        if (teamEl && (pInfo?.tn || pInfo?.t || p.teamName)) {
+          teamEl.textContent = pInfo.tn || pInfo.t || p.teamName;
+        }
+
+        const mvVal = body.querySelector("#pm-mv-val");
+        const mvFull = body.querySelector("#pm-mv-full");
+        if (mvVal) mvVal.textContent = money(p.marketValue);
+        if (mvFull) mvFull.textContent = ui.moneyFull(p.marketValue);
+
+        // Update KPIs
+        const phArr = Array.isArray(pInfo?.ph) ? pInfo.ph : [];
+        const phPlayed = phArr.filter((x) => x && (x.hp || (x.p !== undefined && x.p !== 0))).length;
+        const starts = pInfo?.ismc ?? p.startsCount ?? null;
+        let games = phPlayed > 0 ? phPlayed : (starts !== null ? starts : (p.gamesPlayed ?? 0));
+        if (games <= 0 && p.totalPoints && p.avgPoints) games = Math.max(1, Math.round(p.totalPoints / p.avgPoints));
+
+        const tpEl = body.querySelector("#pm-tp");
+        const apEl = body.querySelector("#pm-ap");
+        const gpEl = body.querySelector("#pm-gp");
+        const stEl = body.querySelector("#pm-starts");
+        if (tpEl) tpEl.textContent = ui.int(p.totalPoints ?? 0);
+        if (apEl) apEl.textContent = ui.int(p.avgPoints ?? 0);
+        if (gpEl) gpEl.textContent = ui.int(games);
+        if (stEl) stEl.textContent = starts !== null ? ui.int(starts) : "–";
+
+        // Check Transfermarkt / Bidding status
+        const marketPlayer = (opts.market || []).find((x) => String(x.id) === pid);
+        const squadPlayer = (opts.squad || []).find((x) => String(x.id) === pid);
+        const mktSec = body.querySelector("#pm-market-section");
+        const ownTag = body.querySelector("#pm-ownership-tag");
+
+        if (marketPlayer) {
+          if (ownTag) ownTag.innerHTML = `· <span style="color:#fbbf24;font-weight:700">🏪 Available on Transfermarkt</span>`;
+          const exp = formatTransferExpiry(marketPlayer);
+          const isUpdate = Boolean(marketPlayer.myOfferId || marketPlayer.myOfferPrice);
+          const currentBid = Number(marketPlayer.myOfferPrice || 0);
+          const base = Math.ceil(Math.max(marketPlayer.marketValue || p.marketValue || 0, marketPlayer.price || 0)) || 1;
+          const initialPrice = isUpdate && currentBid > 0 ? currentBid : base;
+
+          mktSec.innerHTML = `
+            <div style="background:rgba(255,90,31,0.06);border:1px solid rgba(255,90,31,0.28);border-radius:14px;padding:14px">
+              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px">
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span style="font-size:18px">🏪</span>
+                  <div>
+                    <b style="font-size:14px;color:#fff">On Transfermarkt</b>
+                    <div style="font-size:11.5px;color:var(--muted)">${marketPlayer.seller ? `Seller: 👤 ${esc(marketPlayer.seller)}` : "Listed by Kickbase"}${marketPlayer.offers ? ` · 🔥 ${marketPlayer.offers} active bid${marketPlayer.offers === 1 ? "" : "s"}` : ""}</div>
+                  </div>
+                </div>
+                ${exp ? `<div style="text-align:right;font-size:11.5px;color:${exp.color};background:${exp.bg};border:1px solid ${exp.border};padding:4px 10px;border-radius:8px">⏱️ Ends in <b>${esc(exp.durationStr)}</b> <span style="opacity:0.85">(${esc(exp.clockStr)})</span></div>` : ""}
+              </div>
+
+              ${isUpdate ? `
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:8px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.32);margin-bottom:12px;font-size:12.5px">
+                  <span>Your active bid: <b style="color:#34d399" class="num">${ui.moneyFull(currentBid)}</b> (${money(currentBid)})</span>
+                  ${marketPlayer.myOfferId ? `<button class="btn sm" id="btn-pm-wd" style="height:24px;padding:0 8px;font-size:11px;color:#f87171">${ui.icon("undo")} Withdraw</button>` : ""}
+                </div>
+              ` : ""}
+
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                <div class="field" style="flex:1;margin-bottom:0">
+                  <label for="pm-bid-input" style="font-size:11.5px;color:var(--muted)">${isUpdate ? "Update your bid amount (€)" : "Bid amount (€)"}</label>
+                  <input class="input num" id="pm-bid-input" type="number" min="1" step="10000" value="${initialPrice}">
+                </div>
+                <button class="btn primary" id="btn-pm-place-bid" style="align-self:flex-end;height:38px;padding:0 18px;font-weight:700">
+                  ${isUpdate ? `${ui.icon("edit")} Update Bid` : `${ui.icon("gavel")} Place Bid`}
+                </button>
+              </div>
+
+              <div class="steps" style="margin-bottom:8px">
+                <button class="btn sm" id="btn-pm-step-mw">Exact MW (${money(base)})</button>
+                <button class="btn sm" data-pm-bump="50000">+50k</button>
+                <button class="btn sm" data-pm-bump="100000">+100k</button>
+                <button class="btn sm" data-pm-bump="500000">+500k</button>
+                <button class="btn sm" data-pm-bump="1000000">+1M</button>
+              </div>
+
+              <div style="font-size:11.5px;color:var(--muted);display:flex;align-items:center;justify-content:space-between" id="pm-bid-budget-info">
+                <span>Budget now: <b class="num">${money(budget)}</b></span>
+                <span id="pm-budget-after"></span>
+              </div>
+              <div id="pm-bid-err" style="margin-top:8px"></div>
+            </div>
+          `;
+
+          // Bidding listeners
+          const bInput = mktSec.querySelector("#pm-bid-input");
+          const bPlace = mktSec.querySelector("#btn-pm-place-bid");
+          const bErr = mktSec.querySelector("#pm-bid-err");
+          const bAfter = mktSec.querySelector("#pm-budget-after");
+
+          const updateBudgetCalc = () => {
+            const val = Math.floor(Number(bInput.value) || 0);
+            const remaining = budget - val;
+            if (bAfter) {
+              bAfter.innerHTML = `→ after bid: <b class="${remaining < 0 ? "down" : ""}" style="color:${remaining >= 0 ? "#34d399" : "#f87171"}">${money(remaining)}</b>`;
+            }
+          };
+          updateBudgetCalc();
+          bInput?.addEventListener("input", updateBudgetCalc);
+
+          mktSec.querySelector("#btn-pm-step-mw")?.addEventListener("click", () => {
+            if (bInput) { bInput.value = base; updateBudgetCalc(); }
+          });
+          mktSec.querySelectorAll("[data-pm-bump]").forEach((btn) => {
+            btn.addEventListener("click", () => {
+              if (bInput) {
+                const cur = Math.floor(Number(bInput.value) || base);
+                bInput.value = cur + Number(btn.dataset.pmBump);
+                updateBudgetCalc();
+              }
+            });
+          });
+
+          mktSec.querySelector("#btn-pm-wd")?.addEventListener("click", () => {
+            close();
+            withdrawDialog(ctx, marketPlayer);
+          });
+
+          bPlace?.addEventListener("click", async () => {
+            const val = Math.floor(Number(bInput.value) || 0);
+            if (val <= 0) return;
+            bPlace.disabled = true;
+            bPlace.innerHTML = `<div class="spinner"></div> Submitting…`;
+            try {
+              if (!settings().bidding) {
+                saveSettings({ bidding: true });
+                const sBid = document.querySelector("#s-bidding");
+                if (sBid) sBid.checked = true;
+              }
+              const actionFn = isUpdate
+                ? () => S.api.updateOffer(ctx.l, pid, val, marketPlayer.myOfferId, currentBid, marketPlayer)
+                : () => S.api.placeOffer(ctx.l, pid, val, marketPlayer);
+              const msg = isUpdate
+                ? `Bid for ${pName} updated to ${money(val)}.`
+                : `Bid of ${money(val)} for ${pName} placed.`;
+              if (await runOnce(`bid-${pid}-${val}`, actionFn, msg)) {
+                close();
+              } else {
+                bPlace.disabled = false;
+                bPlace.textContent = isUpdate ? "Update Bid" : "Place Bid";
+              }
+            } catch (err) {
+              if (bErr) bErr.innerHTML = ui.alert("error", esc(err.message || String(err)));
+              bPlace.disabled = false;
+              bPlace.textContent = isUpdate ? "Update Bid" : "Place Bid";
+            }
+          });
+        } else if (squadPlayer) {
+          if (ownTag) ownTag.innerHTML = `· <span style="color:#34d399;font-weight:700">⚽ In Your Squad</span>`;
+          const profit = squadPlayer.purchasePrice && squadPlayer.marketValue ? (squadPlayer.marketValue - squadPlayer.purchasePrice) : null;
+          mktSec.innerHTML = `
+            <div style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.28);border-radius:14px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
+              <div>
+                <b style="color:#34d399">⚽ Player is in your squad</b>
+                <div style="font-size:12px;color:var(--muted)">
+                  ${squadPlayer.purchasePrice ? `Bought for <b>${money(squadPlayer.purchasePrice)}</b>` : "Initial squad player"}
+                  ${profit !== null && profit !== 0 ? ` · Profit: <b style="color:${profit > 0 ? "#34d399" : "#f87171"}">${signedMoney(profit)}</b>` : ""}
+                </div>
+              </div>
+              <div style="display:flex;gap:8px">
+                <button class="btn sm primary" id="btn-pm-list" style="height:30px;padding:0 12px;font-size:12px">${ui.icon("storefront")} List on Market</button>
+              </div>
+            </div>
+          `;
+          mktSec.querySelector("#btn-pm-list")?.addEventListener("click", () => {
+            close();
+            sellDialog(ctx, squadPlayer);
+          });
+        }
+
+        // Render Market Value Chart
+        const graphContainer = body.querySelector("#pm-graph-container");
+        const graphStats = body.querySelector("#pm-graph-stats");
+        const graphSub = body.querySelector("#pm-graph-sub");
+
+        const renderMvChart = (days) => {
+          if (!graphContainer) return;
+          const fullList = mvData.list || [];
+          if (!fullList.length) {
+            graphContainer.innerHTML = `<div class="muted" style="font-size:12.5px;padding:20px;text-align:center">No historical market value data available for this player.</div>`;
+            return;
+          }
+          const cutoff = Date.now() - (days * 86400 * 1000);
+          const filtered = fullList.filter((pt) => pt.timestamp >= cutoff);
+          const pointsToUse = filtered.length >= 2 ? filtered : fullList.slice(-Math.max(2, days));
+          const vals = pointsToUse.map((pt) => pt.marketValue);
+          const minMv = Math.min(...vals);
+          const maxMv = Math.max(...vals);
+          const startMv = pointsToUse[0]?.marketValue || 0;
+          const curMv = pointsToUse[pointsToUse.length - 1]?.marketValue || 0;
+          const netChange = curMv - startMv;
+          const netPct = startMv > 0 ? Math.round((netChange / startMv) * 1000) / 10 : 0;
+
+          if (graphSub) {
+            graphSub.textContent = `${days === 30 ? "Last 30 Days" : days === 92 ? "Last 3 Months" : "Last 1 Year"} · Trend: ${signedMoney(netChange)} (${netChange > 0 ? "+" : ""}${netPct}%)`;
+          }
+          if (graphStats) {
+            graphStats.innerHTML = `
+              <span>Low: <b>${money(minMv)}</b></span>
+              <span>High: <b>${money(maxMv)}</b></span>
+              <span>Period change: <b style="color:${netChange >= 0 ? "#34d399" : "#f87171"}">${signedMoney(netChange)} (${netChange >= 0 ? "+" : ""}${netPct}%)</b></span>
+            `;
+          }
+
+          graphContainer.innerHTML = "";
+          charts.line(graphContainer, {
+            title: "",
+            height: 220,
+            markers: pointsToUse.length <= 40,
+            yFmt: money,
+            series: [{
+              name: pName,
+              color: pCol || "#10b981",
+              points: pointsToUse.map((pt) => ({ x: new Date(pt.timestamp), y: pt.marketValue }))
+            }]
+          });
+        };
+
+        renderMvChart(mvTimeframe);
+
+        body.querySelectorAll("#pm-graph-timeframe button").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            body.querySelectorAll("#pm-graph-timeframe button").forEach((b) => b.classList.remove("primary"));
+            btn.classList.add("primary");
+            mvTimeframe = Number(btn.dataset.tf) || 92;
+            renderMvChart(mvTimeframe);
+          });
+        });
+
+        // Render Matchday Performance History
+        const perfChart = body.querySelector("#pm-perf-chart");
+        const perfList = body.querySelector("#pm-perf-list");
+        const phItems = (pInfo?.ph || []).filter((x) => x && x.day !== undefined);
+
+        if (perfChart && phItems.length) {
+          const sortedPh = [...phItems].sort((a, b) => a.day - b.day);
+          perfChart.innerHTML = "";
+          charts.bar(perfChart, {
+            title: "",
+            height: 140,
+            yLabel: "Pts",
+            series: [{
+              name: "Points",
+              color: "#34d399",
+              values: sortedPh.map((x) => x.p || 0),
+              labels: sortedPh.map((x) => `MD ${x.day}`)
+            }]
+          });
+        } else if (perfChart) {
+          perfChart.innerHTML = `<div class="muted" style="font-size:12px;padding:12px;text-align:center">No matchday points recorded this season.</div>`;
+        }
+
+        if (perfList && phItems.length) {
+          const descPh = [...phItems].sort((a, b) => b.day - a.day);
+          perfList.innerHTML = descPh.map((m) => `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12px">
+              <div>
+                <b>Matchday ${m.day}</b>
+                ${m.mp ? `<span style="font-size:11px;color:var(--muted);margin-left:6px">${m.mp} mins</span>` : ""}
+              </div>
+              <div style="font-weight:700;color:${(m.p || 0) > 0 ? "#34d399" : ((m.p || 0) < 0 ? "#f87171" : "var(--muted)")}">
+                ${(m.p || 0) > 0 ? `+${m.p}` : (m.p ?? 0)} pts
+              </div>
+            </div>
+          `).join("");
+        }
+      })();
+    }, { wide: true });
   }
 
   function bidDialog(ctx, p, budget) {
