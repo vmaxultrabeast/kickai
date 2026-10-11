@@ -6852,11 +6852,12 @@ Analyze my squad strictly under Kickbase rules:
 
       // Async loader for full player data and chart rendering
       (async () => {
-        // Parallel data fetch
-        const [pInfo, mvData, rankData] = await Promise.all([
+        // Parallel data fetch (includes player info, historical MW, ranking, and matchday performance)
+        const [pInfo, mvData, rankData, perfData] = await Promise.all([
           S.api.player(ctx.l, pid).catch(() => null),
           fetchPlayerMvHistory(ctx.l, pid).catch(() => ({ list: [], latestMv: null })),
-          rankingRows(ctx.l).catch(() => [])
+          rankingRows(ctx.l).catch(() => []),
+          S.api.playerPerformance(ctx.l, pid).catch(() => null)
         ]);
 
         // Merge fetched profile into player object
@@ -7243,10 +7244,53 @@ Analyze my squad strictly under Kickbase rules:
         // Render Matchday Performance History
         const perfChart = body.querySelector("#pm-perf-chart");
         const perfList = body.querySelector("#pm-perf-list");
-        const phItems = (pInfo?.ph || []).filter((x) => x && x.day !== undefined);
 
-        if (perfChart && phItems.length) {
-          const sortedPh = [...phItems].sort((a, b) => a.day - b.day);
+        // Collect matchday items from all possible sources (perfData or pInfo)
+        const matchdayMap = new Map();
+
+        // 1. Check perfData (API: /v4/leagues/{l}/players/{p}/performance)
+        if (perfData && Array.isArray(perfData.it)) {
+          for (const s of perfData.it) {
+            for (const md of (s.ph || [])) {
+              if (md && md.day !== undefined) {
+                const dayNum = Number(md.day);
+                const pts = Number(md.p ?? md.points ?? 0);
+                const mins = parseInt(String(md.mp || "0").replace("'", ""), 10) || 0;
+                matchdayMap.set(dayNum, {
+                  day: dayNum,
+                  p: pts,
+                  mp: mins,
+                  season: s.ti || s.sn || null
+                });
+              }
+            }
+          }
+        }
+
+        // 2. Check pInfo.ph or p.ph (API: /v4/leagues/{l}/players/{p})
+        const phSources = [pInfo?.ph, p?.ph].filter(Array.isArray);
+        for (const phList of phSources) {
+          for (const x of phList) {
+            if (x && (x.day !== undefined || x.d !== undefined)) {
+              const dayNum = Number(x.day ?? x.d);
+              if (!isNaN(dayNum) && dayNum > 0) {
+                const existing = matchdayMap.get(dayNum);
+                const pts = Number(x.p ?? x.points ?? existing?.p ?? 0);
+                const mins = parseInt(String(x.mp || existing?.mp || "0").replace("'", ""), 10) || 0;
+                matchdayMap.set(dayNum, {
+                  day: dayNum,
+                  p: pts,
+                  mp: mins,
+                  season: existing?.season || null
+                });
+              }
+            }
+          }
+        }
+
+        const sortedPh = [...matchdayMap.values()].sort((a, b) => a.day - b.day);
+
+        if (perfChart && sortedPh.length) {
           perfChart.innerHTML = "";
           charts.bar(perfChart, {
             title: "",
@@ -7263,8 +7307,8 @@ Analyze my squad strictly under Kickbase rules:
           perfChart.innerHTML = `<div class="muted" style="font-size:12px;padding:12px;text-align:center">No matchday points recorded this season.</div>`;
         }
 
-        if (perfList && phItems.length) {
-          const descPh = [...phItems].sort((a, b) => b.day - a.day);
+        if (perfList && sortedPh.length) {
+          const descPh = [...sortedPh].sort((a, b) => b.day - a.day);
           perfList.innerHTML = descPh.map((m) => `
             <div style="display:flex;align-items:center;justify-content:space-between;padding:6px 8px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12px">
               <div>
@@ -7388,6 +7432,9 @@ Analyze my squad strictly under Kickbase rules:
     const teamToMatchMap = new Map();
     const matchMatchupMap = new Map();
     const teamMatchupMap = new Map();
+    const matchStatusMap = new Map();
+    const teamStatusMap = new Map();
+    const matchMinuteMap = new Map();
 
     const mdList = (compMatchdays && Array.isArray(compMatchdays.it))
       ? compMatchdays.it
@@ -7411,10 +7458,19 @@ Analyze my squad strictly under Kickbase rules:
         if (t1 && mId) teamToMatchMap.set(t1, mId);
         if (t2 && mId) teamToMatchMap.set(t2, mId);
 
+        // Track match status and minute from competition matchdays
+        const mSt = m.mst !== undefined ? Number(m.mst) : (m.st !== undefined ? Number(m.st) : (m.il ? 1 : 0));
+        if (mId && mSt !== undefined) matchStatusMap.set(mId, mSt);
+        if (t1 && mSt !== undefined) teamStatusMap.set(t1, mSt);
+        if (t2 && mSt !== undefined) teamStatusMap.set(t2, mSt);
+
+        const mMin = m.mt ?? m.m ?? m.minute ?? null;
+        if (mId && mMin) matchMinuteMap.set(mId, mMin);
+
         const t1sy = m.t1sy || "";
         const t2sy = m.t2sy || "";
         if (t1sy && t2sy) {
-          const hasScore = (m.st > 0 || m.il) && m.t1g !== undefined && m.t2g !== undefined;
+          const hasScore = (mSt > 0 || m.il) && m.t1g !== undefined && m.t2g !== undefined;
           const matchupStr = hasScore ? `${t1sy} ${m.t1g}:${m.t2g} ${t2sy}` : `${t1sy} vs ${t2sy}`;
           if (mId) matchMatchupMap.set(mId, matchupStr);
           if (t1) teamMatchupMap.set(t1, matchupStr);
@@ -7433,12 +7489,21 @@ Analyze my squad strictly under Kickbase rules:
         const fullP = squad.find((sp) => sp.id === String(raw.i || raw.pi));
         const isSold = !fullP;
         const refP = fullP || {};
-        const mst = raw.mst !== undefined ? Number(raw.mst) : (refP.matchStatus !== undefined ? Number(refP.matchStatus) : 0);
-        // Only show current game day points: 0 if upcoming, raw.p if live or finished
+        const tId = String(raw.tid || refP.teamId || "");
+        const mId = String(raw.mi || refP.matchId || teamToMatchMap.get(tId) || "");
+        const knownMst = matchStatusMap.get(mId) ?? teamStatusMap.get(tId);
+        let mst = raw.mst !== undefined ? Number(raw.mst) : (refP.matchStatus !== undefined ? Number(refP.matchStatus) : (knownMst !== undefined ? knownMst : 0));
+        
+        // If raw points or match minute are present and match is not marked finished (2), it is actively LIVE (1)
+        const hasLivePts = (raw.p !== undefined && raw.p !== null && Number(raw.p) !== 0) || (refP.livePoints !== undefined && refP.livePoints !== null && Number(refP.livePoints) !== 0);
+        const hasLiveMin = (raw.mt !== undefined && Number(raw.mt) > 0) || (refP.matchMinute !== undefined && Number(refP.matchMinute) > 0);
+        if (mst === 0 && (hasLivePts || hasLiveMin || knownMst === 1)) {
+          mst = 1;
+        }
+
+        // Only show current game day points: 0 if upcoming and no points recorded, raw.p if live or finished
         let curGamePoints = 0;
-        if (mst === 0) {
-          curGamePoints = 0;
-        } else if (raw.p !== undefined && raw.p !== null) {
+        if (raw.p !== undefined && raw.p !== null) {
           curGamePoints = Number(raw.p);
         } else if (refP.livePoints !== undefined && refP.livePoints !== null) {
           curGamePoints = Number(refP.livePoints);
@@ -7447,8 +7512,6 @@ Analyze my squad strictly under Kickbase rules:
         }
         const rawP = tf.player({ ...raw, st: undefined }); // myeleven "st" is not injury status
         const actualMv = (refP.marketValue && refP.marketValue > 0) ? refP.marketValue : (rawP.marketValue || 0);
-        const tId = String(raw.tid || refP.teamId || "");
-        const mId = String(raw.mi || refP.matchId || teamToMatchMap.get(tId) || "");
         const rawDate = raw.md || raw.d || raw.dt || raw.date || raw.startTime || raw.t || raw.matchDate || refP.matchDate;
         const resolvedDay = formatMatchDay(rawDate) || matchScheduleMap.get(mId) || teamScheduleMap.get(tId) || "";
         const resolvedMatchup = matchMatchupMap.get(mId) || teamMatchupMap.get(tId) || refP.matchup || "";
@@ -7461,7 +7524,7 @@ Analyze my squad strictly under Kickbase rules:
           marketValue: actualMv,
           livePoints: curGamePoints,
           matchStatus: mst,
-          matchMinute: raw.mt !== undefined ? raw.mt : (refP.matchMinute ?? 0),
+          matchMinute: raw.mt !== undefined ? raw.mt : (refP.matchMinute ?? (matchMinuteMap.get(mId) ?? 0)),
           matchup: resolvedMatchup,
           matchDay: resolvedDay,
           matchId: mId,
@@ -7476,9 +7539,11 @@ Analyze my squad strictly under Kickbase rules:
       starters = savedLineup.map((id) => squad.find((p) => p.id === id)).filter(Boolean);
       if (!starters.length) starters = squad.slice(0, 11);
       starters = starters.map((p) => {
-        const mst = p.matchStatus !== undefined ? Number(p.matchStatus) : 0;
-        const curGamePoints = (mst !== 0 && p.livePoints !== undefined && p.livePoints !== null) ? Number(p.livePoints) : 0;
         const mId = p.matchId || teamToMatchMap.get(p.teamId) || "";
+        const knownMst = matchStatusMap.get(mId) ?? teamStatusMap.get(p.teamId);
+        let mst = p.matchStatus !== undefined ? Number(p.matchStatus) : (knownMst !== undefined ? knownMst : 0);
+        if (mst === 0 && ((p.livePoints && p.livePoints !== 0) || knownMst === 1)) mst = 1;
+        const curGamePoints = (mst !== 0 && p.livePoints !== undefined && p.livePoints !== null) ? Number(p.livePoints) : 0;
         const resolvedDay = p.matchDay || formatMatchDay(p.matchDate) || matchScheduleMap.get(mId) || teamScheduleMap.get(p.teamId) || "";
         const resolvedMatchup = p.matchup || matchMatchupMap.get(mId) || teamMatchupMap.get(p.teamId) || "";
         return { ...p, matchId: mId, matchup: resolvedMatchup, livePoints: curGamePoints, matchStatus: mst, matchDay: resolvedDay, isStarter: true };
@@ -7492,11 +7557,19 @@ Analyze my squad strictly under Kickbase rules:
         const fullP = squad.find((sp) => sp.id === String(raw.i || raw.pi));
         const isSold = !fullP;
         const refP = fullP || {};
-        const mst = raw.mst !== undefined ? Number(raw.mst) : (refP.matchStatus !== undefined ? Number(refP.matchStatus) : 0);
+        const tId = String(raw.tid || refP.teamId || "");
+        const mId = String(raw.mi || refP.matchId || teamToMatchMap.get(tId) || "");
+        const knownMst = matchStatusMap.get(mId) ?? teamStatusMap.get(tId);
+        let mst = raw.mst !== undefined ? Number(raw.mst) : (refP.matchStatus !== undefined ? Number(refP.matchStatus) : (knownMst !== undefined ? knownMst : 0));
+        
+        const hasLivePts = (raw.p !== undefined && raw.p !== null && Number(raw.p) !== 0) || (refP.livePoints !== undefined && refP.livePoints !== null && Number(refP.livePoints) !== 0);
+        const hasLiveMin = (raw.mt !== undefined && Number(raw.mt) > 0) || (refP.matchMinute !== undefined && Number(refP.matchMinute) > 0);
+        if (mst === 0 && (hasLivePts || hasLiveMin || knownMst === 1)) {
+          mst = 1;
+        }
+
         let curGamePoints = 0;
-        if (mst === 0) {
-          curGamePoints = 0;
-        } else if (raw.p !== undefined && raw.p !== null) {
+        if (raw.p !== undefined && raw.p !== null) {
           curGamePoints = Number(raw.p);
         } else if (refP.livePoints !== undefined && refP.livePoints !== null) {
           curGamePoints = Number(refP.livePoints);
@@ -7505,8 +7578,6 @@ Analyze my squad strictly under Kickbase rules:
         }
         const rawP = tf.player({ ...raw, st: undefined }); // myeleven "st" is not injury status
         const actualMv = (refP.marketValue && refP.marketValue > 0) ? refP.marketValue : (rawP.marketValue || 0);
-        const tId = String(raw.tid || refP.teamId || "");
-        const mId = String(raw.mi || refP.matchId || teamToMatchMap.get(tId) || "");
         const rawDate = raw.md || raw.d || raw.dt || raw.date || raw.startTime || raw.t || raw.matchDate || refP.matchDate;
         const resolvedDay = formatMatchDay(rawDate) || matchScheduleMap.get(mId) || teamScheduleMap.get(tId) || "";
         const resolvedMatchup = matchMatchupMap.get(mId) || teamMatchupMap.get(tId) || refP.matchup || "";
@@ -7519,7 +7590,7 @@ Analyze my squad strictly under Kickbase rules:
           marketValue: actualMv,
           livePoints: curGamePoints,
           matchStatus: mst,
-          matchMinute: raw.mt !== undefined ? raw.mt : (refP.matchMinute ?? 0),
+          matchMinute: raw.mt !== undefined ? raw.mt : (refP.matchMinute ?? (matchMinuteMap.get(mId) ?? 0)),
           matchup: resolvedMatchup,
           matchDay: resolvedDay,
           matchId: mId,
@@ -7531,9 +7602,11 @@ Analyze my squad strictly under Kickbase rules:
       });
     } else {
       bench = squad.filter((p) => !starters.some((s) => s.id === p.id)).map((p) => {
-        const mst = p.matchStatus !== undefined ? Number(p.matchStatus) : 0;
-        const curGamePoints = (mst !== 0 && p.livePoints !== undefined && p.livePoints !== null) ? Number(p.livePoints) : 0;
         const mId = p.matchId || teamToMatchMap.get(p.teamId) || "";
+        const knownMst = matchStatusMap.get(mId) ?? teamStatusMap.get(p.teamId);
+        let mst = p.matchStatus !== undefined ? Number(p.matchStatus) : (knownMst !== undefined ? knownMst : 0);
+        if (mst === 0 && ((p.livePoints && p.livePoints !== 0) || knownMst === 1)) mst = 1;
+        const curGamePoints = (mst !== 0 && p.livePoints !== undefined && p.livePoints !== null) ? Number(p.livePoints) : 0;
         const resolvedDay = p.matchDay || formatMatchDay(p.matchDate) || matchScheduleMap.get(mId) || teamScheduleMap.get(p.teamId) || "";
         const resolvedMatchup = p.matchup || matchMatchupMap.get(mId) || teamMatchupMap.get(p.teamId) || "";
         return { ...p, matchId: mId, matchup: resolvedMatchup, livePoints: curGamePoints, matchStatus: mst, matchDay: resolvedDay, isStarter: false };
@@ -7598,10 +7671,19 @@ Analyze my squad strictly under Kickbase rules:
               if (details.t1) teamScheduleMap.set(String(details.t1), formatted);
               if (details.t2) teamScheduleMap.set(String(details.t2), formatted);
             }
+            const detSt = details.mst !== undefined ? Number(details.mst) : (details.st !== undefined ? Number(details.st) : (details.il ? 1 : 0));
+            if (detSt !== undefined && detSt !== 0) {
+              matchStatusMap.set(mId, detSt);
+              if (details.t1) teamStatusMap.set(String(details.t1), detSt);
+              if (details.t2) teamStatusMap.set(String(details.t2), detSt);
+            }
+            const detMin = details.mt ?? details.m ?? details.minute ?? null;
+            if (detMin) matchMinuteMap.set(mId, detMin);
+
             const t1sy = details.t1sy || "";
             const t2sy = details.t2sy || "";
             if (t1sy && t2sy) {
-              const hasScore = (details.mst > 0 || details.il) && details.t1g !== undefined && details.t2g !== undefined;
+              const hasScore = (detSt > 0 || details.il) && details.t1g !== undefined && details.t2g !== undefined;
               const matchupStr = hasScore ? `${t1sy} ${details.t1g}:${details.t2g} ${t2sy}` : `${t1sy} vs ${t2sy}`;
               matchMatchupMap.set(mId, matchupStr);
               if (details.t1) teamMatchupMap.set(String(details.t1), matchupStr);
@@ -7665,11 +7747,24 @@ Analyze my squad strictly under Kickbase rules:
         combinedEvents.push({ eti: -1, text: "sub_in" });
       }
 
+      // Check authoritative match status from details or competition matchday
+      const mSt = matchStatusMap.get(mId) ?? teamStatusMap.get(p.teamId);
+      let finalStatus = p.matchStatus;
+      if (mSt !== undefined && mSt !== 0) {
+        finalStatus = mSt;
+      } else if (finalStatus === 0 && (p.livePoints !== 0 || (p.matchMinute && p.matchMinute > 0) || combinedEvents.length > 0)) {
+        finalStatus = 1;
+      }
+
+      const finalMinute = p.matchMinute || matchMinuteMap.get(mId) || 0;
+
       return {
         ...p,
         matchId: mId,
         matchDay: resolvedDay,
         matchup: resolvedMatchup,
+        matchStatus: finalStatus,
+        matchMinute: finalMinute,
         events: combinedEvents
       };
     };
@@ -7719,7 +7814,8 @@ Analyze my squad strictly under Kickbase rules:
     }
 
     function getStatusPill(p) {
-      if (p.matchStatus === 1) {
+      const isLive = p.matchStatus === 1 || (p.matchStatus !== 2 && ((p.livePoints !== null && p.livePoints !== undefined && p.livePoints !== 0) || (p.matchMinute && p.matchMinute > 0)));
+      if (isLive) {
         return `<span class="pill-live"><span class="live-dot" style="display:inline-block;vertical-align:middle;margin-right:4px"></span>LIVE ${p.matchMinute ? p.matchMinute + "'" : ""}</span>`;
       } else if (p.matchStatus === 2) {
         return `<span class="pill-ft" title="Match Finished (Full Time)">Finished</span>`;
@@ -8342,21 +8438,28 @@ Analyze my squad strictly under Kickbase rules:
 
             const rivalStarters = rivalTc.lp.map((raw) => {
               const p = tf.player({ ...raw, st: undefined }); // teamcenter "st" is not injury status
-              const mst = raw.mst !== undefined ? Number(raw.mst) : (p.matchStatus !== undefined ? Number(p.matchStatus) : 0);
-              const curGamePoints = (mst !== 0 && raw.p !== undefined && raw.p !== null) ? Number(raw.p) : 0;
+              const tId = String(raw.tid || p.teamId || "");
+              const matchId = String(raw.mi || p.matchId || teamToMatchMap.get(tId) || "");
+              const knownMst = matchStatusMap.get(matchId) ?? teamStatusMap.get(tId);
+              let mst = raw.mst !== undefined ? Number(raw.mst) : (p.matchStatus !== undefined ? Number(p.matchStatus) : (knownMst !== undefined ? knownMst : 0));
+              const hasLivePts = (raw.p !== undefined && raw.p !== null && Number(raw.p) !== 0) || (p.livePoints !== undefined && p.livePoints !== null && Number(p.livePoints) !== 0);
+              const hasLiveMin = (raw.mt !== undefined && Number(raw.mt) > 0) || (p.matchMinute !== undefined && Number(p.matchMinute) > 0);
+              if (mst === 0 && (hasLivePts || hasLiveMin || knownMst === 1)) {
+                mst = 1;
+              }
+              const curGamePoints = (raw.p !== undefined && raw.p !== null) ? Number(raw.p) : (p.livePoints || 0);
               const pid = String(raw.i || raw.pi || p.id);
               const extraEv = matchEventMap.get(pid) || [];
               const rEvents = [...extraEv, ...(raw.k || raw.ev || raw.events || [])];
-              const tId = String(raw.tid || p.teamId || "");
-              const matchId = String(raw.mi || p.matchId || teamToMatchMap.get(tId) || "");
               const rawDate = raw.md || raw.d || raw.dt || raw.date || raw.startTime || raw.t || raw.matchDate;
               const resolvedDay = formatMatchDay(rawDate) || matchScheduleMap.get(matchId) || teamScheduleMap.get(tId) || "";
               const resolvedMatchup = matchMatchupMap.get(matchId) || teamMatchupMap.get(tId) || p.matchup || "";
+              const mMinute = raw.mt !== undefined ? raw.mt : (p.matchMinute ?? (matchMinuteMap.get(matchId) ?? 0));
               return {
                 ...p,
                 livePoints: curGamePoints,
                 matchStatus: mst,
-                matchMinute: raw.mt,
+                matchMinute: mMinute,
                 matchup: resolvedMatchup,
                 matchDay: resolvedDay,
                 events: rEvents
