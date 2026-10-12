@@ -204,6 +204,12 @@ td .pimg { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; bac
 .seg button { border: 0; background: transparent; padding: 7px 13px; cursor: pointer; font-weight: 600; color: var(--muted); }
 .seg button + button { border-left: 1px solid var(--border-2); }
 .seg button.on { background: var(--orange-soft); color: var(--orange); }
+.lang-toggle { display: inline-flex; border: 1px solid var(--border-2); border-radius: 8px; overflow: hidden; background: rgba(0, 0, 0, 0.2); }
+.lang-toggle button { border: 0; background: transparent; padding: 0 8px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; opacity: 0.5; transition: all 0.2s ease; outline: none; }
+.lang-toggle button:hover { opacity: 0.85; background: rgba(255, 255, 255, 0.05); }
+.lang-toggle button.on { opacity: 1; background: var(--orange-soft); }
+.lang-toggle button + button { border-left: 1px solid var(--border-2); }
+.lang-flag { width: 20px; height: 14px; border-radius: 2px; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25); display: block; object-fit: cover; pointer-events: none; }
 
 /* ---------- Charts ---------- */
 .chart-card { padding: 18px 18px 10px; }
@@ -858,7 +864,7 @@ table.data tr.tr-user-deal td {
     }
     playerImage(playerId, size = 1) {
       if (!playerId || String(playerId).startsWith("bl_") || isNaN(Number(playerId))) return null;
-      return `${this.baseUrl}/files/players/${playerId}/${size}`;
+      return `${CDN_URL}/pool/playersbig/${playerId}.png`;
     }
 
     // --- Live Matchday & Team Center -----------------------------------------
@@ -1791,7 +1797,10 @@ table.data tr.tr-user-deal td {
     "Please enter an API key first.": "Bitte gib zuerst einen API-Schlüssel ein.",
     "Gemini AI settings saved!": "Gemini KI-Einstellungen gespeichert!",
     "Don't have a key? Get a free key at": "Noch keinen Schlüssel? Kostenlos erstellen bei",
-    "Gemini 2.5 Flash (Recommended - Fastest & Smartest)": "Gemini 2.5 Flash (Empfohlen - Schnell & Intelligent)",
+    "Gemini 3.8 Flash (Recommended - Latest & Fastest)": "Gemini 3.8 Flash (Empfohlen - Neueste Version)",
+    "Gemini 3.8 Pro (Deep Reasoning)": "Gemini 3.8 Pro (Tiefgehendes Denken)",
+    "Gemini 2.5 Flash (Legacy)": "Gemini 2.5 Flash (Veraltet)",
+    "Gemini 2.5 Flash (Recommended - Fastest & Smartest)": "Gemini 2.5 Flash (Veraltet)",
     "Gemini 1.5 Flash": "Gemini 1.5 Flash",
     "Gemini 2.0 Flash": "Gemini 2.0 Flash",
 
@@ -2057,6 +2066,16 @@ table.data tr.tr-user-deal td {
     "Could not load lineup:": "Aufstellung konnte nicht geladen werden:",
 
     // Transfermarkt & Bids
+    "Budget": "Budget",
+    "Open bids": "Offene Gebote",
+    "in total": "insgesamt",
+    "If all bids win": "Falls alle Gebote gewinnen",
+    "below zero": "im Minus",
+    "My bids": "Meine Gebote",
+    "sorted by soonest transfer window end": "sortiert nach bald endendem Transferfenster",
+    "recent bid status": "Status aktueller Gebote",
+    "Window ends in": "Fenster endet in",
+    "unavailable after": "danach nicht mehr verfügbar",
     "Your bid": "Dein Gebot",
     "Your bid:": "Dein Gebot:",
     "Your bid (€)": "Dein Gebot (€)",
@@ -2064,36 +2083,111 @@ table.data tr.tr-user-deal td {
     "Updated bid": "Gebot anpassen",
     "Updated bid (€)": "Neues Gebot (€)",
     "Current active bid:": "Aktuelles Gebot:",
+    "Your active bid:": "Dein aktives Gebot:",
+    "Active bid:": "Aktives Gebot:",
+    "Current bid:": "Aktuelles Gebot:",
     "Update bid": "Gebot anpassen",
+    "Update Bid": "Gebot anpassen",
+    "Update": "Anpassen",
+    "Kickbase Transfermarkt": "Kickbase Transfermarkt",
     "Place / Update bid": "Gebot abgeben / anpassen",
     "Place / Update bid.": "Gebot abgeben / anpassen",
+    "Place / Update bid…": "Gebot abgeben / anpassen…",
+    "Place / Update bid...": "Gebot abgeben / anpassen...",
     "Place a bid": "Gebot abgeben",
+    "Place Bid": "Gebot abgeben",
+    "Bid amount (€)": "Gebot (€)",
+    "Update your bid amount (€)": "Gebot anpassen (€)",
     "Withdraw": "Zurückziehen",
     "Withdraw bid": "Gebot zurückziehen",
+    "Withdraw your bid of": "Möchtest du dein Gebot von",
+    "for": "für",
+    "Yes, withdraw": "Ja, zurückziehen",
+    "Cancel": "Abbrechen",
     "Won – In Your Squad": "Gewonnen – In deinem Kader",
     "Won - In Your Squad": "Gewonnen – In deinem Kader",
     "❌ Did Not Win (Window Closed)": "❌ Nicht gewonnen (Fenster geschlossen)",
     "Transfer window ended": "Transferfenster abgelaufen",
     "Player no longer available": "Spieler nicht mehr verfügbar",
     "Ended": "Abgelaufen",
+    "Ends in": "Endet in",
     "Dismiss": "Ausblenden",
     "Window ends": "Fenster endet",
     "Transfer window closes": "Transferfenster schließt um",
     "player is unavailable after": "danach nicht mehr verfügbar",
     "Currently listed on the Transfer Market": "Aktuell auf dem Transfermarkt gelistet",
     "List on Transfer Market or sell directly to Kickbase": "Auf Transfermarkt setzen oder an Kickbase verkaufen",
+    "List on Market": "Auf Transfermarkt",
+    "List on market": "Auf Transfermarkt",
+    "List player on transfer market": "Spieler auf Transfermarkt setzen",
     "Listed": "Gelistet",
     "Manage": "Verwalten",
     "Sell": "Verkaufen",
+    "Choose a player from the Transfermarkt (or click any row below)…": "Wähle einen Spieler vom Transfermarkt (oder klicke unten auf eine Zeile)…",
+    "Choose a player from the Transfermarkt (or click any row below)...": "Wähle einen Spieler vom Transfermarkt (oder klicke unten auf eine Zeile)...",
     "Choose a player from the Transfermarkt (or click any row below).": "Wähle einen Spieler vom Transfermarkt (oder klicke unten auf eine Zeile).",
     "Tip: Click any player in All players on the Transfermarkt below to place or update a bid.": "Tipp: Klicke unten auf einen Spieler in der Transfermarkt-Liste, um ein Gebot abzugeben oder anzupassen.",
+    "Tip: Click any player in <b>All players on the Transfermarkt</b> below to place or update a bid.": "Tipp: Klicke unten auf einen Spieler in der Transfermarkt-Liste, um ein Gebot abzugeben oder anzupassen.",
     "Your bid is below the market value – Kickbase will reject it!": "Dein Gebot liegt unter dem Marktwert – Kickbase wird es ablehnen!",
     "Your Purchase Record:": "Dein Kauf-Verlauf:",
+    "Your Purchase History": "Dein Kauf-Verlauf",
     "Bought for": "Gekauft für",
     "Bought on": "Gekauft am",
     "on": "am",
     "Previously": "Früher",
     "User": "Manager",
+    "Seller": "Verkäufer",
+    "Seller:": "Verkäufer:",
+    "Listed by Kickbase": "Gelistet von Kickbase",
+    "Available on Transfermarkt": "Auf dem Transfermarkt verfügbar",
+    "On Transfermarkt": "Auf dem Transfermarkt",
+    "In Your Squad": "In deinem Kader",
+    "Initial squad player": "Startkader-Spieler",
+    "Exact MW": "Exakt MW",
+    "Budget now:": "Budget jetzt:",
+    "Remaining budget:": "Verbleibendes Budget:",
+    "Submitting…": "Wird gesendet…",
+    "Profit:": "Gewinn:",
+    "Instant Sell (Kickbase)": "Direktverkauf (Kickbase)",
+    "Transfer listing price (€)": "Verkaufspreis (€)",
+    "Yes, list": "Ja, setze",
+    "on the market": "auf den Transfermarkt",
+    "24h trend": "24h-Trend",
+    "Show": "Anzeigen",
+    "Last": "Letzte",
+    "vs buy": "ggü. Kauf",
+    "in last": "in den letzten",
+    "manager buys": "Manager-Käufen",
+    "manager purchases across league": "Manager-Käufe ligaweit",
+    "None > MW": "Keiner > MW",
+    "All recent buys at/under MW": "Alle aktuellen Käufe zu/unter MW",
+    "No winning bid": "Kein siegreiches Gebot",
+    "Value for money – top-left are the bargains": "Preis-Leistung – oben links sind die Schnäppchen",
+    "Market Value": "Marktwert",
+    "Market value": "Marktwert",
+    "Ø points": "Ø Punkte",
+    "Total points": "Gesamtpunkte",
+    "Games played": "Spiele",
+    "Starts": "Startelf",
+    "Market Value History": "Marktwert-Verlauf",
+    "30 Days": "30 Tage",
+    "3 Months": "3 Monate",
+    "1 Year": "1 Jahr",
+    "over MW": "über MW",
+    "over MW at buy": "über MW bei Kauf",
+    "discount vs MW": "Rabatt ggü. MW",
+    "0% overpay": "0% Aufpreis",
+    "At exact MW": "Exakt zum MW",
+    "Loading MW…": "Lade MW…",
+    "Who Got the Bid (Winner)": "Zuschlag erhalten (Gewinner)",
+    "Winning Bid / Price": "Zuschlagspreis / Ablöse",
+    "MW at Buy": "MW bei Kauf",
+    "Bid vs. MW at Buy": "Gebot vs. MW bei Kauf",
+    "Current MW": "Aktueller MW",
+    "Latest Winning Bid": "Letzter Zuschlag",
+    "Biggest Bid Overpay (Recent)": "Höchster Aufpreis (Kürzlich)",
+    "Bids Over Market Value": "Gebote über Marktwert",
+    "Total Manager Spending": "Gesamtausgaben aller Manager",
 
     // Managers & Transfers
     "Trade Channel": "Transfer-Art",
@@ -2200,8 +2294,19 @@ table.data tr.tr-user-deal td {
     "I already collected this today on Kickbase": "Ich habe dies heute bereits in der Kickbase-App abgeholt",
     "Done": "Erledigt",
     "Sync": "Synchronisieren",
-    "Check": "Prüfen",
-    "Day": "Tag"
+    "Day": "Tag",
+    "Played": "Gespielt",
+    "Did not play": "Nicht gespielt",
+    "mins": "Min.",
+    "min": "Min.",
+    "games": "Spiele",
+    "games_short": "Sp.",
+    "total": "gesamt",
+    "Total Points": "Gesamtpunkte",
+    "No matchday points recorded for": "Keine Spieltagspunkte aufgezeichnet für",
+    "Matchday Performance": "Spieltags-Leistung",
+    "Current": "Aktuell",
+    "Language": "Sprache"
   };
 
   function getLang() {
@@ -2341,9 +2446,9 @@ table.data tr.tr-user-deal td {
 
   function kpis(items) {
     return `<div class="kpis">${items.map((it) => `
-      <div class="kpi"><div class="kpi-label">${esc(it.label)}</div>
+      <div class="kpi"><div class="kpi-label">${esc(t(it.label))}</div>
         <div class="kpi-value" title="${esc(it.value)}">${esc(it.value)}</div>
-        ${it.delta || it.sub ? `<div class="kpi-sub">${it.delta ? `<span class="pill ${it.tone || "flat"}">${esc(it.delta)}</span> ` : ""}${esc(it.sub || "")}</div>` : ""}
+        ${it.delta || it.sub ? `<div class="kpi-sub">${it.delta ? `<span class="pill ${it.tone || "flat"}">${esc(t(it.delta))}</span> ` : ""}${esc(it.sub || "")}</div>` : ""}
       </div>`).join("")}</div>`;
   }
 
@@ -2382,11 +2487,13 @@ table.data tr.tr-user-deal td {
     const nameInit = esc((nameStr || "?")[0].toUpperCase());
     const rawPid = p ? (p.id || p.playerId || p.i || p.pi) : null;
     const isNumId = rawPid && !String(rawPid).startsWith("bl_") && !isNaN(Number(rawPid));
+    const pimPath = p ? (p.pim || p.imagePath || p.uim || null) : null;
     const imgUrl = p ? (
+      (KB.imageUrl && pimPath ? KB.imageUrl(pimPath) : null) ||
+      (p.image && !p.image.includes("api.kickbase.com/files/") ? p.image : null) ||
+      (isNumId && KB.imageUrl ? KB.imageUrl(`pool/playersbig/${rawPid}.png`) : null) ||
+      (isNumId ? `https://kickbase.b-cdn.net/pool/playersbig/${rawPid}.png` : null) ||
       p.image ||
-      (KB.imageUrl && (p.pim || p.imagePath) ? KB.imageUrl(p.pim || p.imagePath) : null) ||
-      (isNumId && S?.api?.playerImage ? S.api.playerImage(rawPid) : null) ||
-      (isNumId ? `https://api.kickbase.com/files/players/${rawPid}/1` : null) ||
       (typeof p === "string" ? p : null)
     ) : null;
     const posStr = p && p.position ? p.position : "";
@@ -2471,8 +2578,26 @@ table.data tr.tr-user-deal td {
     toastTimer = setTimeout(() => t.classList.remove("show"), 3800);
   }
 
+  const FLAGS = {
+    de: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1IDMiPgogIDxyZWN0IHdpZHRoPSI1IiBoZWlnaHQ9IjEiIHk9IjAiIGZpbGw9IiMwMDAwMDAiLz4KICA8cmVjdCB3aWR0aD0iNSIgaGVpZ2h0PSIxIiB5PSIxIiBmaWxsPSIjREQwMDAwIi8+CiAgPHJlY3Qgd2lkdGg9IjUiIGhlaWdodD0iMSIgeT0iMiIgZmlsbD0iI0ZGQ0UwMCIvPgo8L3N2Zz4=",
+    en: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB2aWV3Qm94PSIwIDAgNzQxMCAzOTAwIj4KICA8cmVjdCB3aWR0aD0iNzQxMCIgaGVpZ2h0PSIzOTAwIiBmaWxsPSIjZmZmIi8+CiAgPHBhdGggZmlsbD0iI2IyMjIzNCIgZD0iTTAsMGg3NDEwdjMwMEgwek0wLDYwMGg3NDEwdjMwMEgwek0wLDEyMDBoNzQxMHYzMDBIMHpNMCwxODAwaDc0MTB2MzAwSDB6TTAsMjQwMGg3NDEwdjMwMEgwek0wLDMwMDBoNzQxMHYzMDBIMHpNMCwzNjAwaDc0MTB2MzAwSDB6Ii8+CiAgPHJlY3Qgd2lkdGg9IjI5NjQiIGhlaWdodD0iMjEwMCIgZmlsbD0iIzNjM2I2ZSIvPgogIDxnIGZpbGw9IiNmZmYiPgogICAgPGcgaWQ9InMxOCI+CiAgICAgIDxnIGlkPSJzOSI+CiAgICAgICAgPGcgaWQ9InM1Ij4KICAgICAgICAgIDxnIGlkPSJzIj4KICAgICAgICAgICAgPHBvbHlnb24gcG9pbnRzPSIyNDcsOTAgMjg2LDIxMiAxODIsMTM3IDMxMiwxMzcgMjA4LDIxMiIvPgogICAgICAgICAgPC9nPgogICAgICAgICAgPHVzZSB4bGluazpocmVmPSIjcyIgaHJlZj0iI3MiIHk9IjQyMCIvPgogICAgICAgICAgPHVzZSB4bGluazpocmVmPSIjcyIgaHJlZj0iI3MiIHk9Ijg0MCIvPgogICAgICAgICAgPHVzZSB4bGluazpocmVmPSIjcyIgaHJlZj0iI3MiIHk9IjEyNjAiLz4KICAgICAgICAgIDx1c2UgeGxpbms6aHJlZj0iI3MiIGhyZWY9IiNzIiB5PSIxNjgwIi8+CiAgICAgICAgPC9nPgogICAgICAgIDx1c2UgeGxpbms6aHJlZj0iI3M1IiBocmVmPSIjczUiIHg9IjI0NyIgeT0iMjEwIi8+CiAgICAgIDwvZz4KICAgICAgPHVzZSB4bGluazpocmVmPSIjczkiIGhyZWY9IiNzOSIgeD0iNDk0Ii8+CiAgICA8L2c+CiAgICA8dXNlIHhsaW5rOmhyZWY9IiNzMTgiIGhyZWY9IiNzMTgiIHg9Ijk4OCIvPgogICAgPHVzZSB4bGluazpocmVmPSIjczkiIGhyZWY9IiNzOSIgeD0iMTk3NiIvPgogICAgPHVzZSB4bGluazpocmVmPSIjczUiIGhyZWY9IiNzNSIgeD0iMjQ3MCIvPgogIDwvZz4KPC9zdmc+",
+    us: "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB2aWV3Qm94PSIwIDAgNzQxMCAzOTAwIj4KICA8cmVjdCB3aWR0aD0iNzQxMCIgaGVpZ2h0PSIzOTAwIiBmaWxsPSIjZmZmIi8+CiAgPHBhdGggZmlsbD0iI2IyMjIzNCIgZD0iTTAsMGg3NDEwdjMwMEgwek0wLDYwMGg3NDEwdjMwMEgwek0wLDEyMDBoNzQxMHYzMDBIMHpNMCwxODAwaDc0MTB2MzAwSDB6TTAsMjQwMGg3NDEwdjMwMEgwek0wLDMwMDBoNzQxMHYzMDBIMHpNMCwzNjAwaDc0MTB2MzAwSDB6Ii8+CiAgPHJlY3Qgd2lkdGg9IjI5NjQiIGhlaWdodD0iMjEwMCIgZmlsbD0iIzNjM2I2ZSIvPgogIDxnIGZpbGw9IiNmZmYiPgogICAgPGcgaWQ9InMxOCI+CiAgICAgIDxnIGlkPSJzOSI+CiAgICAgICAgPGcgaWQ9InM1Ij4KICAgICAgICAgIDxnIGlkPSJzIj4KICAgICAgICAgICAgPHBvbHlnb24gcG9pbnRzPSIyNDcsOTAgMjg2LDIxMiAxODIsMTM3IDMxMiwxMzcgMjA4LDIxMiIvPgogICAgICAgICAgPC9nPgogICAgICAgICAgPHVzZSB4bGluazpocmVmPSIjcyIgaHJlZj0iI3MiIHk9IjQyMCIvPgogICAgICAgICAgPHVzZSB4bGluazpocmVmPSIjcyIgaHJlZj0iI3MiIHk9Ijg0MCIvPgogICAgICAgICAgPHVzZSB4bGluazpocmVmPSIjcyIgaHJlZj0iI3MiIHk9IjEyNjAiLz4KICAgICAgICAgIDx1c2UgeGxpbms6aHJlZj0iI3MiIGhyZWY9IiNzIiB5PSIxNjgwIi8+CiAgICAgICAgPC9nPgogICAgICAgIDx1c2UgeGxpbms6aHJlZj0iI3M1IiBocmVmPSIjczUiIHg9IjI0NyIgeT0iMjEwIi8+CiAgICAgIDwvZz4KICAgICAgPHVzZSB4bGluazpocmVmPSIjczkiIGhyZWY9IiNzOSIgeD0iNDk0Ii8+CiAgICA8L2c+CiAgICA8dXNlIHhsaW5rOmhyZWY9IiNzMTgiIGhyZWY9IiNzMTgiIHg9Ijk4OCIvPgogICAgPHVzZSB4bGluazpocmVmPSIjczkiIGhyZWY9IiNzOSIgeD0iMTk3NiIvPgogICAgPHVzZSB4bGluazpocmVmPSIjczUiIGhyZWY9IiNzNSIgeD0iMjQ3MCIvPgogIDwvZz4KPC9zdmc+"
+  };
+
+  function flag(code) {
+    const k = (code || "").toLowerCase();
+    return FLAGS[k] || (k === "en" ? FLAGS.us : FLAGS.de) || "";
+  }
+
+  function flagImg(code, label = "") {
+    const src = flag(code);
+    const title = label || (code === "de" ? "Deutsch" : "English");
+    return `<img class="lang-flag" src="${src}" width="20" height="14" alt="${esc(title)}" title="${esc(title)}">`;
+  }
+
   KB.ui = { t, esc, money, moneyFull, signedMoney, tone, int, fixed, formatMatchDay, h, kpis, section, pageHead, pos, icon,
-    loading, alert, table, dialog, toast, missing, pawn, playerColor: KB.playerColor, PLAYER_PALETTE: KB.PLAYER_PALETTE };
+    loading, alert, table, dialog, toast, missing, pawn, playerColor: KB.playerColor, PLAYER_PALETTE: KB.PLAYER_PALETTE,
+    FLAGS, flag, flagImg };
 })(globalThis.KB = globalThis.KB || {});
 
 // ---- charts.js
@@ -2783,6 +2908,8 @@ table.data tr.tr-user-deal td {
             tip += ` <span style="background:rgba(203,213,225,0.22);color:#cbd5e1;padding:1px 5px;border-radius:4px;font-size:10px;font-weight:700">MY SQUAD</span>`;
           } else if (p.badge) {
             tip += ` <span style="background:rgba(255,90,31,0.18);color:#ff7a45;padding:1px 5px;border-radius:4px;font-size:10px;font-weight:700">${KB.ui.esc(p.badge)}</span>`;
+          } else if (p.group) {
+            tip += ` <span style="font-size:11px;font-weight:700;color:${ptColor}">(${KB.ui.esc(p.group)})</span>`;
           }
           if (p.pos) {
             tip += `<br><span class="muted" style="font-size:11px">${KB.ui.esc(p.pos)}</span>`;
@@ -2900,10 +3027,16 @@ OFFICIAL KICKBASE RULES & STRATEGY DIRECTIVES:
     try { localStorage.setItem("kb.geminiApiKey", k.trim()); } catch (e) {}
   }
   function getModel() {
-    try { return localStorage.getItem("kb.geminiModel") || "gemini-2.5-flash"; } catch (e) { return "gemini-2.5-flash"; }
+    try {
+      const stored = localStorage.getItem("kb.geminiModel");
+      if (stored && stored !== "gemini-2.5-flash" && stored !== "models/gemini-2.5-flash") {
+        return stored.replace(/^models\//, "");
+      }
+      return "gemini-3.8-flash";
+    } catch (e) { return "gemini-3.8-flash"; }
   }
   function setModel(m) {
-    try { localStorage.setItem("kb.geminiModel", m); } catch (e) {}
+    try { localStorage.setItem("kb.geminiModel", String(m).replace(/^models\//, "")); } catch (e) {}
   }
 
   // Fallback / Rule-based local analysis when no API key is provided
@@ -3126,7 +3259,8 @@ Analyze my squad strictly under Kickbase rules:
 4. Recommend players to SELL from my squad (falling prices, injured, or to raise cash for Friday).
 5. Give me a clear budget strategy for Friday kickoff!`;
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+    const cleanModel = String(model).replace(/^models\//, "");
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${encodeURIComponent(key)}`;
     const payload = {
       systemInstruction: { parts: [{ text: systemPrompt }] },
       contents: [{ role: "user", parts: [{ text: userPrompt }] }],
@@ -3180,7 +3314,8 @@ Analyze my squad strictly under Kickbase rules:
       { role: "user", parts: [{ text: `${contextText}\n\nQuestion: ${question}` }] }
     ];
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+    const cleanModel = String(model).replace(/^models\//, "");
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${encodeURIComponent(key)}`;
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -3306,7 +3441,13 @@ Analyze my squad strictly under Kickbase rules:
     app.innerHTML = `
       <div class="login fade-in">
         <div>
-          <div class="brand"><div class="mark">K</div><div class="brand-name">Kickbase AI</div></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+            <div class="brand" style="margin:0"><div class="mark">K</div><div class="brand-name">Kickbase AI</div></div>
+            <div class="seg lang-toggle" style="height:28px">
+              <button type="button" data-lang="de" class="${(KB.i18n ? KB.i18n.getLang() : S.lang) === 'de' ? 'on' : ''}" title="Deutsch" aria-label="Deutsch">${ui.flagImg("de", "Deutsch")}</button>
+              <button type="button" data-lang="en" class="${(KB.i18n ? KB.i18n.getLang() : S.lang) === 'en' ? 'on' : ''}" title="English" aria-label="English">${ui.flagImg("us", "English")}</button>
+            </div>
+          </div>
           <h1 class="hero-title">Your league,<br><em>one step ahead.</em></h1>
           <p class="lead">Live matchday points, squad lineup management, and real-time Kickbase analytics right in your browser.</p>
           ${FEATURES.map(([i, t, d]) => `<div class="feature"><div class="fi">${ui.icon(i)}</div><div><b>${t}</b><div>${d}</div></div></div>`).join("")}
@@ -3370,6 +3511,7 @@ Analyze my squad strictly under Kickbase rules:
       try { startSession(await new KB.KickbaseAPI().loginWithToken(document.getElementById("token").value)); }
       catch (err) { msg.innerHTML = ui.alert("error", esc(err.message)); }
     });
+    document.querySelectorAll(".lang-toggle button").forEach((b) => b.addEventListener("click", (e) => { e.preventDefault(); setLang(b.dataset.lang); }));
   }
 
   // -------------------------------------------------------------- shell ----
@@ -3399,9 +3541,9 @@ Analyze my squad strictly under Kickbase rules:
           <div class="side-section" style="margin-bottom:8px">
             <div style="display:flex;align-items:center;justify-content:space-between">
               <span class="lbl" style="margin:0">${t("Language")}</span>
-              <div class="seg lang-toggle" style="height:25px">
-                <button type="button" data-lang="de" class="${S.lang === 'de' ? 'on' : ''}" style="padding:0 7px;font-size:11px">🇩🇪 DE</button>
-                <button type="button" data-lang="en" class="${S.lang === 'en' ? 'on' : ''}" style="padding:0 7px;font-size:11px">🇬🇧 EN</button>
+              <div class="seg lang-toggle" style="height:28px">
+                <button type="button" data-lang="de" class="${S.lang === 'de' ? 'on' : ''}" title="Deutsch" aria-label="Deutsch">${ui.flagImg("de", "Deutsch")}</button>
+                <button type="button" data-lang="en" class="${S.lang === 'en' ? 'on' : ''}" title="English" aria-label="English">${ui.flagImg("us", "English")}</button>
               </div>
             </div>
           </div>
@@ -5864,7 +6006,7 @@ Analyze my squad strictly under Kickbase rules:
       if (chips) {
         const pickedActive = S.picked.map((id) => pool.get(id)).filter(Boolean);
         chips.innerHTML = pickedActive.map((p) => {
-          const pCol = p.color || playerColor(p);
+          const pCol = managerColors[p.manager] || p.color || playerColor(p);
           return `
             <span class="chip" style="border-color:${pCol};background:rgba(255,255,255,0.04)">
               <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${pCol};box-shadow:0 0 6px ${pCol};margin-right:4px"></span>
@@ -6105,13 +6247,14 @@ Analyze my squad strictly under Kickbase rules:
           }))
         });
 
-        // Render Scatter Plot: Market Value vs. Points (colored by player pawn color)
+        // Render Scatter Plot: Market Value vs. Points (colored by manager color)
         const scatterPoints = filtered.map((p) => ({
           x: Math.round((p.marketValue / 1e6) * 10) / 10,
           y: p.avgPoints || 0,
           label: p.name,
+          pos: p.position,
           group: p.manager,
-          color: p.color || playerColor(p)
+          color: managerColors[p.manager] || p.color || playerColor(p)
         }));
 
         charts.scatter(content.querySelector("#c-scatter"), {
@@ -6500,9 +6643,86 @@ Analyze my squad strictly under Kickbase rules:
       .replace(/đ/g, "dj")
       .normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
+    const lastName = (s) => {
+      if (!s) return "";
+      const parts = s.trim().split(/\s+/);
+      return parts[parts.length - 1];
+    };
+
+    function mergePlayers(target, source) {
+      if (!target || !source || target === source) return target;
+      const isTargetNum = target.id && !String(target.id).startsWith("bl_") && !isNaN(Number(target.id));
+      const isSourceNum = source.id && !String(source.id).startsWith("bl_") && !isNaN(Number(source.id));
+      if (!isTargetNum && isSourceNum) {
+        target.id = source.id;
+      }
+      const targetWords = (target.name || "").trim().split(/\s+/).length;
+      const sourceWords = (source.name || "").trim().split(/\s+/).length;
+      if (sourceWords > targetWords || (sourceWords === targetWords && (source.name || "").length > (target.name || "").length)) {
+        target.name = source.name;
+      }
+      if (source.pim && !target.pim) target.pim = source.pim;
+      if (source.image && (!target.image || target.image.includes("api.kickbase.com/files/"))) {
+        target.image = source.image;
+      }
+      if ((!target.position || target.position === "?") && source.position && source.position !== "?") {
+        target.position = source.position;
+        target.posCode = source.posCode || target.posCode;
+      }
+      if ((!target.teamName || target.teamName.startsWith("Team ")) && source.teamName && !source.teamName.startsWith("Team ")) {
+        target.teamName = source.teamName;
+      }
+      if (!target.teamId && source.teamId) target.teamId = source.teamId;
+      if (!target.totalPoints && source.totalPoints) target.totalPoints = source.totalPoints;
+      if (!target.avgPoints && source.avgPoints) target.avgPoints = source.avgPoints;
+      if ((!target.marketValue || target.marketValue === 500000) && source.marketValue && source.marketValue !== 500000) {
+        target.marketValue = source.marketValue;
+      }
+      if (!target.gamesPlayed && source.gamesPlayed) target.gamesPlayed = source.gamesPlayed;
+      if (!target.startsCount && source.startsCount) target.startsCount = source.startsCount;
+      if (!target.seasonMatchdays && source.seasonMatchdays) target.seasonMatchdays = source.seasonMatchdays;
+      if (!target.change24h && source.change24h) target.change24h = source.change24h;
+      if (source.isMine) {
+        target.isMine = true;
+        target.ownerType = "mine";
+        target.manager = source.manager;
+        target.managerId = source.managerId;
+      } else if (source.isOnMarket) {
+        target.isOnMarket = true;
+        target.marketPrice = source.marketPrice || target.marketPrice;
+        if (target.ownerType === "free") target.ownerType = "market";
+      } else if (source.ownerType === "manager" && target.ownerType === "free") {
+        target.ownerType = "manager";
+        target.manager = source.manager;
+        target.managerId = source.managerId;
+      }
+      if (target.marketValue && target.avgPoints) {
+        target.ppm = Math.round((target.avgPoints / (target.marketValue / 1e6)) * 100) / 100;
+      }
+      return target;
+    }
+
+    // Pre-index official Bundesliga roster by full name and by team + last name
+    const rosterByName = new Map();
+    const rosterByTeamAndLast = new Map();
+    for (const [pName, tid, pos] of BUNDESLIGA_ROSTER) {
+      rosterByName.set(norm(pName), { name: pName, tid: String(tid), pos });
+      rosterByTeamAndLast.set(`${tid}_${norm(lastName(pName))}`, { name: pName, tid: String(tid), pos });
+    }
+
     // Build comprehensive database of ALL players in the game
     const playersMap = new Map();
     const liveByName = new Map();
+    const byTeamAndLast = new Map();
+
+    const registerPlayer = (item) => {
+      if (!item) return;
+      if (item.id) playersMap.set(String(item.id), item);
+      if (item.name) {
+        liveByName.set(norm(item.name), item);
+        if (item.teamId) byTeamAndLast.set(`${item.teamId}_${norm(lastName(item.name))}`, item);
+      }
+    };
 
     // 1. Index all manager squad players in the league
     for (const p of d.squads) {
@@ -6514,8 +6734,7 @@ Analyze my squad strictly under Kickbase rules:
         isMine: p.managerId === meId,
         ownerType: p.managerId === meId ? "mine" : "manager"
       };
-      playersMap.set(pId, item);
-      liveByName.set(norm(p.name), item);
+      registerPlayer(item);
     }
 
     // 2. Index all market players
@@ -6579,36 +6798,60 @@ Analyze my squad strictly under Kickbase rules:
         for (const p of items) {
           const pId = String(p.i || p.id || p.pi || "");
           if (!pId) continue;
-          const pName = `${p.fn || ""} ${p.n || p.ln || ""}`.trim() || p.name || "Player";
+          let pName = `${p.fn || ""} ${p.n || p.ln || ""}`.trim() || p.name || "Player";
+          // If name is just one word (e.g. "Olise"), try to find full name from official roster
+          if (!pName.includes(" ")) {
+            const rosterMatch = rosterByTeamAndLast.get(`${tid}_${norm(pName)}`);
+            if (rosterMatch) {
+              pName = rosterMatch.name;
+            }
+          }
           const nKey = norm(pName);
-          const existing = playersMap.get(pId) || liveByName.get(nKey);
-          const pos = ({ 1: "GK", 2: "DEF", 3: "MID", 4: "FWD" })[p.pos] || (typeof p.pos === "string" ? p.pos : "MID");
+          const lastKey = `${tid}_${norm(lastName(pName))}`;
+          const rosterMatch = rosterByName.get(nKey) || rosterByTeamAndLast.get(lastKey);
+          const pos = ({ 1: "GK", 2: "DEF", 3: "MID", 4: "FWD" })[p.pos] || (typeof p.pos === "string" ? p.pos : (rosterMatch?.pos || "MID"));
           const mv = p.mv || p.marketValue || 500000;
           const tpPts = Number(p.tp ?? p.p ?? p.points ?? 0);
           const apPts = Number(p.ap ?? (tpPts && p.gp ? Math.round(tpPts / p.gp) : 0));
           const stNum = Number(p.st ?? 0);
 
+          // Resolve avatar: prioritize p.pim on Kickbase CDN, fallback to pool/playersbig
+          const pPim = p.pim || p.imagePath || p.uim || null;
+          const pImg = (KB.imageUrl && pPim)
+            ? KB.imageUrl(pPim)
+            : (pId && !isNaN(Number(pId)) ? `https://kickbase.b-cdn.net/pool/playersbig/${pId}.png` : null);
+
+          const existing = playersMap.get(pId) || liveByName.get(nKey) || byTeamAndLast.get(lastKey);
+
           if (existing) {
-            if (!existing.id || existing.id.startsWith("bl_")) existing.id = pId;
-            if (!existing.marketValue || existing.marketValue === 500000) existing.marketValue = mv;
-            if (!existing.totalPoints && tpPts) existing.totalPoints = tpPts;
-            if (!existing.avgPoints && apPts) existing.avgPoints = apPts;
-            if (p.st !== undefined) {
-              existing.rawStatus = stNum;
-              existing.status = ({ 0: "Fit", 1: "Injured", 2: "Stricken", 4: "Suspended" })[stNum] || existing.status;
-              existing.isInjured = stNum === 1;
-            }
-            if (!existing.image && S.api.playerImage) existing.image = S.api.playerImage(pId);
-            playersMap.set(pId, existing);
-            liveByName.set(nKey, existing);
+            mergePlayers(existing, {
+              id: pId,
+              name: pName,
+              pim: pPim,
+              image: pImg,
+              position: pos,
+              teamId: tid,
+              teamName: tName,
+              _inTeamProfile: true,
+              marketValue: mv,
+              totalPoints: tpPts,
+              avgPoints: apPts,
+              gamesPlayed: Number(p.gp ?? (tpPts > 0 ? 1 : 0)),
+              rawStatus: stNum,
+              status: ({ 0: "Fit", 1: "Injured", 2: "Stricken", 4: "Suspended" })[stNum] || existing.status,
+              isInjured: stNum === 1
+            });
+            registerPlayer(existing);
           } else {
             const item = {
               id: pId,
               name: pName,
               color: KB.playerColor ? KB.playerColor(pId, pName) : "#38bdf8",
-              image: S.api.playerImage ? S.api.playerImage(pId) : null,
+              pim: pPim,
+              image: pImg,
               teamId: tid,
               teamName: tName,
+              _inTeamProfile: true,
               position: pos,
               posCode: p.pos || ({ GK: 1, DEF: 2, MID: 3, FWD: 4 })[pos] || 3,
               status: ({ 0: "Fit", 1: "Injured", 2: "Stricken", 4: "Suspended" })[stNum] || "Fit",
@@ -6625,8 +6868,7 @@ Analyze my squad strictly under Kickbase rules:
               isOnMarket: false,
               ownerType: "free"
             };
-            playersMap.set(pId, item);
-            liveByName.set(nKey, item);
+            registerPlayer(item);
           }
         }
       }
@@ -6837,9 +7079,12 @@ Analyze my squad strictly under Kickbase rules:
       "johntolkin": 3500000
     };
 
+    const hasLiveTeamProfiles = Array.isArray(teamProfilesRaw) && teamProfilesRaw.some(tp => tp && (tp.it || tp.players || []).length > 0);
+
     for (const [pName, tid, pos] of BUNDESLIGA_ROSTER) {
       const nKey = norm(pName);
-      const liveMatch = liveByName.get(nKey);
+      const lastKey = `${tid}_${norm(lastName(pName))}`;
+      const liveMatch = liveByName.get(nKey) || byTeamAndLast.get(lastKey);
       const standardTeam = teamMap.get(String(tid)) || BUNDESLIGA_DEFAULTS[String(tid)] || `Team ${tid}`;
       const baselineMv = STAR_VALUATION_MAP[nKey] || 1500000;
 
@@ -6849,9 +7094,15 @@ Analyze my squad strictly under Kickbase rules:
         if ((!liveMatch.marketValue || liveMatch.marketValue === 500000) && STAR_VALUATION_MAP[nKey]) {
           liveMatch.marketValue = STAR_VALUATION_MAP[nKey];
         }
-      } else {
+        // Keep the canonical full name from roster
+        if ((liveMatch.name || "").trim().split(/\s+/).length < pName.trim().split(/\s+/).length) {
+          liveMatch.name = pName;
+        }
+        registerPlayer(liveMatch);
+      } else if (!hasLiveTeamProfiles) {
+        // Only insert synthetic players as an emergency fallback if official team profiles failed to load entirely
         const syntheticId = `bl_${tid}_${encodeURIComponent(pName)}`;
-        playersMap.set(syntheticId, {
+        const newItem = {
           id: syntheticId,
           name: pName,
           color: KB.playerColor ? KB.playerColor(syntheticId, pName) : "#38bdf8",
@@ -6872,8 +7123,21 @@ Analyze my squad strictly under Kickbase rules:
           isMine: false,
           isOnMarket: false,
           ownerType: "free"
-        });
+        };
+        registerPlayer(newItem);
       }
+    }
+
+    function isCurrentlyInBundesliga(p) {
+      if (!p) return false;
+      const tid = String(p.teamId || "");
+      if (!BUNDESLIGA_TEAM_IDS.includes(tid)) return false;
+      const rawSt = Number(p.rawStatus ?? 0);
+      if ((rawSt & 128) !== 0) return false;
+      const stText = String(p.status || "").toLowerCase();
+      if (stText.includes("left league") || stText.includes("liga verlassen")) return false;
+      if (String(p.id).startsWith("bl_") && !p._inTeamProfile) return false;
+      return true;
     }
 
     const allPlayersList = [...playersMap.values()];
@@ -6888,11 +7152,38 @@ Analyze my squad strictly under Kickbase rules:
     let curPage = 1;
     let curPageSize = 20;
 
-    const availableTeams = [...new Set(allPlayersList.map((p) => p.teamName).filter(Boolean))].sort();
+    const availableTeams = [...new Set(allPlayersList.filter(isCurrentlyInBundesliga).map((p) => p.teamName).filter(Boolean))].sort();
 
     function renderView() {
+      // Deduplicate player pool to ensure zero duplicates across roster, teamprofiles & enrichment
+      const dedupMap = new Map();
+      const dedupedList = [];
+      for (const p of allPlayersList) {
+        let existingMatch = null;
+        const numId = (p.id && !String(p.id).startsWith("bl_") && !isNaN(Number(p.id))) ? String(p.id) : null;
+        if (numId && dedupMap.has(`id_${numId}`)) {
+          existingMatch = dedupMap.get(`id_${numId}`);
+        } else if (p.teamId && dedupMap.has(`tl_${p.teamId}_${norm(lastName(p.name))}`)) {
+          existingMatch = dedupMap.get(`tl_${p.teamId}_${norm(lastName(p.name))}`);
+        } else if (dedupMap.has(`name_${norm(p.name)}`)) {
+          existingMatch = dedupMap.get(`name_${norm(p.name)}`);
+        }
+
+        if (existingMatch) {
+          mergePlayers(existingMatch, p);
+        } else {
+          if (numId) dedupMap.set(`id_${numId}`, p);
+          if (p.teamId) dedupMap.set(`tl_${p.teamId}_${norm(lastName(p.name))}`, p);
+          dedupMap.set(`name_${norm(p.name)}`, p);
+          dedupedList.push(p);
+        }
+      }
+
+      // Strictly retain ONLY players currently in the 1. Bundesliga (no departed or foreign players)
+      const bundesligaOnlyList = dedupedList.filter(isCurrentlyInBundesliga);
+
       // Filter list
-      let filtered = allPlayersList.filter((p) => {
+      let filtered = bundesligaOnlyList.filter((p) => {
         if (curPos !== "ALL" && p.position !== curPos) return false;
         if (curTeam !== "ALL" && p.teamName !== curTeam) return false;
         if (curOwner === "mine" && !p.isMine) return false;
@@ -6973,7 +7264,7 @@ Analyze my squad strictly under Kickbase rules:
             <div style="display:flex;align-items:center;gap:6px">
               <label for="ap-owner-select" style="font-size:12px;font-weight:600;color:var(--muted)">${t("Owner:")}</label>
               <select class="input sm" id="ap-owner-select" style="height:34px;min-width:130px">
-                <option value="ALL" ${curOwner === "ALL" ? "selected" : ""}>${t("All Players")} (${allPlayersList.length})</option>
+                <option value="ALL" ${curOwner === "ALL" ? "selected" : ""}>${t("All Players")} (${bundesligaOnlyList.length})</option>
                 <option value="free" ${curOwner === "free" ? "selected" : ""}>${t("Free Agent / Unassigned")}</option>
                 <option value="market" ${curOwner === "market" ? "selected" : ""}>${t("On Market Only")}</option>
                 <option value="mine" ${curOwner === "mine" ? "selected" : ""}>${t("My Squad Only")}</option>
@@ -7193,9 +7484,14 @@ Analyze my squad strictly under Kickbase rules:
                 }
               }
               if (realId && !isNaN(Number(realId)) && S.api.player) {
+                const oldSyntheticId = p.id;
                 const pInfo = await S.api.player(ctx.l, realId).catch(() => null);
                 if (pInfo) {
                   p.id = realId;
+                  if (oldSyntheticId && oldSyntheticId !== realId) {
+                    playersMap.delete(oldSyntheticId);
+                    playersMap.set(realId, p);
+                  }
                   if (pInfo.tp !== undefined && pInfo.tp !== null) p.totalPoints = Number(pInfo.tp);
                   if (pInfo.ap !== undefined && pInfo.ap !== null) p.avgPoints = Number(pInfo.ap);
                   if (pInfo.mv) p.marketValue = Number(pInfo.mv);
@@ -7209,7 +7505,12 @@ Analyze my squad strictly under Kickbase rules:
                   p.gamesPlayed = games;
                   if (starts !== null) p.startsCount = starts;
                   p.ppm = p.marketValue ? Math.round((p.avgPoints / (p.marketValue / 1e6)) * 100) / 100 : 0;
-                  if (pInfo.pim && S.api.playerImage) p.image = S.api.playerImage(realId);
+                  if (pInfo.pim) {
+                    p.pim = pInfo.pim;
+                    p.image = KB.imageUrl ? KB.imageUrl(pInfo.pim) : `https://kickbase.b-cdn.net/${pInfo.pim.replace(/^\//, '')}`;
+                  } else if (!p.image && realId && !isNaN(Number(realId))) {
+                    p.image = `https://kickbase.b-cdn.net/pool/playersbig/${realId}.png`;
+                  }
                   p._enriched = true;
                   return true;
                 }
@@ -7316,8 +7617,8 @@ Analyze my squad strictly under Kickbase rules:
           key: "id",
           label: "Bid",
           fmt: (v, r) => (r.myOfferId || r.myOfferPrice)
-            ? `<button class="btn sm" style="height:26px;padding:0 9px;font-size:11.5px;border-color:rgba(16,185,129,0.45);color:#34d399">${ui.icon("edit")} Update</button>`
-            : `<button class="btn primary sm" style="height:26px;padding:0 10px;font-size:11.5px">${ui.icon("gavel")} Bid</button>`
+            ? `<button class="btn sm" style="height:26px;padding:0 9px;font-size:11.5px;border-color:rgba(16,185,129,0.45);color:#34d399">${ui.icon("edit")} ${t("Update bid")}</button>`
+            : `<button class="btn primary sm" style="height:26px;padding:0 10px;font-size:11.5px">${ui.icon("gavel")} ${t("Bid")}</button>`
         },
         "image", "name", "position", "status",
         { key: "price", label: "Price", kind: "money" },
@@ -7330,14 +7631,14 @@ Analyze my squad strictly under Kickbase rules:
             const exp = formatTransferExpiry(r);
             if (!exp) return v !== null && v !== undefined ? `${ui.fixed(1)(v)}h` : `<span class="muted">–</span>`;
             return `
-              <div title="Transfer window closes ${esc(exp.clockStr)} – player is unavailable after">
+              <div title="${t("Transfer window closes")} ${esc(exp.clockStr)} – ${t("player is unavailable after")}">
                 <b style="color:${exp.color}">${esc(exp.durationStr)}</b>
                 <div style="font-size:10.5px;color:var(--muted)" class="num">${esc(exp.clockStr)}</div>
               </div>
             `;
           }
         },
-        { key: "seller", label: "Seller", fmt: (v) => v ? `<span class="pill-user-deal">👤 ${esc(v)} <span class="tag-user-p2p">User</span></span>` : `<span class="muted" style="font-size:11.5px">🏪 Kickbase</span>` },
+        { key: "seller", label: "Seller", fmt: (v) => v ? `<span class="pill-user-deal">👤 ${esc(v)} <span class="tag-user-p2p">${t("User")}</span></span>` : `<span class="muted" style="font-size:11.5px">🏪 Kickbase</span>` },
         "marketValue",
         { key: "myOfferPrice", label: "My bid", kind: "money", optional: true },
         "change24h",
@@ -7373,24 +7674,24 @@ Analyze my squad strictly under Kickbase rules:
         x: p.marketValue,
         y: p.avgPoints,
         label: `${p.name} (My)`,
-        group: "My Players",
+        group: t("My Players"),
         color: "#cbd5e1",
         stroke: "#0d0f14",
         strokeWidth: 2,
         r: 7,
         pos: p.position,
-        badge: "My Squad",
+        badge: t("My Squad"),
         isSquad: true
       }));
 
       const allPoints = [...marketPoints, ...squadPoints];
 
       charts.scatter(el.querySelector("#c1"), {
-        title: "Value for money – top-left are the bargains",
-        colors: { ...charts.POSITION_COLORS, "My Players": "#cbd5e1" },
+        title: t("Value for money – top-left are the bargains"),
+        colors: { ...charts.POSITION_COLORS, [t("My Players")]: "#cbd5e1" },
         points: allPoints,
-        xLabel: "Market value",
-        yLabel: "Ø points",
+        xLabel: t("Market value"),
+        yLabel: t("Ø points"),
         showLabels: allPoints.length <= 25
       });
     };
@@ -8091,20 +8392,20 @@ Analyze my squad strictly under Kickbase rules:
             },
             {
               label: "Biggest Bid Overpay (Recent)",
-              value: topOverpay ? `+${money(topOverpay.overpay)}` : "None > MW",
-              delta: topOverpay && topOverpay.overpayPct ? `+${topOverpay.overpayPct}% over MW` : "",
+              value: topOverpay ? `+${money(topOverpay.overpay)}` : t("None > MW"),
+              delta: topOverpay && topOverpay.overpayPct ? `+${topOverpay.overpayPct}% ${t("over MW")}` : "",
               tone: topOverpay ? "down" : "",
-              sub: topOverpay ? `${topOverpay.buyer} for ${topOverpay.player}` : "All recent buys at/under MW"
+              sub: topOverpay ? `${topOverpay.buyer} for ${topOverpay.player}` : t("All recent buys at/under MW")
             },
             {
               label: "Bids Over Market Value",
               value: `${buysWithOverpay.length} / ${recentBuys.length}`,
-              sub: `in last ${recentBuys.length} manager buys`
+              sub: `${t("in last")} ${recentBuys.length} ${t("manager buys")}`
             },
             {
               label: "Total Manager Spending",
               value: money(totalManagerSpending),
-              sub: `${wonBids.length} manager purchases across league`
+              sub: `${wonBids.length} ${t("manager purchases across league")}`
             }
           ]) : ""}
 
@@ -8119,9 +8420,9 @@ Analyze my squad strictly under Kickbase rules:
               </div>
             </div>
             <div style="display:flex;align-items:center;gap:8px">
-              <span style="font-size:12px;color:var(--muted)">Show:</span>
+              <span style="font-size:12px;color:var(--muted)">${t("Show")}:</span>
               <div class="seg" id="mkt-tr-limit">
-                ${[15, 30, 50, 0].map((lim) => `<button data-lim="${lim}" class="${rowLimit === lim ? "on" : ""}">${lim === 0 ? "All" : `Last ${lim}`}</button>`).join("")}
+                ${[15, 30, 50, 0].map((lim) => `<button data-lim="${lim}" class="${rowLimit === lim ? "on" : ""}">${lim === 0 ? t("All") : `${t("Last")} ${lim}`}</button>`).join("")}
               </div>
             </div>
           </div>
@@ -8286,7 +8587,7 @@ Analyze my squad strictly under Kickbase rules:
                 return `
                   <div>
                     <b>${money(v)}</b>
-                    ${diffSinceBuy !== 0 ? `<div style="font-size:10.5px;color:${diffSinceBuy > 0 ? "#34d399" : "#f87171"}" class="num">${signedMoney(diffSinceBuy)}${pctSinceBuy !== null ? ` (${diffSinceBuy > 0 ? "+" : ""}${pctSinceBuy}%)` : ""} vs buy</div>` : `<div style="font-size:10.5px;color:var(--muted)">${t("No change")}</div>`}
+                    ${diffSinceBuy !== 0 ? `<div style="font-size:10.5px;color:${diffSinceBuy > 0 ? "#34d399" : "#f87171"}" class="num">${signedMoney(diffSinceBuy)}${pctSinceBuy !== null ? ` (${diffSinceBuy > 0 ? "+" : ""}${pctSinceBuy}%)` : ""} ${t("vs buy")}</div>` : `<div style="font-size:10.5px;color:var(--muted)">${t("No change")}</div>`}
                   </div>
                 `;
               }
@@ -8485,16 +8786,16 @@ Analyze my squad strictly under Kickbase rules:
 
     box.innerHTML = ui.kpis([
       { label: "Budget", value: money(budget) },
-      { label: "Open bids", value: String(mine.length), sub: `${money(open)} in total` },
-      { label: "If all bids win", value: money(after), delta: after < 0 ? "below zero" : "", tone: "down" },
+      { label: "Open bids", value: String(mine.length), sub: `${money(open)} ${t("in total")}` },
+      { label: "If all bids win", value: money(after), delta: after < 0 ? t("below zero") : "", tone: "down" },
     ]) + ((mine.length || expiredBids.length) ? ui.section("My bids", mine.length ? "sorted by soonest transfer window end" : "recent bid status") + `<div class="card">${mine.map((p) => {
         const exp = formatTransferExpiry(p);
         const expHtml = exp ? `
-          <div style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:${exp.bg};border:1px solid ${exp.border};color:${exp.color};font-size:11.5px;font-weight:600" title="After ${esc(exp.clockStr)}, the transfer window closes and ${esc(p.name)} is no longer available on the Transfermarkt">
-            <span>⏱️ Window ends in <b>${esc(exp.durationStr)}</b></span>
+          <div style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:${exp.bg};border:1px solid ${exp.border};color:${exp.color};font-size:11.5px;font-weight:600" title="${t("Transfer window closes")} ${esc(exp.clockStr)} – ${t("player is unavailable after")}">
+            <span>⏱️ ${t("Window ends in")} <b>${esc(exp.durationStr)}</b></span>
             <span style="opacity:0.65">·</span>
             <span class="num">${esc(exp.clockStr)}</span>
-            <span style="font-size:10.5px;opacity:0.8;font-weight:500">(unavailable after)</span>
+            <span style="font-size:10.5px;opacity:0.8;font-weight:500">(${t("unavailable after")})</span>
           </div>
         ` : "";
         return `
@@ -8502,14 +8803,14 @@ Analyze my squad strictly under Kickbase rules:
           <div style="display:flex;align-items:center;gap:10px;min-width:220px;flex:1;cursor:pointer" data-view-player="${p.id}" title="Click to view player stats & MW history">
             ${ui.pawn(p, 32, { showPos: false })}
             <div>
-              <div><b style="text-decoration:underline;text-decoration-color:rgba(255,255,255,0.25)">${esc(p.name)}</b> ${ui.pos(p.position)} <span class="muted" style="font-size:11.5px;margin-left:6px">${ui.int(p.totalPoints)} pts · ${ui.int(p.gamesPlayed ?? 0)} games</span></div>
-              ${p.seller ? `<div style="font-size:11px;color:#f87171;margin-top:2px">👤 Seller: ${esc(p.seller)}</div>` : `<div style="font-size:11px;color:var(--muted);margin-top:2px">🏪 Kickbase Transfermarkt${p.offers ? ` · ${p.offers} bid${p.offers === 1 ? "" : "s"}` : ""}</div>`}
+              <div><b style="text-decoration:underline;text-decoration-color:rgba(255,255,255,0.25)">${esc(p.name)}</b> ${ui.pos(p.position)} <span class="muted" style="font-size:11.5px;margin-left:6px">${ui.int(p.totalPoints)} ${t("pts")} · ${ui.int(p.gamesPlayed ?? 0)} ${t("games")}</span></div>
+              ${p.seller ? `<div style="font-size:11px;color:#f87171;margin-top:2px">👤 ${t("Seller")}: ${esc(p.seller)}</div>` : `<div style="font-size:11px;color:var(--muted);margin-top:2px">🏪 Kickbase Transfermarkt${p.offers ? ` · ${p.offers} ${p.offers === 1 ? t("bid") : t("bids")}` : ""}</div>`}
             </div>
           </div>
           ${expHtml}
           <div style="display:flex;align-items:center;gap:10px">
             <div style="text-align:right;margin-right:4px">
-              <div>${t("Bid")} <b class="num" style="color:#10b981">${money(p.myOfferPrice)}</b></div>
+              <div>${t("Your bid")}: <b class="num" style="color:#10b981">${money(p.myOfferPrice)}</b></div>
               <div class="muted num" style="font-size:11px">${t("MW")} ${money(p.marketValue)}</div>
             </div>
             <button class="btn primary sm" data-edit-bid="${p.id}">${ui.icon("edit")} ${t("Update bid")}</button>
@@ -8539,15 +8840,15 @@ Analyze my squad strictly under Kickbase rules:
           </div>
         </div>`;
       }).join("")}</div>` : "")
-      + (canBid ? ui.section("Place a bid") + `<div class="row" style="align-items:center">
-          <select class="input" id="bid-player" style="flex:4"><option value="">Choose a player from the Transfermarkt (or click any row below)…</option>
+      + (canBid ? ui.section(t("Place a bid")) + `<div class="row" style="align-items:center">
+          <select class="input" id="bid-player" style="flex:4"><option value="">${t("Choose a player from the Transfermarkt (or click any row below)…")}</option>
           ${market.map((p) => {
             const exp = formatTransferExpiry(p);
             const hasBid = Boolean(p.myOfferId || p.myOfferPrice);
-            return `<option value="${p.id}">${esc(p.name)} (${p.position}) – MV ${money(p.marketValue)}${hasBid ? ` · Current bid: ${money(p.myOfferPrice)}` : ""} · ${ui.int(p.totalPoints)} pts (${ui.int(p.gamesPlayed ?? 0)} games)${exp ? ` · Ends in ${exp.durationStr} (${exp.clockStr})` : ""}</option>`;
+            return `<option value="${p.id}">${esc(p.name)} (${p.position}) – ${t("MW")} ${money(p.marketValue)}${hasBid ? ` · ${t("Current bid:")} ${money(p.myOfferPrice)}` : ""} · ${ui.int(p.totalPoints)} ${t("pts")} (${ui.int(p.gamesPlayed ?? 0)} ${t("games")})${exp ? ` · ${t("Ends in")} ${exp.durationStr} (${exp.clockStr})` : ""}</option>`;
           }).join("")}</select>
-          <button class="btn primary" id="bid-open" style="flex:1" disabled>${ui.icon("gavel")} Place / Update bid…</button></div>`
-        : `<p class="muted" style="margin-top:10px">${ui.icon("lightbulb")} Tip: Click any player in <b>All players on the Transfermarkt</b> below to place or update a bid.</p>`);
+          <button class="btn primary" id="bid-open" style="flex:1" disabled>${ui.icon("gavel")} ${t("Place / Update bid…")}</button></div>`
+        : `<p class="muted" style="margin-top:10px">${ui.icon("lightbulb")} ${t("Tip: Click any player in All players on the Transfermarkt below to place or update a bid.")}</p>`);
     const sel = box.querySelector("#bid-player"), btn = box.querySelector("#bid-open");
     if (sel && btn) {
       sel.addEventListener("change", () => { btn.disabled = !sel.value; });
@@ -8976,7 +9277,7 @@ Analyze my squad strictly under Kickbase rules:
         const ownTag = body.querySelector("#pm-ownership-tag");
 
         if (marketPlayer) {
-          if (ownTag) ownTag.innerHTML = `· <span style="color:#fbbf24;font-weight:700">🏪 Available on Transfermarkt</span>`;
+          if (ownTag) ownTag.innerHTML = `· <span style="color:#fbbf24;font-weight:700">🏪 ${t("Available on Transfermarkt")}</span>`;
           const exp = formatTransferExpiry(marketPlayer);
           const isUpdate = Boolean(marketPlayer.myOfferId || marketPlayer.myOfferPrice);
           const currentBid = Number(marketPlayer.myOfferPrice || 0);
@@ -8988,12 +9289,12 @@ Analyze my squad strictly under Kickbase rules:
             const curMv = p.marketValue || 0;
             const profit = curMv - userPurchase.price;
             const profitPct = userPurchase.price > 0 ? Math.round((profit / userPurchase.price) * 1000) / 10 : 0;
-            const dateStr = userPurchase.date instanceof Date && !isNaN(userPurchase.date) ? userPurchase.date.toLocaleDateString("de-DE") : "Previously";
+            const dateStr = userPurchase.date instanceof Date && !isNaN(userPurchase.date) ? userPurchase.date.toLocaleDateString("de-DE") : t("Previously");
             purchaseHtml = `
               <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:10px;background:rgba(255,90,31,0.08);border:1px solid rgba(255,90,31,0.25);margin-bottom:12px;font-size:12px">
                 <div>
-                  <span style="font-weight:700;color:#ff5a1f">🏷️ Your Purchase Record:</span>
-                  <span> Bought for <b class="num" style="color:#fff">${money(userPurchase.price)}</b> (${ui.moneyFull(userPurchase.price)}) on <b>${dateStr}</b></span>
+                  <span style="font-weight:700;color:#ff5a1f">🏷️ ${t("Your Purchase Record:")}</span>
+                  <span> ${t("Bought for")} <b class="num" style="color:#fff">${money(userPurchase.price)}</b> (${ui.moneyFull(userPurchase.price)}) ${t("on")} <b>${dateStr}</b></span>
                 </div>
                 <div>
                   <span style="color:${profit >= 0 ? "#34d399" : "#f87171"};font-weight:700" class="num">${signedMoney(profit)} (${profit >= 0 ? "+" : ""}${profitPct}%)</span>
@@ -9008,34 +9309,34 @@ Analyze my squad strictly under Kickbase rules:
                 <div style="display:flex;align-items:center;gap:8px">
                   <span style="font-size:18px">🏪</span>
                   <div>
-                    <b style="font-size:14px;color:#fff">On Transfermarkt</b>
-                    <div style="font-size:11.5px;color:var(--muted)">${marketPlayer.seller ? `Seller: 👤 ${esc(marketPlayer.seller)}` : "Listed by Kickbase"}${marketPlayer.offers ? ` · 🔥 ${marketPlayer.offers} active bid${marketPlayer.offers === 1 ? "" : "s"}` : ""}</div>
+                    <b style="font-size:14px;color:#fff">${t("On Transfermarkt")}</b>
+                    <div style="font-size:11.5px;color:var(--muted)">${marketPlayer.seller ? `${t("Seller")}: 👤 ${esc(marketPlayer.seller)}` : t("Listed by Kickbase")}${marketPlayer.offers ? ` · 🔥 ${marketPlayer.offers} ${marketPlayer.offers === 1 ? t("bid") : t("bids")}` : ""}</div>
                   </div>
                 </div>
-                ${exp ? `<div style="text-align:right;font-size:11.5px;color:${exp.color};background:${exp.bg};border:1px solid ${exp.border};padding:4px 10px;border-radius:8px">⏱️ Ends in <b>${esc(exp.durationStr)}</b> <span style="opacity:0.85">(${esc(exp.clockStr)})</span></div>` : ""}
+                ${exp ? `<div style="text-align:right;font-size:11.5px;color:${exp.color};background:${exp.bg};border:1px solid ${exp.border};padding:4px 10px;border-radius:8px">⏱️ ${t("Ends in")} <b>${esc(exp.durationStr)}</b> <span style="opacity:0.85">(${esc(exp.clockStr)})</span></div>` : ""}
               </div>
 
               ${purchaseHtml}
 
               ${isUpdate ? `
                 <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:8px;background:rgba(16,185,129,0.12);border:1px solid rgba(16,185,129,0.32);margin-bottom:12px;font-size:12.5px">
-                  <span>Your active bid: <b style="color:#34d399" class="num">${ui.moneyFull(currentBid)}</b> (${money(currentBid)})</span>
-                  ${marketPlayer.myOfferId ? `<button class="btn sm" id="btn-pm-wd" style="height:24px;padding:0 8px;font-size:11px;color:#f87171">${ui.icon("undo")} Withdraw</button>` : ""}
+                  <span>${t("Your active bid:")} <b style="color:#34d399" class="num">${ui.moneyFull(currentBid)}</b> (${money(currentBid)})</span>
+                  ${marketPlayer.myOfferId ? `<button class="btn sm" id="btn-pm-wd" style="height:24px;padding:0 8px;font-size:11px;color:#f87171">${ui.icon("undo")} ${t("Withdraw")}</button>` : ""}
                 </div>
               ` : ""}
 
               <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
                 <div class="field" style="flex:1;margin-bottom:0">
-                  <label for="pm-bid-input" style="font-size:11.5px;color:var(--muted)">${isUpdate ? "Update your bid amount (€)" : "Bid amount (€)"}</label>
+                  <label for="pm-bid-input" style="font-size:11.5px;color:var(--muted)">${isUpdate ? t("Update your bid amount (€)") : t("Bid amount (€)")}</label>
                   <input class="input num" id="pm-bid-input" type="number" min="1" step="10000" value="${initialPrice}">
                 </div>
                 <button class="btn primary" id="btn-pm-place-bid" style="align-self:flex-end;height:38px;padding:0 18px;font-weight:700">
-                  ${isUpdate ? `${ui.icon("edit")} Update Bid` : `${ui.icon("gavel")} Place Bid`}
+                  ${isUpdate ? `${ui.icon("edit")} ${t("Update Bid")}` : `${ui.icon("gavel")} ${t("Place Bid")}`}
                 </button>
               </div>
 
               <div class="steps" style="margin-bottom:8px">
-                <button class="btn sm" id="btn-pm-step-mw">Exact MW (${money(base)})</button>
+                <button class="btn sm" id="btn-pm-step-mw">${t("Exact MW")} (${money(base)})</button>
                 <button class="btn sm" data-pm-bump="50000">+50k</button>
                 <button class="btn sm" data-pm-bump="100000">+100k</button>
                 <button class="btn sm" data-pm-bump="500000">+500k</button>
@@ -9043,7 +9344,7 @@ Analyze my squad strictly under Kickbase rules:
               </div>
 
               <div style="font-size:11.5px;color:var(--muted);display:flex;align-items:center;justify-content:space-between" id="pm-bid-budget-info">
-                <span>Budget now: <b class="num">${money(budget)}</b></span>
+                <span>${t("Budget now:")} <b class="num">${money(budget)}</b></span>
                 <span id="pm-budget-after"></span>
               </div>
               <div id="pm-bid-err" style="margin-top:8px"></div>
@@ -9115,7 +9416,7 @@ Analyze my squad strictly under Kickbase rules:
           });
         } else if (squadPlayer || userPurchase) {
           if (squadPlayer && ownTag) {
-            ownTag.innerHTML = `· <span style="color:#34d399;font-weight:700">⚽ In Your Squad</span>`;
+            ownTag.innerHTML = `· <span style="color:#34d399;font-weight:700">⚽ ${t("In Your Squad")}</span>`;
           }
           const pPrice = userPurchase?.price || squadPlayer?.purchasePrice || 0;
           const curMv = p.marketValue || squadPlayer?.marketValue || 0;
@@ -9126,15 +9427,15 @@ Analyze my squad strictly under Kickbase rules:
           mktSec.innerHTML = `
             <div style="background:rgba(16,185,129,0.06);border:1px solid rgba(16,185,129,0.28);border-radius:14px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px">
               <div>
-                <b style="color:#34d399">🛒 ${squadPlayer ? "In Your Squad" : "Your Purchase History"}</b>
+                <b style="color:#34d399">🛒 ${squadPlayer ? t("In Your Squad") : t("Your Purchase History")}</b>
                 <div style="font-size:12px;color:var(--muted);margin-top:2px">
-                  ${pPrice ? `Bought for <b>${money(pPrice)}</b> (${ui.moneyFull(pPrice)})${dateStr ? ` on <b>${dateStr}</b>` : ""}${userPurchase?.counterpart ? ` · from ${esc(userPurchase.counterpart)}` : ""}` : "Initial squad player"}
-                  ${profit !== null && profit !== 0 ? ` · Profit: <b style="color:${profit > 0 ? "#34d399" : "#f87171"}">${signedMoney(profit)} (${profit > 0 ? "+" : ""}${profitPct}%)</b>` : ""}
+                  ${pPrice ? `${t("Bought for")} <b>${money(pPrice)}</b> (${ui.moneyFull(pPrice)})${dateStr ? ` ${t("on")} <b>${dateStr}</b>` : ""}${userPurchase?.counterpart ? ` · ${t("von")} ${esc(userPurchase.counterpart)}` : ""}` : t("Initial squad player")}
+                  ${profit !== null && profit !== 0 ? ` · ${t("Profit:")} <b style="color:${profit > 0 ? "#34d399" : "#f87171"}">${signedMoney(profit)} (${profit > 0 ? "+" : ""}${profitPct}%)</b>` : ""}
                 </div>
               </div>
               ${squadPlayer ? `
                 <div style="display:flex;gap:8px">
-                  <button class="btn sm primary" id="btn-pm-list" style="height:30px;padding:0 12px;font-size:12px">${ui.icon("storefront")} List on Market</button>
+                  <button class="btn sm primary" id="btn-pm-list" style="height:30px;padding:0 12px;font-size:12px">${ui.icon("storefront")} ${t("List on Market")}</button>
                 </div>
               ` : ""}
             </div>
@@ -9252,10 +9553,14 @@ Analyze my squad strictly under Kickbase rules:
             rawList.forEach((x, idx) => {
               if (x === null || x === undefined) return;
               let dayNum = null;
-              if (typeof x === "object") {
-                const rawDay = x.day ?? x.d ?? x.md ?? x.m ?? x.dayNumber ?? x.n;
-                if (rawDay !== undefined && rawDay !== null && !isNaN(Number(rawDay))) {
-                  dayNum = Number(rawDay);
+              if (typeof x === "object" && x !== null) {
+                const direct = x.day ?? x.dayNumber ?? x.md ?? x.m ?? x.n;
+                if (direct !== undefined && direct !== null && !isNaN(Number(direct))) {
+                  const num = Number(direct);
+                  if (num >= 1 && num <= 38) dayNum = num;
+                }
+                if (!dayNum && typeof x.d === "number" && x.d >= 1 && x.d <= 38) {
+                  dayNum = x.d;
                 }
               }
               if (!dayNum || dayNum <= 0) dayNum = idx + 1;
@@ -9265,35 +9570,71 @@ Analyze my squad strictly under Kickbase rules:
               let hasPlayed = false;
               if (typeof x === "number") {
                 pts = x;
-                hasPlayed = x !== 0;
-              } else if (typeof x === "object") {
+                hasPlayed = pts !== 0;
+                mp = hasPlayed ? 90 : 0;
+              } else if (typeof x === "object" && x !== null) {
                 pts = Number(x.p ?? x.points ?? x.pts ?? 0);
-                hasPlayed = x.hp !== undefined ? Boolean(x.hp) : (x.p !== undefined || pts !== 0);
-                mp = parseInt(String(x.mp || x.minutes || x.min || "0").replace("'", ""), 10) || (hasPlayed ? 90 : 0);
+                const rawMp = parseInt(String(x.mp || x.minutes || x.min || "0").replace("'", ""), 10);
+                const validMp = !isNaN(rawMp) && rawMp > 0 ? rawMp : 0;
+
+                // Explicit false means definitely did not play
+                if (x.hp === false || x.hp === 0) {
+                  hasPlayed = false;
+                } else if (x.hp === true || x.hp === 1) {
+                  hasPlayed = true;
+                } else {
+                  // If hp is omitted: played if non-zero points or positive minutes
+                  hasPlayed = pts !== 0 || validMp > 0;
+                }
+
+                if (!hasPlayed) {
+                  pts = 0;
+                  mp = 0;
+                } else {
+                  mp = validMp > 0 ? validMp : 90;
+                }
               }
 
               const existing = map.get(dayNum);
-              map.set(dayNum, {
-                day: dayNum,
-                p: (pts !== 0 || !existing) ? pts : existing.p,
-                mp: mp || existing?.mp || 0,
-                hp: hasPlayed || existing?.hp || false
-              });
+              if (!existing) {
+                map.set(dayNum, { day: dayNum, p: hasPlayed ? pts : 0, mp: hasPlayed ? mp : 0, hp: hasPlayed });
+              } else if (hasPlayed) {
+                map.set(dayNum, {
+                  day: dayNum,
+                  p: pts !== 0 ? pts : existing.p,
+                  mp: mp || existing.mp || 0,
+                  hp: true
+                });
+              }
             });
-          } else if (typeof rawList === "object") {
+          } else if (typeof rawList === "object" && rawList !== null) {
             Object.entries(rawList).forEach(([k, v]) => {
               const dayNum = Number(k);
               if (isNaN(dayNum) || dayNum <= 0) return;
               let pts = 0, mp = 0, hasPlayed = false;
               if (typeof v === "number") {
                 pts = v;
-                hasPlayed = v !== 0;
+                hasPlayed = pts !== 0;
+                mp = hasPlayed ? 90 : 0;
               } else if (typeof v === "object" && v !== null) {
                 pts = Number(v.p ?? v.points ?? v.pts ?? 0);
-                hasPlayed = v.hp !== undefined ? Boolean(v.hp) : (v.p !== undefined || pts !== 0);
-                mp = parseInt(String(v.mp || v.minutes || v.min || "0").replace("'", ""), 10) || (hasPlayed ? 90 : 0);
+                const rawMp = parseInt(String(v.mp || v.minutes || v.min || "0").replace("'", ""), 10);
+                const validMp = !isNaN(rawMp) && rawMp > 0 ? rawMp : 0;
+                if (v.hp === false || v.hp === 0) {
+                  hasPlayed = false;
+                } else if (v.hp === true || v.hp === 1) {
+                  hasPlayed = true;
+                } else {
+                  hasPlayed = pts !== 0 || validMp > 0;
+                }
+                if (!hasPlayed) {
+                  mp = 0;
+                  pts = 0;
+                } else {
+                  mp = validMp > 0 ? validMp : 90;
+                }
               }
-              map.set(dayNum, { day: dayNum, p: pts, mp, hp: hasPlayed });
+              map.set(dayNum, { day: dayNum, p: hasPlayed ? pts : 0, mp: hasPlayed ? mp : 0, hp: hasPlayed });
             });
           }
           return map;
@@ -9369,26 +9710,26 @@ Analyze my squad strictly under Kickbase rules:
           };
           seasons.unshift(curSeason);
         } else {
-          // Merge pInfo.ph into current season if not already present
+          // Merge pInfo.ph into current season for any played games
           const pInfoMap = parseMatchdayList(pInfo?.ph);
           pInfoMap.forEach((v, k) => {
-            if (!curSeason.mdMap.has(k) || (v.hp && !curSeason.mdMap.get(k).hp)) {
-              curSeason.mdMap.set(k, v);
+            if (v.hp) {
+              const existing = curSeason.mdMap.get(k);
+              if (!existing || (!existing.hp && v.hp)) {
+                curSeason.mdMap.set(k, v);
+              }
             }
           });
         }
 
-        // Ingest live match from playerCenter if available into current season
-        if (pcData && pcData.md) {
-          const liveDay = Number(pcData.day ?? pcData.dayNumber ?? pcData.md);
-          if (!isNaN(liveDay) && liveDay > 0) {
-            const livePts = Number(pcData.p ?? pcData.points ?? pcData.tp ?? 0);
-            const liveMp = parseInt(String(pcData.mp || pcData.m || "0").replace("'", ""), 10) || 0;
-            const existing = curSeason.mdMap.get(liveDay);
+        // If player is actively in a live match today with real points, attach it to current season
+        if (opts.livePoints !== undefined && opts.livePoints !== null && opts.matchStatus === 1) {
+          const liveDay = Number(compMatchdays?.day ?? compMatchdays?.value?.day ?? 0);
+          if (liveDay > 0) {
             curSeason.mdMap.set(liveDay, {
               day: liveDay,
-              p: livePts,
-              mp: liveMp || existing?.mp || 0,
+              p: Number(opts.livePoints),
+              mp: Number(opts.matchMinute || 90),
               hp: true
             });
           }
@@ -9419,30 +9760,25 @@ Analyze my squad strictly under Kickbase rules:
         });
 
         // Calculate stats for each season
-        const rawSmdc = Number(pInfo?.smdc || p.seasonMatchdays || 0);
-        const compDay = Number(compMatchdays?.day ?? compMatchdays?.value?.day ?? 0);
-
         seasons.forEach((season) => {
-          let maxDay = 34;
-          if (season.isCurrent) {
-            const highestActiveDay = Math.max(0, ...[...season.mdMap.values()].filter((m) => m.hp || m.p !== 0).map((m) => m.day));
-            maxDay = Math.max(rawSmdc, compDay, highestActiveDay);
-          }
+          // Strictly include ONLY games that the player ACTUALLY PLAYED!
           season.sortedPh = [...season.mdMap.values()]
-            .filter((m) => !maxDay || m.day <= maxDay || m.hp || m.p !== 0)
+            .filter((m) => m && m.hp && (m.p !== 0 || m.mp > 0))
             .sort((a, b) => a.day - b.day);
 
           season.totalPoints = season.sortedPh.reduce((s, x) => s + (x.p || 0), 0);
-          season.playedGames = season.sortedPh.filter((x) => x.hp || x.p !== 0).length;
+          season.playedGames = season.sortedPh.length;
           season.avgPoints = season.playedGames > 0 ? Math.round(season.totalPoints / season.playedGames) : 0;
           
-          // Fallback stats for past seasons or current season if ph array had limited entries
+          // Fallback stats if sortedPh had limited entries
           if (season.isCurrent && (p.totalPoints || p.avgPoints) && season.totalPoints === 0) {
             season.totalPoints = Number(p.totalPoints || 0);
             season.avgPoints = Number(p.avgPoints || 0);
+            if (p.gamesPlayed) season.playedGames = Number(p.gamesPlayed);
           } else if (!season.isCurrent && season.raw) {
             if (season.raw.tp && !season.totalPoints) season.totalPoints = Number(season.raw.tp);
             if (season.raw.ap && !season.avgPoints) season.avgPoints = Number(season.raw.ap);
+            if (season.raw.gp && !season.playedGames) season.playedGames = Number(season.raw.gp);
           }
         });
 
@@ -9479,8 +9815,8 @@ Analyze my squad strictly under Kickbase rules:
               <div style="flex:1;min-width:140px;background:${badgeBg};border:1px solid ${badgeBorder};border-radius:10px;padding:8px 12px;font-size:12px">
                 <div style="font-weight:700;color:${titleColor};margin-bottom:3px">${s.title}</div>
                 <div style="display:flex;align-items:baseline;justify-content:space-between">
-                  <span>Ø <b>${ui.int(s.avgPoints)}</b> pts</span>
-                  <span style="color:var(--muted);font-size:11px">${ui.int(s.totalPoints)} total (${s.playedGames} g)</span>
+                  <span>Ø <b>${ui.int(s.avgPoints)}</b> ${t("pts") || "pts"}</span>
+                  <span style="color:var(--muted);font-size:11px">${ui.int(s.totalPoints)} ${t("total") || "total"} (${s.playedGames} ${t("games_short") || "g"})</span>
                 </div>
               </div>
             `;
@@ -9499,7 +9835,7 @@ Analyze my squad strictly under Kickbase rules:
             seasonSelectEl.style.display = seasons.length > 1 ? "inline-block" : "none";
             seasonSelectEl.innerHTML = seasons.map((s, idx) => {
               const label = s.isCurrent ? `★ ${s.title}` : s.title;
-              const meta = s.playedGames ? ` (${s.playedGames} g · Ø ${ui.int(s.avgPoints)} pts)` : "";
+              const meta = s.playedGames ? ` (${s.playedGames} ${t("games_short") || "g"} · Ø ${ui.int(s.avgPoints)} ${t("pts") || "pts"})` : "";
               return `<option value="${idx}" ${idx === activeSeasonIndex ? "selected" : ""}>${label}${meta}</option>`;
             }).join("");
             seasonSelectEl.value = String(activeSeasonIndex);
@@ -9514,7 +9850,7 @@ Analyze my squad strictly under Kickbase rules:
 
           // Update summary banner
           if (perfSummary) {
-            perfSummary.textContent = `${season.playedGames} games · ${ui.int(season.totalPoints)} pts (Ø ${ui.int(season.avgPoints)})`;
+            perfSummary.textContent = `${season.playedGames} ${t("games") || "games"} · ${ui.int(season.totalPoints)} ${t("pts") || "pts"} (Ø ${ui.int(season.avgPoints)})`;
           }
 
           // Render bar chart
@@ -9523,12 +9859,12 @@ Analyze my squad strictly under Kickbase rules:
             charts.bars(perfChart, {
               title: "",
               height: 140,
-              yLabel: "Pts",
+              yLabel: t("pts") || "Pts",
               categories: sortedPh.map((x) => `MD ${x.day}`),
               series: [{
-                name: "Points",
+                name: t("Points") || "Points",
                 color: season.isCurrent ? "#34d399" : "#60a5fa",
-                values: sortedPh.map((x) => x.p || 0)
+                values: sortedPh.map((x) => (x.hp ? (x.p || 0) : 0))
               }],
               legend: false,
               yFmt: (v) => (v > 0 ? `+${ui.int(v)}` : ui.int(v))
@@ -9536,8 +9872,8 @@ Analyze my squad strictly under Kickbase rules:
           } else if (perfChart) {
             perfChart.innerHTML = `
               <div style="text-align:center;padding:16px 8px;color:var(--muted);font-size:12px">
-                No matchday points recorded for ${season.title}.
-                ${(season.totalPoints || season.avgPoints) ? `<div style="margin-top:4px;color:var(--text)">Total Points: <b>${ui.int(season.totalPoints || 0)}</b> · Ø <b>${ui.int(season.avgPoints || 0)}</b></div>` : ""}
+                ${t("No matchday points recorded for") || "No matchday points recorded for"} ${season.title}.
+                ${(season.totalPoints || season.avgPoints) ? `<div style="margin-top:4px;color:var(--text)">${t("Total Points") || "Total Points"}: <b>${ui.int(season.totalPoints || 0)}</b> · Ø <b>${ui.int(season.avgPoints || 0)}</b></div>` : ""}
               </div>
             `;
           }
@@ -9547,10 +9883,14 @@ Analyze my squad strictly under Kickbase rules:
             const descPh = [...sortedPh].sort((a, b) => b.day - a.day);
             perfList.innerHTML = descPh.map((m) => {
               const opp = season.isCurrent ? oppMap.get(m.day) : null;
+              const isPlayed = Boolean(m.hp) && (m.mp > 0 || m.p !== 0);
               const statusLabel = m.mp > 0
-                ? `${m.mp} mins`
-                : (m.hp ? "Played" : "Did not play");
-              const statusClass = m.hp || m.mp > 0 ? "color:var(--muted)" : "color:rgba(255,255,255,0.3)";
+                ? `${m.mp} ${t("min") || "min"}`
+                : (isPlayed ? (t("Played") || "Played") : (t("Did not play") || "Did not play"));
+              const statusClass = isPlayed ? "color:var(--muted)" : "color:rgba(255,255,255,0.3)";
+              const displayPts = isPlayed ? (m.p || 0) : 0;
+              const ptsColor = displayPts > 0 ? "#34d399" : (displayPts < 0 ? "#f87171" : "var(--muted)");
+              const ptsStr = displayPts > 0 ? `+${ui.int(displayPts)}` : `${ui.int(displayPts)}`;
               return `
                 <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:12px">
                   <div style="display:flex;align-items:center;gap:8px">
@@ -9558,8 +9898,8 @@ Analyze my squad strictly under Kickbase rules:
                     ${opp ? `<span style="font-weight:600;font-size:11.5px;color:var(--text)">${opp}</span>` : ""}
                     <span style="font-size:11px;${statusClass}">${statusLabel}</span>
                   </div>
-                  <div style="font-weight:700;font-size:12.5px;color:${(m.p || 0) > 0 ? "#34d399" : ((m.p || 0) < 0 ? "#f87171" : "var(--muted)")}">
-                    ${(m.p || 0) > 0 ? `+${ui.int(m.p)}` : ui.int(m.p ?? 0)} pts
+                  <div style="font-weight:700;font-size:12.5px;color:${ptsColor}">
+                    ${ptsStr} ${t("pts") || "pts"}
                   </div>
                 </div>
               `;
@@ -9572,7 +9912,12 @@ Analyze my squad strictly under Kickbase rules:
         // Render Live Matchday Game & Actions Section (if in active live match or match today)
         const liveSec = body.querySelector("#pm-live-section");
         if (liveSec) {
-          const livePts = opts.livePoints !== undefined ? opts.livePoints : (pcData?.p ?? pcData?.points ?? pcData?.tp ?? null);
+          // CRITICAL: NEVER fallback to pcData?.tp (which is team points) for individual player match points!
+          const livePts = opts.livePoints !== undefined 
+            ? opts.livePoints 
+            : (pcData?.p !== undefined && pcData?.p !== null 
+                ? Number(pcData.p) 
+                : (pcData?.points !== undefined && pcData?.points !== null ? Number(pcData.points) : null));
           const liveEvents = [...(opts.events || []), ...(Array.isArray(pcData?.events) ? pcData.events : []), ...(Array.isArray(pcData?.k) ? pcData.k : [])];
           const liveMatchId = opts.matchId || pcData?.mi || null;
           let matchDetailData = null;
@@ -10990,10 +11335,10 @@ Analyze my squad strictly under Kickbase rules:
   }
 
   function withdrawDialog(ctx, p) {
-    ui.dialog("Withdraw bid", (body, close) => {
+    ui.dialog(t("Withdraw bid"), (body, close) => {
       if (!p.myOfferId) { body.innerHTML = ui.alert("error", "Kickbase didn't tell us the ID of this bid, so it can't be withdrawn from here. Please use the Kickbase app."); return; }
-      body.innerHTML = `<p>Withdraw your bid of <b>${money(p.myOfferPrice)}</b> for <b>${esc(p.name)}</b>?</p><div id="err"></div>
-        <div class="row"><button class="btn primary" id="yes">Yes, withdraw</button><button class="btn" id="no">Cancel</button></div>`;
+      body.innerHTML = `<p>${t("Withdraw your bid of")} <b>${money(p.myOfferPrice)}</b> ${t("for")} <b>${esc(p.name)}</b>?</p><div id="err"></div>
+        <div class="row"><button class="btn primary" id="yes">${t("Yes, withdraw")}</button><button class="btn" id="no">${t("Cancel")}</button></div>`;
       body.querySelector("#no").addEventListener("click", close);
       body.querySelector("#yes").addEventListener("click", async (e) => {
         e.target.disabled = true;
@@ -11005,7 +11350,7 @@ Analyze my squad strictly under Kickbase rules:
 
   function sellDialog(ctx, p, budget) {
     const base = Math.ceil(p.marketValue || p.price || 0) || 1;
-    ui.dialog("List player on transfer market", (body, close) => {
+    ui.dialog(t("List player on transfer market"), (body, close) => {
       body.innerHTML = `
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
           ${ui.pawn(p, 40)}
@@ -11016,21 +11361,21 @@ Analyze my squad strictly under Kickbase rules:
         </div>
         <div class="mini-kpis">
           <div><small>${t("Market value")}</small><b>${money(p.marketValue)}</b></div>
-          <div><small>Ø points</small><b>${ui.int(p.avgPoints)}</b></div>
-          <div><small>24h trend</small><b class="${tone(p.change24h)}">${signedMoney(p.change24h)}</b></div>
+          <div><small>${t("Ø points")}</small><b>${ui.int(p.avgPoints)}</b></div>
+          <div><small>${t("24h trend")}</small><b class="${tone(p.change24h)}">${signedMoney(p.change24h)}</b></div>
         </div>
         <div class="steps">
           ${[0, 0.05, 0.10, 0.15].map((s) => `<button class="btn sm" data-s-step="${s}">${s ? "+" + s * 100 + "%" : "MV"}</button>`).join("")}
         </div>
         <div class="field">
-          <label for="sell-price">Transfer listing price (€)</label>
+          <label for="sell-price">${t("Transfer listing price (€)")}</label>
           <input class="input num" id="sell-price" type="number" min="1" step="10000" value="${base}">
         </div>
-        <label class="check"><input type="checkbox" id="sell-confirm"> <span id="sell-confirm-txt">Yes, list ${esc(p.name)} on the market</span></label>
+        <label class="check"><input type="checkbox" id="sell-confirm"> <span id="sell-confirm-txt">${t("Yes, list")} ${esc(p.name)} ${t("on the market")}</span></label>
         <div id="sell-err"></div>
         <div class="row">
-          <button class="btn primary" id="btn-list-market" style="flex:1" disabled>List on Market</button>
-          <button class="btn" id="btn-instant-sell">Instant Sell (Kickbase)</button>
+          <button class="btn primary" id="btn-list-market" style="flex:1" disabled>${t("List on Market")}</button>
+          <button class="btn" id="btn-instant-sell">${t("Instant Sell (Kickbase)")}</button>
         </div>
       `;
       const price = body.querySelector("#sell-price");
@@ -11130,9 +11475,11 @@ Analyze my squad strictly under Kickbase rules:
         <div class="field">
           <label for="ai-model-sel">${t("Model")}</label>
           <select class="input" id="ai-model-sel">
-            <option value="gemini-2.5-flash" ${currentModel === "gemini-2.5-flash" ? "selected" : ""}>${t("Gemini 2.5 Flash (Recommended - Fastest & Smartest)")}</option>
-            <option value="gemini-1.5-flash" ${currentModel === "gemini-1.5-flash" ? "selected" : ""}>${t("Gemini 1.5 Flash")}</option>
+            <option value="gemini-3.8-flash" ${currentModel === "gemini-3.8-flash" ? "selected" : ""}>${t("Gemini 3.8 Flash (Recommended - Latest & Fastest)")}</option>
+            <option value="gemini-3.8-pro" ${currentModel === "gemini-3.8-pro" ? "selected" : ""}>${t("Gemini 3.8 Pro (Deep Reasoning)")}</option>
+            <option value="gemini-2.5-flash" ${currentModel === "gemini-2.5-flash" ? "selected" : ""}>${t("Gemini 2.5 Flash (Legacy)")}</option>
             <option value="gemini-2.0-flash" ${currentModel === "gemini-2.0-flash" ? "selected" : ""}>${t("Gemini 2.0 Flash")}</option>
+            <option value="gemini-1.5-flash" ${currentModel === "gemini-1.5-flash" ? "selected" : ""}>${t("Gemini 1.5 Flash")}</option>
           </select>
         </div>
         <div id="ai-test-result" style="margin:10px 0"></div>
@@ -11157,7 +11504,8 @@ Analyze my squad strictly under Kickbase rules:
         e.target.disabled = true;
         testResult.innerHTML = `<div class="spinner"></div> ${t("Testing connection to Google Gemini…")}`;
         try {
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelSel.value}:generateContent?key=${encodeURIComponent(k)}`;
+          const cleanModel = String(modelSel.value).replace(/^models\//, "");
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${cleanModel}:generateContent?key=${encodeURIComponent(k)}`;
           const res = await fetch(url, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
