@@ -127,7 +127,8 @@ details.disclosure li { margin: 4px 0; }
 .user { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px;
   background: var(--surface); border: 1px solid var(--border); }
 .avatar { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center;
-  background: var(--surface-3); font-weight: 700; font-size: 13px; }
+  background: var(--surface-3); font-weight: 700; font-size: 13px; overflow: hidden; flex-shrink: 0; position: relative; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; display: block; }
 .user-name { font-weight: 600; font-size: 14px; }
 .user-sub { font-size: 12px; color: var(--muted); }
 .side-section label.lbl { display: block; font-size: 12px; color: var(--muted); font-weight: 600;
@@ -780,7 +781,9 @@ table.data tr.tr-user-deal td {
       if (!data.tkn) throw new AuthError("Login response did not contain a token.");
       this.token = data.tkn;
       const u = data.u || {};
-      return { token: data.tkn, expiresAt: data.tknex || null, userId: String(u.id || ""), userName: u.name || "" };
+      const uImg = u.uim || u.image || u.pim || null;
+      const userImage = uImg ? (imageUrl ? imageUrl(uImg) : uImg) : null;
+      return { token: data.tkn, expiresAt: data.tknex || null, userId: String(u.id || ""), userName: u.name || "", userImage };
     }
 
     async loginWithToken(raw) {
@@ -789,8 +792,10 @@ table.data tr.tr-user-deal td {
       if (c.exp && c.exp * 1000 < Date.now()) throw new AuthError("This token has already expired.");
       this.token = token;
       await this.leagues();
+      const uImg = c["kb.uim"] || c["kb.image"] || c["uim"] || null;
+      const userImage = uImg ? (imageUrl ? imageUrl(uImg) : uImg) : null;
       return { token, expiresAt: c.exp ? new Date(c.exp * 1000).toISOString() : null,
-        userId: String(c["kb.uid"] || ""), userName: c["kb.name"] || "" };
+        userId: String(c["kb.uid"] || ""), userName: c["kb.name"] || "", userImage };
     }
 
     // --- Read ---------------------------------------------------------------
@@ -1096,41 +1101,7 @@ table.data tr.tr-user-deal td {
     }
 
     async syncBonusStreak(leagueId = null) {
-      try {
-        const ov = await this.bonusOverview(leagueId);
-        if (ov && ov.data) {
-          const d = ov.data;
-          let foundStreak = null;
-          let foundAmount = null;
-
-          // Check direct properties
-          if (d.streak !== undefined && d.streak !== null) foundStreak = Number(d.streak);
-          else if (d.day !== undefined && d.day !== null) foundStreak = Number(d.day);
-          else if (d.level !== undefined && d.level !== null) foundStreak = Number(d.level);
-
-          if (d.amount !== undefined && d.amount !== null) foundAmount = Number(d.amount);
-          else if (d.a !== undefined && d.a !== null) foundAmount = Number(d.a);
-
-          // Check items array
-          if (Array.isArray(d.it) && d.it.length) {
-            for (const item of d.it) {
-              if (item.day !== undefined && item.day !== null) foundStreak = Number(item.day);
-              else if (item.streak !== undefined && item.streak !== null) foundStreak = Number(item.streak);
-              else if (item.level !== undefined && item.level !== null) foundStreak = Number(item.level);
-
-              if (item.amount !== undefined && item.amount !== null) foundAmount = Number(item.amount);
-              else if (item.a !== undefined && item.a !== null) foundAmount = Number(item.a);
-              else if (item.v !== undefined && item.v !== null) foundAmount = Number(item.v);
-            }
-          }
-
-          if (foundStreak && foundStreak > 0 && typeof store !== "undefined") {
-            store.set("kb.bonusStreak", foundStreak);
-          }
-          return { ok: true, streak: foundStreak, amount: foundAmount, raw: d };
-        }
-      } catch (e) {}
-      return null;
+      return { ok: true };
     }
 
     async collectBonus(leagueId = null) {
@@ -1154,12 +1125,9 @@ table.data tr.tr-user-deal td {
         this.clearCache("/v4/bonus/");
         this.clearCache("/v4/base/");
         let amount = 50000;
-        let streak = Number(typeof store !== "undefined" ? (store.get("kb.bonusStreak") || 1) : 1);
         let alreadyCollected = false;
 
         if (res && typeof res === "object") {
-          if (res.streak !== undefined) streak = Number(res.streak);
-          if (res.day !== undefined) streak = Number(res.day);
           if (res.amount !== undefined) amount = Number(res.amount);
 
           if (Array.isArray(res.it)) {
@@ -1168,21 +1136,14 @@ table.data tr.tr-user-deal td {
             } else {
               const it0 = res.it[0];
               if (it0.a || it0.amount || it0.v) amount = it0.a || it0.amount || it0.v;
-              if (it0.day || it0.streak || it0.level) {
-                streak = Number(it0.day || it0.streak || it0.level);
-              }
             }
           }
         }
 
-        if (typeof store !== "undefined") {
-          store.set("kb.bonusStreak", streak);
-        }
-
-        return { ok: true, alreadyCollected, amount, streak, data: res, message: alreadyCollected ? "Daily bonus was already collected for today." : "Kickbase: Daily login bonus collected!" };
+        return { ok: true, alreadyCollected, amount, data: res, message: alreadyCollected ? "Daily bonus was already collected for today." : "Kickbase: Daily login bonus collected!" };
       } catch (err) {
         if (typeof store !== "undefined") store.set("kb.bonusDate", todayStr);
-        return { ok: true, alreadyCollected: true, streak: Number(typeof store !== "undefined" ? (store.get("kb.bonusStreak") || 1) : 1), message: "Kickbase: Bonus is already collected for today." };
+        return { ok: true, alreadyCollected: true, message: "Kickbase: Bonus is already collected for today." };
       }
     }
   }
@@ -1546,6 +1507,7 @@ table.data tr.tr-user-deal td {
     "Streak": "Serie",
     "Collect": "Abholen",
     "Collected": "Eingesammelt",
+    "Available": "Verfügbar",
     "Settings": "Einstellungen",
     "Gemini AI": "Gemini KI",
     "API Key connected": "API-Schlüssel aktiv",
@@ -1808,21 +1770,20 @@ table.data tr.tr-user-deal td {
     "Collected today": "Heute eingesammelt",
     "Daily login reward:": "Tägliche Login-Belohnung:",
     "Claim (+50k)": "Abholen (+50k)",
+    "Collect Bonus": "Bonus abholen",
     "Done": "Erledigt",
-    "Sync": "Sync",
     "Check": "Prüfen",
-    "Click to adjust streak day or sync with server": "Klicken, um Tag anzupassen oder mit Server zu synchronisieren",
-    "Sync bonus streak with Kickbase": "Bonus-Serie mit Kickbase synchronisieren",
     "Check / Claim from Kickbase server": "Vom Kickbase-Server abholen/prüfen",
     "I already collected this today on Kickbase": "Habe ich heute schon in der Kickbase-App abgeholt",
     "Marked daily bonus as collected for today.": "Täglicher Bonus für heute als abgeholt markiert.",
-    "Checking Kickbase for your bonus streak…": "Kickbase wird nach deiner Bonus-Serie abgefragt…",
-    "Bonus streak set to Day": "Bonus-Serie gesetzt auf Tag",
-    "Edit Daily Bonus Streak": "Login-Serie anpassen",
-    "Current Login Streak (Day)": "Aktuelle Login-Serie (Tag)",
-    "Save Streak": "Serie speichern",
-    "Cancel": "Abbrechen",
     "Claiming…": "Wird abgeholt…",
+    "Daily Bonus Collected!": "Täglicher Bonus abgeholt!",
+    "You received": "Du hast erhalten:",
+    "in bonus transfer budget.": "an zusätzlichem Transferbudget.",
+    "Daily Login Bonus collected:": "Täglicher Login-Bonus abgeholt:",
+    "Daily bonus already collected for today. Come back tomorrow!": "Täglicher Bonus für heute bereits abgeholt. Bis morgen!",
+    "Awesome!": "Klasse!",
+    "Daily Login Bonus": "Täglicher Login-Bonus",
 
     // Live Matchday
     "Live points": "Live-Punkte",
@@ -3528,6 +3489,9 @@ Analyze my squad strictly under Kickbase rules:
     renderShell();
     // Auto-check and collect daily login bonus on startup
     checkDailyBonusAuto();
+    if (S.leagueId && (!S.session || !S.session.userImage)) {
+      rankingRows(S.leagueId).catch(() => {});
+    }
   }
 
   function renderShell() {
@@ -3536,8 +3500,15 @@ Analyze my squad strictly under Kickbase rules:
       <div class="shell">
         <aside class="sidebar">
           <div class="brand"><div class="mark">K</div><div><div class="brand-name">Kickbase AI</div><div class="brand-sub">${t("Smarter league insights")}</div></div></div>
-          <div class="user"><div class="avatar">${esc((s.userName || "?")[0].toUpperCase())}</div>
-            <div><div class="user-name">${esc(s.userName || "")}</div><div class="user-sub">${bidding ? t("Bidding on") : t("Read-only")}${s.demo ? " · demo" : ""}</div></div></div>
+          <div class="user">
+            <div class="avatar" id="user-avatar">
+              ${(s && s.userImage) ? `
+                <img src="${esc(s.userImage)}" alt="${esc(s.userName || "")}" onerror="this.style.display='none';var fb=this.nextElementSibling;if(fb)fb.style.display='grid'">
+                <div style="display:none;width:100%;height:100%;place-items:center;position:absolute;inset:0;font-weight:700;font-size:13px">${esc((s.userName || "?")[0].toUpperCase())}</div>
+              ` : esc((s.userName || "?")[0].toUpperCase())}
+            </div>
+            <div><div class="user-name">${esc(s.userName || "")}</div><div class="user-sub">${bidding ? t("Bidding on") : t("Read-only")}${s.demo ? " · demo" : ""}</div></div>
+          </div>
           <div class="side-section" style="margin-bottom:8px">
             <div style="display:flex;align-items:center;justify-content:space-between">
               <span class="lbl" style="margin:0">${t("Language")}</span>
@@ -3560,7 +3531,7 @@ Analyze my squad strictly under Kickbase rules:
               <span style="font-size:12px;font-weight:700;color:#34d399;display:flex;align-items:center;gap:5px">
                 ${ui.icon("card_giftcard")} ${t("Daily Bonus")}
               </span>
-              <span id="side-bonus-badge" style="font-size:10.5px;color:#a7f3d0;background:rgba(16, 185, 129, .2);padding:1px 6px;border-radius:10px;font-weight:600">${t("Streak")}: 1</span>
+              <span id="side-bonus-badge" style="font-size:10.5px;padding:1px 6px;border-radius:10px;font-weight:600"></span>
             </div>
             <div id="side-bonus-content"></div>
           </div>
@@ -3589,7 +3560,7 @@ Analyze my squad strictly under Kickbase rules:
     renderDailyBonusCard();
     document.getElementById("side-ai-cfg")?.addEventListener("click", () => aiSettingsDialog());
     document.querySelectorAll(".lang-toggle button").forEach((b) => b.addEventListener("click", (e) => { e.preventDefault(); setLang(b.dataset.lang); }));
-    document.getElementById("league").addEventListener("change", (e) => { S.leagueId = e.target.value; store.set("kb.league", S.leagueId); renderPage(); });
+    document.getElementById("league").addEventListener("change", (e) => { S.leagueId = e.target.value; store.set("kb.league", S.leagueId); rankingRows(S.leagueId).catch(() => {}); renderPage(); });
     document.getElementById("refresh").addEventListener("click", () => { S.api.clearCache(); renderPage(); });
     document.getElementById("logout").addEventListener("click", () => logout());
     document.querySelectorAll(".nav button").forEach((b) => b.addEventListener("click", () => goto(b.dataset.page)));
@@ -3627,13 +3598,20 @@ Analyze my squad strictly under Kickbase rules:
     const todayStr = getTodayDateKey();
     const lastClaimed = store.get("kb.bonusDate");
     const isClaimedToday = lastClaimed === todayStr;
-    const streak = Number(store.get("kb.bonusStreak") || 1);
 
     if (badge) {
-      badge.innerHTML = `<span style="cursor:pointer" title="${esc(t("Click to adjust streak day or sync with server"))}">${t("Streak")}: ${t("Day")} ${streak} ✎</span>`;
-      badge.style.color = isClaimedToday ? "#a7f3d0" : "#fef08a";
-      badge.style.background = isClaimedToday ? "rgba(16, 185, 129, .25)" : "rgba(234, 179, 8, .25)";
-      badge.onclick = () => openBonusStreakModal();
+      if (isClaimedToday) {
+        badge.textContent = t("Collected");
+        badge.style.color = "#a7f3d0";
+        badge.style.background = "rgba(16, 185, 129, .25)";
+      } else {
+        badge.textContent = t("Available");
+        badge.style.color = "#fef08a";
+        badge.style.background = "rgba(234, 179, 8, .25)";
+      }
+      badge.style.cursor = "default";
+      badge.title = "";
+      badge.onclick = null;
     }
 
     if (isClaimedToday) {
@@ -3642,10 +3620,9 @@ Analyze my squad strictly under Kickbase rules:
           <span style="display:flex;align-items:center;gap:4px;color:#34d399;font-weight:600">
             ${ui.icon("check_circle")} ${t("Collected today")}
           </span>
-          <div style="display:flex;gap:4px">
-            <button class="btn sm ghost" id="btn-sync-bonus" style="height:22px;padding:0 6px;font-size:11px" title="${esc(t("Sync bonus streak with Kickbase"))}">${t("Sync")}</button>
-            <button class="btn sm ghost" id="btn-recheck-bonus" style="height:22px;padding:0 6px;font-size:11px" title="${esc(t("Check / Claim from Kickbase server"))}">${t("Check")}</button>
-          </div>
+          <button class="btn sm ghost" id="btn-recheck-bonus" style="height:22px;padding:0 6px;font-size:11px" title="${esc(t("Check / Claim from Kickbase server"))}">
+            ${ui.icon("refresh")} ${t("Check")}
+          </button>
         </div>
       `;
     } else {
@@ -3653,7 +3630,7 @@ Analyze my squad strictly under Kickbase rules:
         <div style="font-size:11.5px;color:var(--muted);margin-bottom:6px">${t("Daily login reward:")}</div>
         <div style="display:flex;gap:6px">
           <button class="btn sm primary" id="btn-claim-bonus" style="background:#10b981;border-color:#10b981;color:#fff;font-weight:600;flex:1;display:flex;align-items:center;justify-content:center;gap:4px">
-            ${ui.icon("redeem")} ${t("Claim")} (+50k)
+            ${ui.icon("redeem")} ${t("Collect Bonus")}
           </button>
           <button class="btn sm ghost" id="btn-already-claimed" style="font-size:11px;padding:0 8px;white-space:nowrap" title="${esc(t("I already collected this today on Kickbase"))}">
             ${ui.icon("done")} ${t("Done")}
@@ -3665,52 +3642,11 @@ Analyze my squad strictly under Kickbase rules:
     box.querySelector("#btn-claim-bonus")?.addEventListener("click", () => handleClaimDailyBonus(true));
     box.querySelector("#btn-already-claimed")?.addEventListener("click", () => {
       store.set("kb.bonusDate", getTodayDateKey());
-      ui.toast("Marked daily bonus as collected for today.", "ok");
+      ui.toast(t("Marked daily bonus as collected for today."), "ok");
       renderDailyBonusCard();
       if (S.page === "team") renderPage();
     });
     box.querySelector("#btn-recheck-bonus")?.addEventListener("click", () => handleClaimDailyBonus(true));
-    box.querySelector("#btn-sync-bonus")?.addEventListener("click", async () => {
-      ui.toast("Checking Kickbase for your bonus streak…");
-      const res = await S.api.syncBonusStreak(S.leagueId);
-      if (res && res.streak) {
-        ui.toast(`Synced streak from Kickbase: Day ${res.streak}!`, "ok");
-      } else {
-        openBonusStreakModal();
-      }
-      renderDailyBonusCard();
-    });
-  }
-
-  function openBonusStreakModal() {
-    const curStreak = Number(store.get("kb.bonusStreak") || 1);
-    ui.dialog("Edit Daily Bonus Streak", (body, close) => {
-      body.innerHTML = `
-        <div style="padding:6px 0">
-          <p style="font-size:13px;color:var(--text);margin-top:0">
-            Kickbase keeps your cumulative login streak in the mobile app. You can set your exact current day number here so it matches your app:
-          </p>
-          <div class="field" style="margin:16px 0">
-            <label for="input-edit-streak" style="font-size:12px;font-weight:600;color:var(--muted)">Current Login Streak (Day)</label>
-            <input class="input" id="input-edit-streak" type="number" min="1" max="9999" value="${curStreak}" style="font-size:16px;font-weight:700">
-          </div>
-          <div style="display:flex;gap:8px;justify-content:flex-end">
-            <button class="btn ghost sm" id="modal-cancel-streak">Cancel</button>
-            <button class="btn primary sm" id="modal-save-streak" style="background:#10b981;border-color:#10b981">Save Streak</button>
-          </div>
-        </div>
-      `;
-      body.querySelector("#modal-cancel-streak")?.addEventListener("click", close);
-      body.querySelector("#modal-save-streak")?.addEventListener("click", () => {
-        const val = Number(body.querySelector("#input-edit-streak")?.value);
-        if (val && val >= 1) {
-          store.set("kb.bonusStreak", val);
-          ui.toast(`Bonus streak set to Day ${val}.`, "ok");
-          renderDailyBonusCard();
-          close();
-        }
-      });
-    });
   }
 
   async function handleClaimDailyBonus(interactive = true) {
@@ -3719,7 +3655,7 @@ Analyze my squad strictly under Kickbase rules:
     const teamBtn = document.getElementById("team-claim-bonus");
     if (claimBtn) {
       claimBtn.disabled = true;
-      claimBtn.innerHTML = `<div class="spinner"></div> Claiming…`;
+      claimBtn.innerHTML = `<div class="spinner"></div> ${t("Claiming…")}`;
     }
     if (checkBtn) {
       checkBtn.disabled = true;
@@ -3727,7 +3663,7 @@ Analyze my squad strictly under Kickbase rules:
     }
     if (teamBtn) {
       teamBtn.disabled = true;
-      teamBtn.innerHTML = `<div class="spinner"></div> Claiming…`;
+      teamBtn.innerHTML = `<div class="spinner"></div> ${t("Claiming…")}`;
     }
 
     const todayStr = getTodayDateKey();
@@ -3735,14 +3671,12 @@ Analyze my squad strictly under Kickbase rules:
       const res = await S.api.collectBonus(S.leagueId);
       store.set("kb.bonusDate", todayStr);
       if (res && res.alreadyCollected) {
-        // Also attempt background sync of streak
-        await S.api.syncBonusStreak(S.leagueId).catch(() => {});
-        if (interactive) ui.toast("Daily bonus already collected for today. Come back tomorrow!", "info");
+        if (interactive) ui.toast(t("Daily bonus already collected for today. Come back tomorrow!"), "info");
       } else {
         const rewardText = res.amount ? `+${ui.money(res.amount)}` : "+€50,000";
-        ui.toast(`🎉 Daily Login Bonus collected: ${rewardText}!`, "ok");
+        ui.toast(`🎉 ${t("Daily Login Bonus collected:")} ${rewardText}!`, "ok");
         if (interactive) {
-          showBonusCelebrationModal(res.amount || 50000, res.streak || Number(store.get("kb.bonusStreak") || 1));
+          showBonusCelebrationModal(res.amount || 50000);
         }
       }
       if (S.api.clearCache) S.api.clearCache(`/v4/leagues/${S.leagueId}/`);
@@ -3753,7 +3687,7 @@ Analyze my squad strictly under Kickbase rules:
     } catch (err) {
       console.warn("Bonus collection error / already claimed:", err);
       store.set("kb.bonusDate", todayStr);
-      if (interactive) ui.toast("Daily bonus marked as collected for today.", "info");
+      if (interactive) ui.toast(t("Daily bonus marked as collected for today."), "info");
       renderDailyBonusCard();
       if (S.page === "team" || S.page === "market") {
         renderPage();
@@ -3761,20 +3695,16 @@ Analyze my squad strictly under Kickbase rules:
     }
   }
 
-  function showBonusCelebrationModal(amount, streak) {
-    ui.dialog("Daily Login Bonus", (body, close) => {
+  function showBonusCelebrationModal(amount) {
+    ui.dialog(t("Daily Login Bonus"), (body, close) => {
       body.innerHTML = `
         <div style="text-align:center;padding:12px 6px">
           <div style="font-size:42px;margin-bottom:8px">🎁</div>
-          <h2 style="margin:0 0 8px;font-size:20px;color:#10b981">Daily Bonus Collected!</h2>
-          <p style="font-size:14px;color:var(--text);margin-bottom:14px">
-            You received <b style="font-size:18px;color:#34d399">${ui.money(amount)}</b> in bonus transfer budget.
+          <h2 style="margin:0 0 8px;font-size:20px;color:#10b981">${t("Daily Bonus Collected!")}</h2>
+          <p style="font-size:14px;color:var(--text);margin-bottom:16px">
+            ${t("You received")} <b style="font-size:18px;color:#34d399">${ui.money(amount)}</b> ${t("in bonus transfer budget.")}
           </p>
-          <div style="background:rgba(255,255,255,.05);border-radius:var(--radius-sm);padding:10px;margin-bottom:16px;font-size:12.5px;color:var(--muted)">
-            🔥 Daily Login Streak: <b>Day ${streak}</b><br>
-            Log in every day to keep your bonus streak alive!
-          </div>
-          <button class="btn primary block" id="modal-close-bonus" style="background:#10b981;border-color:#10b981">Awesome!</button>
+          <button class="btn primary block" id="modal-close-bonus" style="background:#10b981;border-color:#10b981">${t("Awesome!")}</button>
         </div>
       `;
       body.querySelector("#modal-close-bonus")?.addEventListener("click", close);
@@ -3787,8 +3717,6 @@ Analyze my squad strictly under Kickbase rules:
     if (lastClaimed !== todayStr) {
       await handleClaimDailyBonus(false);
     } else {
-      // Sync streak in background if available
-      S.api.syncBonusStreak(S.leagueId).then(() => renderDailyBonusCard()).catch(() => {});
       renderDailyBonusCard();
     }
   }
@@ -3810,10 +3738,36 @@ Analyze my squad strictly under Kickbase rules:
   }
 
   // --------------------------------------------------------------- data ----
-  async function rankingRows(l) { return tf.ranking(await S.api.ranking(l)); }
+  function updateUserAvatar(imgUrl) {
+    if (!imgUrl) return;
+    if (S.session && S.session.userImage !== imgUrl) {
+      S.session.userImage = imgUrl;
+      store.set("kb.session", S.session);
+    }
+    const el = document.getElementById("user-avatar");
+    if (!el) return;
+    const initial = esc((S.session?.userName || "?")[0].toUpperCase());
+    el.innerHTML = `
+      <img src="${esc(imgUrl)}" alt="${esc(S.session?.userName || "")}" onerror="this.style.display='none';var fb=this.nextElementSibling;if(fb)fb.style.display='grid'">
+      <div style="display:none;width:100%;height:100%;place-items:center;position:absolute;inset:0;font-weight:700;font-size:13px">${initial}</div>
+    `;
+  }
+
+  async function rankingRows(l) {
+    const res = tf.ranking(await S.api.ranking(l));
+    const myId = myManagerId(res);
+    const mine = res.find((r) => r.id === myId);
+    if (mine && mine.image) {
+      updateUserAvatar(mine.image);
+    }
+    return res;
+  }
+
   function myManagerId(rank) {
     const s = S.session;
-    return (rank.find((r) => r.id === String(s.userId)) || rank.find((r) => r.name === s.userName) || {}).id || null;
+    if (!s) return null;
+    return (rank.find((r) => String(r.id) === String(s.userId)) ||
+            rank.find((r) => r.name && s.userName && r.name.toLowerCase() === s.userName.toLowerCase()) || {}).id || null;
   }
 
   async function findUserJoinDate(leagueId, managerId, userTransfers = []) {
