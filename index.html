@@ -2267,7 +2267,24 @@ table.data tr.tr-user-deal td {
     "No matchday points recorded for": "Keine Spieltagspunkte aufgezeichnet für",
     "Matchday Performance": "Spieltags-Leistung",
     "Current": "Aktuell",
-    "Language": "Sprache"
+    "Language": "Sprache",
+    "starters": "Startelf",
+    "11 required": "11 erforderlich",
+    "Auto-fill Best XI": "Beste 11 aufstellen",
+    "Save Lineup": "Aufstellung speichern",
+    "Select bench player to swap": "Ersatzspieler zum Tauschen auswählen",
+    "Added": "Hinzugefügt:",
+    "to Starting XI.": "zur Startelf.",
+    "No available bench players. Buy one from Market!": "Keine Ersatzspieler verfügbar. Kaufe welche auf dem Transfermarkt!",
+    "No available bench players for position": "Keine Ersatzspieler für diese Position",
+    "Lineup saved successfully to Kickbase!": "Aufstellung erfolgreich in Kickbase gespeichert!",
+    "Filled Starting XI with your highest scoring fit players!": "Startelf mit deinen fittesten und punktestärksten Spielern aufgefüllt!",
+    "AI Starting XI and formation applied!": "KI-Startelf und Formation übernommen!",
+    "Kickbase rejected lineup: Exactly 11 players are required. Please field a full team.": "Aufstellung abgelehnt: Es werden genau 11 Spieler benötigt. Bitte stelle ein komplettes Team auf.",
+    "AI Lineup must have exactly 11 players to be saved to Kickbase.": "Die KI-Aufstellung muss genau 11 Spieler enthalten, um in Kickbase gespeichert zu werden.",
+    "Could not save lineup: ": "Aufstellung konnte nicht gespeichert werden: ",
+    "Cannot save lineup: Kickbase requires 11 players in your squad. Buy more players on the Transfermarkt!": "Aufstellung kann nicht gespeichert werden: Kickbase erfordert 11 Spieler im Kader. Kaufe weitere Spieler auf dem Transfermarkt!",
+    "Cannot save lineup: Exactly 11 players must be fielded.": "Aufstellung kann nicht gespeichert werden: Es müssen genau 11 Spieler aufgestellt sein."
   };
 
   function getLang() {
@@ -2835,8 +2852,8 @@ table.data tr.tr-user-deal td {
     });
   }
 
-  /** points: [{x, y, label, group, color?}] colored by group via colors map, or individual point color. */
-  function scatter(container, { title, points, colors = {}, height = 340, xFmt = compact, yFmt = compact, xLabel, yLabel, showLabels = true }) {
+  /** points: [{x, y, label, group, color?, player?, onClick?}] colored by group via colors map, or individual point color. */
+  function scatter(container, { title, points, colors = {}, height = 340, xFmt = compact, yFmt = compact, xLabel, yLabel, showLabels = true, onPointClick }) {
     const groups = [...new Set(points.map((p) => p.group))];
     const { svg, width } = frame(container, { title, height, legend: groups.map((g) => [g, colors ? colors[g] : undefined]).filter(([, c]) => c) });
     const m = { l: 56, r: 24, t: 18, b: 44 };
@@ -2853,6 +2870,7 @@ table.data tr.tr-user-deal td {
         const strokeColor = p.stroke || "#111827";
         const strokeW = p.strokeWidth !== undefined ? p.strokeWidth : (p.isSquad ? 2 : 1.5);
         const radius = p.r !== undefined ? p.r : (p.isSquad ? 7 : 6.5);
+        const isClickable = Boolean(onPointClick || p.onClick);
         const c = s("circle", {
           cx: x(p.x),
           cy: y(p.y),
@@ -2861,7 +2879,8 @@ table.data tr.tr-user-deal td {
           "fill-opacity": p.fillOpacity !== undefined ? p.fillOpacity : (p.isSquad ? 0.95 : 0.9),
           stroke: strokeColor,
           "stroke-width": strokeW,
-          "stroke-dasharray": p.strokeDash || undefined
+          "stroke-dasharray": p.strokeDash || undefined,
+          style: isClickable ? "cursor:pointer;transition:all 0.12s ease" : undefined
         }, g);
         c.addEventListener("mousemove", (e) => {
           let tip = `<b>${KB.ui.esc(p.label)}</b>`;
@@ -2876,20 +2895,58 @@ table.data tr.tr-user-deal td {
             tip += `<br><span class="muted" style="font-size:11px">${KB.ui.esc(p.pos)}</span>`;
           }
           tip += `<br>${xLabel || "x"}: ${xFmt(p.x)}<br>${yLabel || "y"}: ${yFmt(p.y)}`;
+          if (isClickable) {
+            tip += `<div style="font-size:10px;color:rgba(255,255,255,0.75);margin-top:5px;border-top:1px solid rgba(255,255,255,0.15);padding-top:4px">👆 ${KB.i18n ? KB.i18n.t("Click to view player stats & MW history") : "Click to view player stats & MW history"}</div>`;
+          }
           tooltip(tip, e);
         });
-        c.addEventListener("mouseleave", () => tooltip(null));
+        c.addEventListener("mouseleave", () => {
+          c.setAttribute("r", radius);
+          c.setAttribute("stroke-width", strokeW);
+          tooltip(null);
+        });
+        if (isClickable) {
+          c.addEventListener("mouseenter", () => {
+            c.setAttribute("r", radius + 2.5);
+            c.setAttribute("stroke-width", strokeW + 1);
+          });
+          c.addEventListener("click", (e) => {
+            e.stopPropagation();
+            tooltip(null);
+            if (p.onClick) p.onClick(p, e);
+            else if (onPointClick) onPointClick(p, e);
+          });
+        }
         if (showLabels) {
           const txt = s("text", {
             x: x(p.x),
             y: y(p.y) - 10,
             "text-anchor": "middle",
-            class: p.isSquad ? "label squad-chart-label" : "label"
+            class: p.isSquad ? "label squad-chart-label" : "label",
+            style: isClickable ? "cursor:pointer;user-select:none" : undefined
           }, g);
           txt.textContent = p.label;
           if (p.isSquad) {
             txt.setAttribute("fill", "#cbd5e1");
             txt.setAttribute("font-weight", "600");
+          }
+          if (isClickable) {
+            txt.addEventListener("click", (e) => {
+              e.stopPropagation();
+              tooltip(null);
+              if (p.onClick) p.onClick(p, e);
+              else if (onPointClick) onPointClick(p, e);
+            });
+            txt.addEventListener("mouseenter", (e) => {
+              c.setAttribute("r", radius + 2.5);
+              c.setAttribute("stroke-width", strokeW + 1);
+              c.dispatchEvent(new MouseEvent("mousemove", e));
+            });
+            txt.addEventListener("mouseleave", () => {
+              c.setAttribute("r", radius);
+              c.setAttribute("stroke-width", strokeW);
+              c.dispatchEvent(new MouseEvent("mouseleave"));
+            });
           }
         }
       });
@@ -4014,28 +4071,53 @@ Analyze my squad strictly under Kickbase rules:
       startingIds = savedLineup.filter((id) => squad.some((p) => p.id === id));
     }
 
-    // Auto-detect formation from live starters (supports any formation including 3-2-5, 2-3-5, 4-1-5, etc.)
-    if (startingIds.length >= 11) {
-      const starters = startingIds.map((id) => squad.find((p) => p.id === id)).filter(Boolean);
-      const dCount = starters.filter((p) => p.position === "DEF").length;
-      const mCount = starters.filter((p) => p.position === "MID").length;
-      const fCount = starters.filter((p) => p.position === "FWD").length;
-      currentFormation = `${dCount}-${mCount}-${fCount}`;
-      store.set(`kb.formation.${ctx.l}`, currentFormation);
-    }
+    // Helper to ensure full, valid 11-player lineup from squad without missing slots
+    function ensureFullLineup() {
+      const validSquadIds = new Set(squad.map((p) => p.id));
+      startingIds = [...new Set(startingIds)].filter((id) => validSquadIds.has(id));
 
-    // Auto-populate starting XI if empty
-    if (!startingIds.length) {
-      const formReq = KB.ai.getFormationReq(currentFormation);
-      for (const [pos, count] of Object.entries(formReq)) {
-        const candidates = squad.filter((p) => p.position === pos).sort((a, b) => {
+      if (squad.length >= 11 && startingIds.length < 11) {
+        const bench = squad.filter((p) => !startingIds.includes(p.id)).sort((a, b) => {
           if (a.rawStatus === 0 && b.rawStatus !== 0) return -1;
           if (a.rawStatus !== 0 && b.rawStatus === 0) return 1;
-          return b.avgPoints - a.avgPoints;
+          return (b.avgPoints || 0) - (a.avgPoints || 0) || (b.marketValue || 0) - (a.marketValue || 0);
         });
-        startingIds.push(...candidates.slice(0, count).map((p) => p.id));
+
+        const formReq = KB.ai.getFormationReq(currentFormation);
+        for (const [pos, count] of Object.entries(formReq)) {
+          if (startingIds.length >= 11) break;
+          const currentCount = startingIds.filter((id) => squad.find((p) => p.id === id)?.position === pos).length;
+          if (currentCount < count) {
+            const needed = count - currentCount;
+            const matchingBench = bench.filter((p) => p.position === pos && !startingIds.includes(p.id));
+            for (let i = 0; i < Math.min(needed, matchingBench.length); i++) {
+              startingIds.push(matchingBench[i].id);
+            }
+          }
+        }
+
+        for (const bp of bench) {
+          if (startingIds.length >= 11) break;
+          if (!startingIds.includes(bp.id)) {
+            startingIds.push(bp.id);
+          }
+        }
+      }
+
+      if (startingIds.length === 11) {
+        const starters = startingIds.map((id) => squad.find((p) => p.id === id)).filter(Boolean);
+        const dCount = starters.filter((p) => p.position === "DEF").length;
+        const mCount = starters.filter((p) => p.position === "MID").length;
+        const fCount = starters.filter((p) => p.position === "FWD").length;
+        const form = `${dCount}-${mCount}-${fCount}`;
+        if (KB.ai.FORMATIONS[form]) {
+          currentFormation = form;
+          store.set(`kb.formation.${ctx.l}`, currentFormation);
+        }
       }
     }
+
+    ensureFullLineup();
 
     // Live matchday scores
     const liveStarters = startingIds.map((id) => squad.find((p) => p.id === id)).filter(Boolean);
@@ -4211,13 +4293,16 @@ Analyze my squad strictly under Kickbase rules:
         if (aiData.startingXI && aiData.startingXI.length === 11) {
           startingIds = [...aiData.startingXI];
           store.set(`kb.lineup.${ctx.l}`, startingIds);
-          ui.toast("AI Starting XI and formation applied!");
+          ui.toast(t("AI Starting XI and formation applied!"), "ok");
         } else {
           autoFillBest();
         }
+        ensureFullLineup();
         renderPitch();
         renderBench();
-        saveLineup(false);
+        if (startingIds.length === 11) {
+          saveLineup(false);
+        }
       });
     }
 
@@ -4233,18 +4318,48 @@ Analyze my squad strictly under Kickbase rules:
         newStarting.push(...candidates.slice(0, count).map((p) => p.id));
       }
       startingIds = newStarting;
+      ensureFullLineup();
       store.set(`kb.lineup.${ctx.l}`, startingIds);
-      ui.toast("Filled Starting XI with your highest scoring fit players!");
+      ui.toast(t("Filled Starting XI with your highest scoring fit players!"), "ok");
     }
 
     async function saveLineup(showToast = true) {
+      ensureFullLineup();
+
+      const validStarting = [...new Set(startingIds)].filter((id) => squad.some((p) => p.id === id));
+      if (validStarting.length < 11) {
+        if (squad.length < 11) {
+          ui.toast(t("Cannot save lineup: Kickbase requires 11 players in your squad. Buy more players on the Transfermarkt!") + ` (${squad.length}/11)`, "warn");
+        } else {
+          ui.toast(t("Cannot save lineup: Exactly 11 players must be fielded.") + ` (${validStarting.length}/11)`, "warn");
+        }
+        return;
+      }
+
+      let formationToSend = currentFormation;
+      const starters = validStarting.map((id) => squad.find((p) => p.id === id)).filter(Boolean);
+      const d = starters.filter((p) => p.position === "DEF").length;
+      const m = starters.filter((p) => p.position === "MID").length;
+      const f = starters.filter((p) => p.position === "FWD").length;
+      const naturalForm = `${d}-${m}-${f}`;
+      if (KB.ai.FORMATIONS[naturalForm]) {
+        formationToSend = naturalForm;
+      } else if (!KB.ai.FORMATIONS[formationToSend]) {
+        formationToSend = "4-4-2";
+      }
+
       try {
-        await S.api.updateLineup(ctx.l, { type: currentFormation, players: startingIds });
-        store.set(`kb.lineup.${ctx.l}`, startingIds);
-        store.set(`kb.formation.${ctx.l}`, currentFormation);
-        if (showToast) ui.toast("Lineup saved successfully to Kickbase!");
+        await S.api.updateLineup(ctx.l, { type: formationToSend, players: validStarting.map(String) });
+        store.set(`kb.lineup.${ctx.l}`, validStarting);
+        store.set(`kb.formation.${ctx.l}`, formationToSend);
+        if (showToast) ui.toast(t("Lineup saved successfully to Kickbase!"), "ok");
       } catch (err) {
-        ui.toast("Could not save lineup: " + err.message, "error");
+        const errMsg = err.message || String(err);
+        if (errMsg.includes("LineupNotEnoughPlayers")) {
+          ui.toast(t("Kickbase rejected lineup: Exactly 11 players are required. Please field a full team."), "error");
+        } else {
+          ui.toast(t("Could not save lineup: ") + errMsg, "error");
+        }
       }
     }
 
@@ -4332,10 +4447,10 @@ Analyze my squad strictly under Kickbase rules:
                 </optgroup>
                 ${!["3-2-5","2-3-5","4-1-5","1-4-5","3-3-4","4-2-4","2-4-4","4-3-3","4-4-2","3-5-2","3-4-3","4-2-3-1","4-5-1","5-3-2","5-4-1","5-2-3","2-5-3","3-6-1","4-6-0"].includes(currentFormation) ? `<option value="${currentFormation}" selected>Custom (${currentFormation})</option>` : ""}
               </select>
-              <span class="muted" style="font-size:12px">${startingPlayers.length}/11 starters</span>
+              <span class="${startingPlayers.length === 11 ? "pill up" : "pill down"}" style="font-size:12px;font-weight:600">${startingPlayers.length}/11 ${t("starters")}${startingPlayers.length < 11 ? ` ⚠️ (${t("11 required")})` : ""}</span>
             </div>
             <div class="pitch-actions">
-              ${selectedPitchPlayerId ? `<span class="pill up">${ui.icon("swap_horiz")} Select bench player to swap</span>` : ""}
+              ${selectedPitchPlayerId ? `<span class="pill up">${ui.icon("swap_horiz")} ${t("Select bench player to swap")}</span>` : ""}
               <button class="btn sm" id="btn-best-xi">${ui.icon("auto_fix_high")} ${t("Auto-fill Best XI")}</button>
               <button class="btn sm primary" id="btn-save-lineup">${ui.icon("save")} ${t("Save Lineup")}</button>
             </div>
@@ -4366,7 +4481,10 @@ Analyze my squad strictly under Kickbase rules:
       pitchEl.querySelectorAll("[data-empty-pos]").forEach((elSlot) => {
         elSlot.addEventListener("click", () => {
           const pos = elSlot.dataset.emptyPos;
-          const candidate = squad.find((p) => p.position === pos && !startingIds.includes(p.id));
+          let candidate = squad.find((p) => p.position === pos && !startingIds.includes(p.id));
+          if (!candidate) {
+            candidate = squad.find((p) => !startingIds.includes(p.id));
+          }
           if (candidate) {
             startingIds.push(candidate.id);
             const starters = startingIds.map((id) => squad.find((p) => p.id === id)).filter(Boolean);
@@ -4379,9 +4497,9 @@ Analyze my squad strictly under Kickbase rules:
             }
             renderPitch();
             renderBench();
-            ui.toast(`Added ${candidate.name} to Starting XI.`);
+            ui.toast(`${t("Added")} ${candidate.name} ${t("to Starting XI.")}`);
           } else {
-            ui.toast(`No available bench players for position ${pos}. Buy one from Market!`, "warn");
+            ui.toast(t("No available bench players. Buy one from Market!"), "warn");
           }
         });
       });
@@ -4801,9 +4919,12 @@ Analyze my squad strictly under Kickbase rules:
     charts.scatter(el.querySelector("#c-scatter"), {
       title: t("Value vs. average points"),
       colors: charts.POSITION_COLORS,
-      points: squad.map((p) => ({ x: p.marketValue, y: p.avgPoints, label: p.name, group: p.position, color: p.color })),
+      points: squad.map((p) => ({ x: p.marketValue, y: p.avgPoints, label: p.name, group: p.position, color: p.color, player: p })),
       xLabel: t("Market value"),
-      yLabel: t("Ø points")
+      yLabel: t("Ø points"),
+      onPointClick: (pt) => {
+        if (pt.player) openPlayerModal(ctx, pt.player, { budget, market, squad });
+      }
     });
 
     runAnalysis(false);
@@ -6208,7 +6329,8 @@ Analyze my squad strictly under Kickbase rules:
           label: p.name,
           pos: p.position,
           group: p.manager,
-          color: managerColors[p.manager] || p.color || playerColor(p)
+          color: managerColors[p.manager] || p.color || playerColor(p),
+          player: p
         }));
 
         charts.scatter(content.querySelector("#c-scatter"), {
@@ -6220,7 +6342,10 @@ Analyze my squad strictly under Kickbase rules:
           yFmt: (v) => `${v} pts`,
           xLabel: "Market Value (€M)",
           yLabel: "Average Points (Ø pts)",
-          showLabels: filtered.length <= 25
+          showLabels: filtered.length <= 25,
+          onPointClick: (pt) => {
+            if (pt.player) openPlayerModal(ctx, pt.player, { squad: filtered });
+          }
         });
 
         // Render Matchday Bars
@@ -7549,8 +7674,8 @@ Analyze my squad strictly under Kickbase rules:
       +   `</label>`
       + `</div>`
       + `<div id="t1"></div>`
-      + `<div id="market-recent-transfers" style="margin-top:26px"></div>`
-      + `<div id="c1" style="margin-top:22px"></div>`;
+      + `<div id="c1" style="margin-top:24px"></div>`
+      + `<div id="market-recent-transfers" style="margin-top:26px"></div>`;
 
     renderBidding(el.querySelector("#bidding"), ctx, market, me.b, squad);
 
@@ -7595,11 +7720,11 @@ Analyze my squad strictly under Kickbase rules:
         { key: "seller", label: "Seller", fmt: (v) => v ? `<span class="pill-user-deal">👤 ${esc(v)} <span class="tag-user-p2p">${t("User")}</span></span>` : `<span class="muted" style="font-size:11.5px">🏪 Kickbase</span>` },
         "marketValue",
         { key: "myOfferPrice", label: "My bid", kind: "money", optional: true },
-        "change24h",
         "totalPoints", "avgPoints", "gamesPlayed", "ppm"
       ),
         {
-          sort: "ppm",
+          sort: "expiresInH",
+          desc: false,
           rowClass: (p) => (p.myOfferId || p.myOfferPrice) ? "me" : (p.seller ? "tr-user-deal" : ""),
           onRowClick: (p) => openPlayerModal(ctx, p, { budget: me.b, market, squad }),
           rowTitle: (p) => (p.myOfferId || p.myOfferPrice)
@@ -7616,7 +7741,8 @@ Analyze my squad strictly under Kickbase rules:
         color: p.color || charts.POSITION_COLORS[p.position],
         pos: p.position,
         badge: "Transfermarkt",
-        isSquad: false
+        isSquad: false,
+        player: p
       }));
 
       // Current squad players plotted in light grey (#cbd5e1) for direct comparison
@@ -7635,7 +7761,8 @@ Analyze my squad strictly under Kickbase rules:
         r: 7,
         pos: p.position,
         badge: t("My Squad"),
-        isSquad: true
+        isSquad: true,
+        player: p
       }));
 
       const allPoints = [...marketPoints, ...squadPoints];
@@ -7646,7 +7773,12 @@ Analyze my squad strictly under Kickbase rules:
         points: allPoints,
         xLabel: t("Market value"),
         yLabel: t("Ø points"),
-        showLabels: allPoints.length <= 25
+        showLabels: allPoints.length <= 25,
+        onPointClick: (pt) => {
+          if (pt.player) {
+            openPlayerModal(ctx, pt.player, { budget: me.b, market, squad });
+          }
+        }
       });
     };
     el.querySelectorAll("#posf button").forEach((b) => b.addEventListener("click", () => {
@@ -8336,9 +8468,58 @@ Analyze my squad strictly under Kickbase rules:
         const myWonCount = wonBids.filter((t) => t.buyerIsMe).length;
         const totalManagerSpending = wonBids.reduce((sum, t) => sum + (Number(t.price) || 0), 0);
 
-        box.innerHTML = `
-          ${ui.section("Last manager transfers & winning bids", `${wonBids.length} manager buys & bids · ${enrichedAll.length} total league transfers`)}
-          ${recentBuys.length ? ui.kpis([
+        // Ensure shell structure exists once without destroying it repeatedly
+        if (!box.querySelector("#mkt-tr-shell")) {
+          box.innerHTML = `
+            <div id="mkt-tr-shell">
+              <div id="mkt-tr-header"></div>
+              <div id="mkt-tr-kpis"></div>
+              <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:12px 0">
+                <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px">
+                  <div class="seg" id="mkt-tr-filter">
+                    <button data-f="buys">🏆 ${t("Manager Buys")}</button>
+                    <button data-f="mine">🎯 ${t("My Purchases")}</button>
+                    <button data-f="all">${t("All Transfers")}</button>
+                    <button data-f="trades">🤝 ${t("Manager Trades")}</button>
+                    <button data-f="sells">🏪 ${t("Sold to Kickbase")}</button>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <span style="font-size:12px;color:var(--muted)">${t("Show")}:</span>
+                  <div class="seg" id="mkt-tr-limit">
+                    ${[15, 30, 50, 0].map((lim) => `<button data-lim="${lim}">${lim === 0 ? t("All") : `${t("Last")} ${lim}`}</button>`).join("")}
+                  </div>
+                </div>
+              </div>
+              <div id="mkt-tr-table"></div>
+            </div>
+          `;
+
+          box.querySelectorAll("#mkt-tr-filter button").forEach((b) => {
+            b.addEventListener("click", () => {
+              filterMode = b.dataset.f;
+              S.marketTransferFilter = filterMode;
+              drawRecentTransfers();
+            });
+          });
+
+          box.querySelectorAll("#mkt-tr-limit button").forEach((b) => {
+            b.addEventListener("click", () => {
+              rowLimit = Number(b.dataset.lim);
+              S.marketTransferLimit = rowLimit;
+              drawRecentTransfers();
+            });
+          });
+        }
+
+        const headerEl = box.querySelector("#mkt-tr-header");
+        if (headerEl) {
+          headerEl.innerHTML = ui.section("Last manager transfers & winning bids", `${wonBids.length} ${t("manager buys & bids")} · ${enrichedAll.length} ${t("total league transfers")}`);
+        }
+
+        const kpisEl = box.querySelector("#mkt-tr-kpis");
+        if (kpisEl) {
+          kpisEl.innerHTML = recentBuys.length ? ui.kpis([
             {
               label: "Latest Winning Bid",
               value: lastWon ? money(lastWon.price) : "–",
@@ -8361,28 +8542,21 @@ Analyze my squad strictly under Kickbase rules:
               value: money(totalManagerSpending),
               sub: `${wonBids.length} ${t("manager purchases across league")}`
             }
-          ]) : ""}
+          ]) : "";
+        }
 
-          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin:12px 0">
-            <div style="display:flex;align-items:center;flex-wrap:wrap;gap:8px">
-              <div class="seg" id="mkt-tr-filter">
-                <button data-f="buys" class="${filterMode === "buys" ? "on" : ""}">🏆 ${t("Manager Buys")} (${wonBids.length})</button>
-                <button data-f="mine" class="${filterMode === "mine" ? "on" : ""}">🎯 ${t("My Purchases")} (${myActivity.length})</button>
-                <button data-f="all" class="${filterMode === "all" ? "on" : ""}">${t("All Transfers")} (${enrichedAll.length})</button>
-                <button data-f="trades" class="${filterMode === "trades" ? "on" : ""}">🤝 ${t("Manager Trades")} (${peerTrades.length})</button>
-                <button data-f="sells" class="${filterMode === "sells" ? "on" : ""}">🏪 ${t("Sold to Kickbase")} (${kbSales.length})</button>
-              </div>
-            </div>
-            <div style="display:flex;align-items:center;gap:8px">
-              <span style="font-size:12px;color:var(--muted)">${t("Show")}:</span>
-              <div class="seg" id="mkt-tr-limit">
-                ${[15, 30, 50, 0].map((lim) => `<button data-lim="${lim}" class="${rowLimit === lim ? "on" : ""}">${lim === 0 ? t("All") : `${t("Last")} ${lim}`}</button>`).join("")}
-              </div>
-            </div>
-          </div>
+        box.querySelectorAll("#mkt-tr-filter button").forEach((b) => {
+          b.classList.toggle("on", b.dataset.f === filterMode);
+          if (b.dataset.f === "buys") b.innerHTML = `🏆 ${t("Manager Buys")} (${wonBids.length})`;
+          else if (b.dataset.f === "mine") b.innerHTML = `🎯 ${t("My Purchases")} (${myActivity.length})`;
+          else if (b.dataset.f === "all") b.innerHTML = `${t("All Transfers")} (${enrichedAll.length})`;
+          else if (b.dataset.f === "trades") b.innerHTML = `🤝 ${t("Manager Trades")} (${peerTrades.length})`;
+          else if (b.dataset.f === "sells") b.innerHTML = `🏪 ${t("Sold to Kickbase")} (${kbSales.length})`;
+        });
 
-          <div id="mkt-tr-table"></div>
-        `;
+        box.querySelectorAll("#mkt-tr-limit button").forEach((b) => {
+          b.classList.toggle("on", Number(b.dataset.lim) === rowLimit);
+        });
 
         const tableEl = box.querySelector("#mkt-tr-table");
         if (!visibleRows.length) {
@@ -8556,22 +8730,6 @@ Analyze my squad strictly under Kickbase rules:
           });
         }
 
-        box.querySelectorAll("#mkt-tr-filter button").forEach((b) => {
-          b.addEventListener("click", () => {
-            filterMode = b.dataset.f;
-            S.marketTransferFilter = filterMode;
-            drawRecentTransfers();
-          });
-        });
-
-        box.querySelectorAll("#mkt-tr-limit button").forEach((b) => {
-          b.addEventListener("click", () => {
-            rowLimit = Number(b.dataset.lim);
-            S.marketTransferLimit = rowLimit;
-            drawRecentTransfers();
-          });
-        });
-
         // Event delegation for player clicks and "+ I bid" / edit bid buttons
         if (tableEl && !tableEl._bidListenerBound) {
           tableEl._bidListenerBound = true;
@@ -8596,7 +8754,19 @@ Analyze my squad strictly under Kickbase rules:
 
       // Fetch historical market values AND missing player profile metadata (position, full name, current MV)
       const POS_MAP = { 1: "GK", 2: "DEF", 3: "MID", 4: "FWD" };
-      const pidsToLoad = [...new Set(mergedTransfers.map((t) => t.playerId).filter((pid) => pid && !String(pid).startsWith("custom_")))];
+
+      // Prioritize loading player IDs visible in the default view (wonBids / recent buys) first!
+      const prioritizedPids = [];
+      const addPid = (id) => {
+        const s = String(id || "");
+        if (s && !s.startsWith("custom_") && !prioritizedPids.includes(s)) prioritizedPids.push(s);
+      };
+      for (const t of mergedTransfers) {
+        if (t.isBuyDeal) addPid(t.playerId);
+      }
+      for (const t of mergedTransfers) {
+        addPid(t.playerId);
+      }
 
       const loadSinglePlayer = async (pid) => {
         const meta = playerMeta.get(String(pid)) || {};
@@ -8619,24 +8789,32 @@ Analyze my squad strictly under Kickbase rules:
         return Promise.all(tasks);
       };
 
-      // Fast initial preload of top visible transfers (up to 12) so table renders with real historical MW immediately
-      const initialChunk = pidsToLoad.slice(0, 12);
+      // Fast initial preload of the top 20 visible players so the table renders cleanly with real MW immediately
+      const initialChunk = prioritizedPids.slice(0, 20);
       if (initialChunk.length) {
         await Promise.all(initialChunk.map(loadSinglePlayer));
       }
       if (ctx.stale()) return;
 
+      // Draw the view cleanly and stably
       drawRecentTransfers();
 
-      // Progressive background loading for remaining players in batches of 6, refreshing table progressively
-      const remainingPids = pidsToLoad.slice(12);
-      for (let i = 0; i < remainingPids.length; i += 6) {
-        if (ctx.stale()) return;
-        const chunk = remainingPids.slice(i, i + 6);
-        await Promise.all(chunk.map(loadSinglePlayer));
-        if (!ctx.stale()) {
-          drawRecentTransfers();
-        }
+      // Quiet background loading for remaining older/other-filter players (chunks of 10), without flashing DOM on every chunk!
+      const remainingPids = prioritizedPids.slice(20);
+      if (remainingPids.length) {
+        (async () => {
+          let hasNewData = false;
+          for (let i = 0; i < remainingPids.length; i += 10) {
+            if (ctx.stale()) return;
+            const chunk = remainingPids.slice(i, i + 10);
+            await Promise.all(chunk.map(loadSinglePlayer));
+            hasNewData = true;
+          }
+          // Single quiet refresh once all background players have been loaded and cached
+          if (hasNewData && !ctx.stale()) {
+            drawRecentTransfers();
+          }
+        })();
       }
     } catch (err) {
       if (!ctx.stale()) {
@@ -9684,7 +9862,8 @@ Analyze my squad strictly under Kickbase rules:
               day: liveDay,
               p: Number(opts.livePoints),
               mp: Number(opts.matchMinute || 90),
-              hp: true
+              hp: true,
+              live: true
             });
           }
         }
@@ -9712,6 +9891,60 @@ Analyze my squad strictly under Kickbase rules:
           if (!a.isCurrent && b.isCurrent) return 1;
           return (b.yearNum || 0) - (a.yearNum || 0);
         });
+
+        // Reconcile the CURRENT season against Kickbase's authoritative profile numbers (total points / games played).
+        // The performance endpoint can carry a phantom entry for a matchday the player missed (e.g. injured),
+        // which would otherwise inflate the list. The profile totals (tp + played games in pInfo.ph) are the source of truth.
+        const reconcileCurrentSeason = (season) => {
+          if (!season || !season.isCurrent) return;
+          const played = () => [...season.mdMap.values()].filter((m) => m && m.hp && !m.live && (m.p !== 0 || m.mp > 0));
+          const targetTotal = (pInfo && pInfo.tp !== undefined && pInfo.tp !== null) ? Number(pInfo.tp) : null;
+          const profilePh = Array.isArray(pInfo?.ph) ? pInfo.ph : null;
+          const targetGames = profilePh ? profilePh.filter((x) => x && (x.hp || (x.p !== undefined && x.p !== 0))).length : null;
+          let entries = played();
+          const sum = (arr) => arr.reduce((s, x) => s + (x.p || 0), 0);
+          const needsFix = () => {
+            entries = played();
+            if (targetTotal !== null && !isNaN(targetTotal) && sum(entries) !== targetTotal) return true;
+            if (targetGames && entries.length > targetGames) return true;
+            return false;
+          };
+          if (!needsFix()) return;
+
+          const pointCounts = new Map();
+          entries.forEach((e) => pointCounts.set(e.p, (pointCounts.get(e.p) || 0) + 1));
+          // Higher score = more likely to be the phantom entry (duplicated points, no real minutes, latest matchday)
+          const score = (e) => (pointCounts.get(e.p) > 1 ? 2 : 0) + (e.day / 100);
+          const drop = (list) => list.forEach((e) => season.mdMap.set(e.day, { day: e.day, p: 0, mp: 0, hp: false }));
+          const matches = (rest) => {
+            if (targetTotal !== null && !isNaN(targetTotal) && sum(rest) !== targetTotal) return false;
+            if (targetGames && rest.length > targetGames) return false;
+            return true;
+          };
+
+          const candidates = [];
+          for (let i = 0; i < entries.length; i++) {
+            const rest = entries.filter((_, k) => k !== i);
+            if (matches(rest)) candidates.push({ drop: [entries[i]], score: score(entries[i]) });
+          }
+          if (!candidates.length) {
+            for (let i = 0; i < entries.length; i++) {
+              for (let j = i + 1; j < entries.length; j++) {
+                const rest = entries.filter((_, k) => k !== i && k !== j);
+                if (matches(rest)) candidates.push({ drop: [entries[i], entries[j]], score: score(entries[i]) + score(entries[j]) });
+              }
+            }
+          }
+          if (candidates.length) {
+            candidates.sort((a, b) => b.score - a.score);
+            drop(candidates[0].drop);
+          } else if (targetGames && entries.length > targetGames) {
+            // No exact points match: at least trim surplus entries (most suspicious first)
+            const surplus = [...entries].sort((a, b) => score(b) - score(a)).slice(0, entries.length - targetGames);
+            drop(surplus);
+          }
+        };
+        seasons.forEach(reconcileCurrentSeason);
 
         // Calculate stats for each season
         seasons.forEach((season) => {
@@ -11225,9 +11458,20 @@ Analyze my squad strictly under Kickbase rules:
           store.set(`kb.formation.${ctx.l}`, aiData.recommendedFormation);
         }
         if (aiData.startingXI && aiData.startingXI.length === 11) {
-          store.set(`kb.lineup.${ctx.l}`, aiData.startingXI);
-          await S.api.updateLineup(ctx.l, { type: aiData.recommendedFormation || currentFormation, players: aiData.startingXI });
-          ui.toast(t("AI Starting XI and formation applied!"));
+          try {
+            store.set(`kb.lineup.${ctx.l}`, aiData.startingXI);
+            await S.api.updateLineup(ctx.l, { type: aiData.recommendedFormation || currentFormation, players: aiData.startingXI.map(String) });
+            ui.toast(t("AI Starting XI and formation applied!"), "ok");
+          } catch (err) {
+            const errMsg = err.message || String(err);
+            if (errMsg.includes("LineupNotEnoughPlayers")) {
+              ui.toast(t("Kickbase rejected lineup: Exactly 11 players are required. Please field a full team."), "error");
+            } else {
+              ui.toast(t("Could not save lineup: ") + errMsg, "error");
+            }
+          }
+        } else {
+          ui.toast(t("AI Lineup must have exactly 11 players to be saved to Kickbase."), "warn");
         }
       });
 
