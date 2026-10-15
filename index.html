@@ -505,6 +505,9 @@ table.data tr.tr-user-deal td {
   color: #94a3b8;
   font-size: 11.5px;
 }
+#t1 table.data th, #t1 table.data td {
+  padding: 6px 9px;
+}
 .user-transfers-banner {
   background: var(--surface-2);
   border: 1px solid var(--border);
@@ -624,6 +627,955 @@ table.data tr.tr-user-deal td {
 }
 
 </style>
+<style id="kb-theme-pro">
+/* ===== Kickbase AI – Multi-Theme Design System =====
+   Original design removed from switcher as requested.
+   5 modern, professional styles selectable via floating capsule switcher. */
+
+/* ==========================================================================
+   1. THEME PALETTES & ROOT VARIABLES
+   ========================================================================== */
+
+/* 1A. Space Gray (Apple Studio Dark) */
+html[data-theme="space-gray"], html[data-theme="pro-dark"], html[data-theme="pro"] {
+  color-scheme: dark;
+  --orange: #2997ff; --orange-2: #0077ed; --orange-soft: rgba(41, 151, 255, .15);
+  --bg: #0f1115; --surface: #16181f; --surface-2: #1b1e27; --surface-3: #222633;
+  --border: #252936; --border-2: #343a4a;
+  --text: #f2f4f8; --muted: #8b92a4; --faint: #5a6173;
+  --green: #30d158; --red: #ff453a; --amber: #f59e0b;
+  --radius: 18px; --radius-sm: 12px; --radius-btn: 980px;
+  --font: "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+  --surface-top-highlight: none;
+}
+
+/* 1B. Linear Obsidian (Modern Dev-Tool / Raycast) */
+html[data-theme="linear"] {
+  color-scheme: dark;
+  --orange: #5e6ad2; --orange-2: #6d78e3; --orange-soft: rgba(94, 106, 210, .18);
+  --bg: #08090c; --surface: #101217; --surface-2: #151820; --surface-3: #1c202b;
+  --border: rgba(255, 255, 255, 0.08); --border-2: rgba(255, 255, 255, 0.16);
+  --text: #f7f8f8; --muted: #8a8f98; --faint: #565a63;
+  --green: #10b981; --red: #f43f5e; --amber: #f59e0b;
+  --radius: 12px; --radius-sm: 8px; --radius-btn: 8px;
+  --font: "Inter", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --surface-top-highlight: inset 0 1px 0 0 rgba(255, 255, 255, 0.09);
+}
+
+/* 1C. Sports Trader (Financial Terminal / Wall Street) */
+html[data-theme="terminal"] {
+  color-scheme: dark;
+  --orange: #f59e0b; --orange-2: #d97706; --orange-soft: rgba(245, 158, 11, .15);
+  --bg: #0a0d14; --surface: #111622; --surface-2: #161c2b; --surface-3: #1e2639;
+  --border: #1d2538; --border-2: #28344e;
+  --text: #e6edf8; --muted: #7e8c9f; --faint: #4e5b70;
+  --green: #22c55e; --red: #ef4444; --amber: #f59e0b;
+  --radius: 8px; --radius-sm: 6px; --radius-btn: 6px;
+  --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "Inter", monospace, sans-serif;
+  --surface-top-highlight: none;
+}
+
+/* 1D. Nordic Slate (Scandinavian Warm Titanium) */
+html[data-theme="nordic"] {
+  color-scheme: dark;
+  --orange: #ff7849; --orange-2: #f06432; --orange-soft: rgba(255, 120, 73, .16);
+  --bg: #151618; --surface: #1e1f23; --surface-2: #25262c; --surface-3: #2d2e35;
+  --border: #2a2b32; --border-2: #383942;
+  --text: #ededef; --muted: #95969d; --faint: #63646c;
+  --green: #34d399; --red: #fb7185; --amber: #fbbf24;
+  --radius: 16px; --radius-sm: 10px; --radius-btn: 980px;
+  --font: "SF Pro Text", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --surface-top-highlight: none;
+}
+
+/* 1E. Apple Clean Light */
+html[data-theme="pro-light"] {
+  color-scheme: light;
+  --orange: #0071e3; --orange-2: #0077ed; --orange-soft: rgba(0, 113, 227, .10);
+  --bg: #f5f5f7; --surface: #ffffff; --surface-2: #ffffff; --surface-3: #f0f0f3;
+  --border: #e3e3e8; --border-2: #d2d2d7;
+  --text: #1d1d1f; --muted: #6e6e73; --faint: #86868b;
+  --green: #188a4a; --red: #d32f2f; --amber: #b45309;
+  --radius: 18px; --radius-sm: 12px; --radius-btn: 980px;
+  --font: "SF Pro Text", "SF Pro Display", -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+  --surface-top-highlight: none;
+}
+
+/* ==========================================================================
+   2. COMMON STRUCTURE ACROSS ALL THEMES
+   ========================================================================== */
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) body {
+  background: var(--bg);
+  letter-spacing: -.011em;
+  font-family: var(--font);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) ::selection {
+  background: var(--orange-soft);
+}
+
+/* Buttons */
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .btn {
+  border-radius: var(--radius-btn); font-weight: 500; box-shadow: none;
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .btn:hover:not(:disabled) {
+  transform: none;
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .btn.primary {
+  background: var(--orange); border-color: var(--orange); color: #fff; box-shadow: none;
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .btn.primary:hover:not(:disabled) {
+  background: var(--orange-2); border-color: var(--orange-2);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .btn.ghost {
+  background: transparent;
+}
+
+/* Cards & Surfaces */
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .card {
+  background: var(--surface); border: 1px solid var(--border); box-shadow: var(--surface-top-highlight); border-radius: var(--radius);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .card.pad {
+  padding: 26px;
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .kpi {
+  background: var(--surface); border: 1px solid var(--border); box-shadow: var(--surface-top-highlight); transition: none; border-radius: var(--radius-sm);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .kpi:hover {
+  transform: none; box-shadow: none; border-color: var(--border-2);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .kpi-label {
+  letter-spacing: .04em; text-transform: none; font-size: 12.5px; font-weight: 500; color: var(--muted);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .kpi-value {
+  font-weight: 600; font-size: 28px; letter-spacing: -.025em; color: var(--text);
+}
+
+/* Headings */
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .kicker {
+  color: var(--muted); letter-spacing: .1em;
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .page-title {
+  font-size: 42px; font-weight: 700; letter-spacing: -.04em; color: var(--text);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .page-sub {
+  color: var(--muted); font-size: 17px;
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .section-head h3 {
+  font-size: 20px; font-weight: 600; letter-spacing: -.02em; color: var(--text);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .hero-title {
+  font-weight: 700; letter-spacing: -.04em; font-size: 52px; color: var(--text);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .hero-title em {
+  color: var(--orange);
+}
+
+/* Badges & Pills */
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .pill.up {
+  color: var(--green); background: rgba(48, 209, 88, .12);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .pill.down {
+  color: var(--red); background: rgba(255, 69, 58, .12);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .pill.flat {
+  color: var(--muted); background: rgba(128, 128, 128, .12);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .pos-GK {
+  color: #f59e0b; background: rgba(245, 158, 11, .15);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .pos-DEF {
+  color: #38bdf8; background: rgba(56, 189, 248, .12);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .pos-MID {
+  color: #34d399; background: rgba(52, 211, 153, .12);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .pos-FWD {
+  color: #fb923c; background: rgba(251, 146, 60, .14);
+}
+
+/* Nav & Segments */
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .nav {
+  border-radius: var(--radius-btn); padding: 4px;
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .nav button {
+  border-radius: var(--radius-btn); font-weight: 500;
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .seg {
+  border-radius: var(--radius-btn);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .seg button {
+  font-weight: 500;
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .chips {
+  border-radius: var(--radius-btn);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .chip {
+  border-radius: var(--radius-btn);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .lang-toggle {
+  border-radius: var(--radius-btn);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) dialog {
+  border: 0; border-radius: var(--radius);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .table-wrap {
+  border-radius: var(--radius);
+}
+
+/* Tabular figures for numbers in Linear & Terminal themes */
+:is(html[data-theme="linear"], html[data-theme="terminal"]) .kpi-value,
+:is(html[data-theme="linear"], html[data-theme="terminal"]) table.data td {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Lineup Pitch (Dark stadium stays vibrant in all themes) */
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .pitch-wrap {
+  --text: #f5f5f7; --muted: #aab6ae; --border: #2d4b3b; --border-2: #3a5c4a; --surface-3: #27382f;
+  background: radial-gradient(ellipse at center, #1c3d2c 0%, #12291e 75%, #0c1e15 100%);
+  border: 0; border-radius: 22px; box-shadow: none; color: var(--text);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .pitch-card {
+  background: rgba(10, 18, 14, .82); border-color: rgba(255, 255, 255, .14); box-shadow: none;
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .pitch-card:hover {
+  box-shadow: none; border-color: #fff;
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .pitch-card.selected {
+  border-color: #5ac8fa !important; box-shadow: 0 0 0 3px rgba(90, 200, 250, .4) !important;
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .pitch-card.empty-slot:hover {
+  border-color: #fff; background: rgba(255, 255, 255, .1);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .pitch-wrap .btn:not(.primary) {
+  background: rgba(255, 255, 255, .12); border-color: rgba(255, 255, 255, .28); color: #f5f5f7;
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .pitch-wrap .btn:not(.primary):hover:not(:disabled) {
+  background: rgba(255, 255, 255, .22);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .pitch-wrap .input,
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .pitch-wrap select.input {
+  background: rgba(255, 255, 255, .12); border-color: rgba(255, 255, 255, .28); color: #f5f5f7;
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .pitch-wrap select.input option {
+  background: #1d1d1f; color: #f5f5f7;
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .pitch-card .avatar-fallback {
+  color: #f5f5f7;
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-light"], html[data-theme="pro-dark"], html[data-theme="pro"]) .pitch-card .ppts {
+  color: #e8e8ed;
+}
+
+/* ==========================================================================
+   3. SHARED DARK-THEME STYLING (Space Gray, Linear, Terminal, Nordic)
+   ========================================================================== */
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .btn {
+  background: var(--surface-2); border: 1px solid var(--border-2); color: var(--text);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .btn:hover:not(:disabled) {
+  background: var(--surface-3); border-color: var(--border-2);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .btn.ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, .06);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .field label {
+  color: var(--text); font-weight: 500;
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .input,
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) select.input {
+  background: var(--bg); border: 1px solid var(--border-2); color: var(--text); border-radius: var(--radius-sm);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .input:focus {
+  border-color: var(--orange); box-shadow: 0 0 0 3px var(--orange-soft);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .input::placeholder {
+  color: var(--faint);
+}
+
+/* Sidebar & Nav in dark themes */
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .sidebar {
+  background: rgba(18, 20, 26, .92); backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px); border-right: 1px solid var(--border);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .user {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .avatar {
+  background: var(--surface-3); color: var(--text);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .nav {
+  background: var(--surface); border: 1px solid var(--border);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .nav button {
+  color: var(--muted);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .nav button:hover {
+  background: rgba(255, 255, 255, .05); color: #fff;
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .nav button.active {
+  background: var(--surface-3); color: #fff; font-weight: 600; box-shadow: 0 1px 3px rgba(0, 0, 0, .35);
+}
+
+/* Tables in dark themes */
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .table-wrap {
+  background: var(--surface); border: 1px solid var(--border);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) table.data th {
+  background: var(--bg); color: var(--muted); font-weight: 600; font-size: 12.5px; border-bottom: 1px solid var(--border);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) table.data th:hover {
+  color: var(--text);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) table.data td {
+  border-bottom: 1px solid var(--border); color: var(--text);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) table.data tbody tr:hover {
+  background: rgba(255, 255, 255, .025);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) table.data tbody tr.clickable-row:hover td {
+  background: var(--orange-soft);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) table.data tr.me td {
+  background: var(--orange-soft);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .bar {
+  background: var(--surface-3);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .bar > i {
+  background: var(--orange);
+}
+
+/* Controls & Dialog in dark themes */
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .tabs {
+  border-bottom-color: var(--border);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .tabs button {
+  font-weight: 500; color: var(--muted);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .tabs button.active {
+  color: var(--text); border-bottom-color: var(--orange); font-weight: 600;
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .seg {
+  border-color: var(--border-2); background: var(--bg);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .seg button + button {
+  border-left-color: var(--border);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .seg button.on {
+  background: var(--surface-3); color: #fff;
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .chips {
+  background: var(--bg); border-color: var(--border-2);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .lang-toggle {
+  background: var(--surface); border: 1px solid var(--border);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .lang-toggle button:hover {
+  background: rgba(255, 255, 255, .06);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .lang-toggle button.on {
+  background: var(--orange-soft);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) dialog {
+  background: var(--surface); border: 1px solid var(--border-2); box-shadow: 0 30px 90px rgba(0, 0, 0, .7); color: var(--text);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) dialog::backdrop {
+  background: rgba(0, 0, 0, .65); backdrop-filter: blur(8px);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .mini-kpis div {
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .tooltip {
+  background: var(--surface-2); border: 1px solid var(--border-2); box-shadow: 0 8px 28px rgba(0, 0, 0, .45); border-radius: 12px; color: var(--text);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) svg.chart .grid {
+  stroke: rgba(255, 255, 255, .06);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) svg.chart .axis {
+  stroke: rgba(255, 255, 255, .18);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) svg.chart .label {
+  fill: var(--muted);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) svg.chart .squad-chart-label {
+  fill: var(--muted) !important;
+}
+
+/* Cards & Widgets in dark themes */
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .advisor-card {
+  background: var(--surface); border: 1px solid var(--border); box-shadow: none;
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .advisor-card::before {
+  display: none;
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .advisor-pill {
+  background: var(--orange-soft); color: var(--orange);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .rec-box {
+  background: var(--surface);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .rec-item {
+  background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .chat-container {
+  background: var(--surface);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .chat-bubble.ai {
+  background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius-sm);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .chat-bubble.user {
+  background: var(--orange); color: #fff; border-color: var(--orange); border-radius: var(--radius-sm);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .live-hero {
+  background: var(--surface); border: 1px solid var(--border); box-shadow: none;
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .live-player-bar-card {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .live-player-bar-card:hover {
+  border-color: var(--border-2); transform: none;
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .squad-col,
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .battle-pos-block,
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .h2h-card {
+  background: var(--surface); border: 1px solid var(--border);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .squad-col-head,
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .battle-pos-head,
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .pagination-bar {
+  background: var(--bg);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .page-btn {
+  background: var(--surface-2); border-color: var(--border-2); border-radius: var(--radius-btn); color: var(--text);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .page-btn:hover:not(:disabled) {
+  border-color: var(--orange); color: var(--orange);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .page-btn.active {
+  background: var(--surface-3); border-color: var(--border-2); color: #fff;
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .bench-card {
+  background: var(--surface);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .bench-card:hover {
+  transform: none; border-color: var(--border-2);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .bench-card.selected-bench {
+  border-color: var(--orange); background: var(--orange-soft);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .mgr-pill {
+  background: var(--surface-2); color: var(--text); border-color: var(--border-2); border-radius: var(--radius-btn);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .mgr-pill:hover {
+  background: var(--surface-3); border-color: var(--border-2); color: #fff;
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .mgr-pill.active {
+  background: var(--surface-3); color: #fff; border-color: var(--border-2); box-shadow: none;
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .mgr-pill .mgr-count {
+  background: rgba(255, 255, 255, .1); color: var(--muted);
+}
+:is(html[data-theme="space-gray"], html[data-theme="linear"], html[data-theme="terminal"], html[data-theme="nordic"], html[data-theme="pro-dark"], html[data-theme="pro"]) .chart-card {
+  background: var(--surface); border: 1px solid var(--border);
+}
+
+/* ==========================================================================
+   4. LIGHT THEME SPECIFICS (Apple Clean Light)
+   ========================================================================== */
+html[data-theme="pro-light"] .btn {
+  border-radius: 980px; background: #fff; border: 1px solid var(--border-2); color: var(--text);
+}
+html[data-theme="pro-light"] .btn:hover:not(:disabled) {
+  background: #f5f5f7; border-color: #c7c7cc;
+}
+html[data-theme="pro-light"] .btn.ghost:hover:not(:disabled) {
+  background: rgba(0, 0, 0, .04);
+}
+html[data-theme="pro-light"] .field label {
+  color: var(--text); font-weight: 500;
+}
+html[data-theme="pro-light"] .input, html[data-theme="pro-light"] select.input {
+  background: #fff; border: 1px solid var(--border-2); color: var(--text);
+}
+html[data-theme="pro-light"] .input:focus {
+  border-color: #0071e3; box-shadow: 0 0 0 4px rgba(0, 113, 227, .16);
+}
+html[data-theme="pro-light"] .input::placeholder {
+  color: #a1a1a6;
+}
+html[data-theme="pro-light"] .sidebar {
+  background: rgba(255, 255, 255, .86); backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px); border-right: 1px solid var(--border);
+}
+html[data-theme="pro-light"] .user {
+  background: #f5f5f7; border-color: transparent;
+}
+html[data-theme="pro-light"] .avatar {
+  background: #e8e8ed; color: var(--text);
+}
+html[data-theme="pro-light"] .nav {
+  background: #ececf0; border: 0;
+}
+html[data-theme="pro-light"] .nav button {
+  color: #424245;
+}
+html[data-theme="pro-light"] .nav button:hover {
+  background: rgba(0, 0, 0, .05); color: var(--text);
+}
+html[data-theme="pro-light"] .nav button.active {
+  background: #fff; color: var(--text); font-weight: 600; box-shadow: 0 0 0 .5px rgba(0,0,0,.12), 0 1px 3px rgba(0,0,0,.06);
+}
+html[data-theme="pro-light"] .table-wrap {
+  background: #fff; border-color: var(--border);
+}
+html[data-theme="pro-light"] table.data th {
+  background: #fafafc; color: #6e6e73; font-weight: 600; font-size: 12.5px; border-bottom: 1px solid var(--border);
+}
+html[data-theme="pro-light"] table.data th:hover {
+  color: var(--text);
+}
+html[data-theme="pro-light"] table.data td {
+  border-bottom: 1px solid #efeff2;
+}
+html[data-theme="pro-light"] table.data tbody tr:hover {
+  background: rgba(0, 0, 0, .022);
+}
+html[data-theme="pro-light"] table.data tbody tr.clickable-row:hover td {
+  background: rgba(0, 113, 227, .06);
+}
+html[data-theme="pro-light"] table.data tr.me td {
+  background: rgba(0, 113, 227, .05);
+}
+html[data-theme="pro-light"] .bar {
+  background: #e8e8ed;
+}
+html[data-theme="pro-light"] .bar > i {
+  background: #0071e3;
+}
+html[data-theme="pro-light"] .tabs {
+  border-bottom-color: var(--border);
+}
+html[data-theme="pro-light"] .tabs button {
+  font-weight: 500;
+}
+html[data-theme="pro-light"] .tabs button.active {
+  color: var(--text); border-bottom-color: var(--text); font-weight: 600;
+}
+html[data-theme="pro-light"] .seg {
+  border-color: var(--border-2); background: #fff;
+}
+html[data-theme="pro-light"] .seg button + button {
+  border-left-color: var(--border);
+}
+html[data-theme="pro-light"] .seg button.on {
+  background: #1d1d1f; color: #fff;
+}
+html[data-theme="pro-light"] .chips {
+  background: #fff; border-color: var(--border-2);
+}
+html[data-theme="pro-light"] .lang-toggle {
+  background: #fff;
+}
+html[data-theme="pro-light"] .lang-toggle button:hover {
+  background: rgba(0, 0, 0, .05);
+}
+html[data-theme="pro-light"] .lang-toggle button.on {
+  background: rgba(0, 113, 227, .12);
+}
+html[data-theme="pro-light"] dialog {
+  background: #fff; box-shadow: 0 30px 90px rgba(0, 0, 0, .28);
+}
+html[data-theme="pro-light"] dialog::backdrop {
+  background: rgba(0, 0, 0, .38); backdrop-filter: blur(6px);
+}
+html[data-theme="pro-light"] .mini-kpis div {
+  background: #f5f5f7; border-color: transparent;
+}
+html[data-theme="pro-light"] .tooltip {
+  background: #fff; border: 1px solid var(--border-2); box-shadow: 0 8px 28px rgba(0, 0, 0, .14); border-radius: 12px; color: var(--text);
+}
+html[data-theme="pro-light"] svg.chart .grid {
+  stroke: rgba(0, 0, 0, .07);
+}
+html[data-theme="pro-light"] svg.chart .axis {
+  stroke: rgba(0, 0, 0, .2);
+}
+html[data-theme="pro-light"] svg.chart .label {
+  fill: var(--text);
+}
+html[data-theme="pro-light"] svg.chart .squad-chart-label {
+  fill: #6e6e73 !important;
+}
+html[data-theme="pro-light"] .advisor-card {
+  background: #fff; border: 1px solid var(--border); box-shadow: none;
+}
+html[data-theme="pro-light"] .advisor-card::before {
+  display: none;
+}
+html[data-theme="pro-light"] .advisor-pill {
+  background: rgba(94, 92, 230, .12); color: #5e5ce6;
+}
+html[data-theme="pro-light"] .rec-box {
+  background: #fff;
+}
+html[data-theme="pro-light"] .rec-item {
+  background: #f5f5f7; border-color: transparent;
+}
+html[data-theme="pro-light"] .chat-container {
+  background: #fff;
+}
+html[data-theme="pro-light"] .chat-bubble.ai {
+  background: #f5f5f7; border-color: transparent;
+}
+html[data-theme="pro-light"] .chat-bubble.user {
+  background: #0071e3; color: #fff; border-color: #0071e3;
+}
+html[data-theme="pro-light"] .live-hero {
+  background: #fff; border: 1px solid #bfe3cd; box-shadow: none;
+}
+html[data-theme="pro-light"] .live-player-bar-card {
+  background: #fff;
+}
+html[data-theme="pro-light"] .live-player-bar-card:hover {
+  transform: none; border-color: #9ed4b5;
+}
+html[data-theme="pro-light"] .squad-col, html[data-theme="pro-light"] .battle-pos-block, html[data-theme="pro-light"] .h2h-card {
+  background: #fff;
+}
+html[data-theme="pro-light"] .squad-col-head, html[data-theme="pro-light"] .battle-pos-head, html[data-theme="pro-light"] .pagination-bar {
+  background: #fafafc;
+}
+html[data-theme="pro-light"] .page-btn {
+  background: #fff; border-color: var(--border-2); border-radius: 980px;
+}
+html[data-theme="pro-light"] .page-btn:hover:not(:disabled) {
+  border-color: #0071e3; color: #0071e3;
+}
+html[data-theme="pro-light"] .page-btn.active {
+  background: #1d1d1f; border-color: #1d1d1f; color: #fff;
+}
+html[data-theme="pro-light"] .bench-card {
+  background: #fff;
+}
+html[data-theme="pro-light"] .bench-card:hover {
+  transform: none; border-color: var(--border-2);
+}
+html[data-theme="pro-light"] .bench-card.selected-bench {
+  border-color: #0071e3; background: rgba(0, 113, 227, .05);
+}
+html[data-theme="pro-light"] .mgr-pill {
+  background: #fff; color: #424245;
+}
+html[data-theme="pro-light"] .mgr-pill:hover {
+  border-color: var(--border-2); background: #f5f5f7; color: var(--text);
+}
+html[data-theme="pro-light"] .mgr-pill.active {
+  background: #f5f5f7; color: var(--text); box-shadow: none;
+}
+html[data-theme="pro-light"] .mgr-pill .mgr-count {
+  background: rgba(0, 0, 0, .07); color: var(--muted);
+}
+html[data-theme="pro-light"] .chart-card {
+  background: #fff;
+}
+
+/* ---------- Inline hard-coded colours (Pro Light overrides) ---------- */
+html[data-theme="pro-light"] [style*="color:#fff;"]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#fff "]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:#fff"]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #fff;"]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #fff "]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: #fff"]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#ffffff;"]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#ffffff "]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:#ffffff"]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #ffffff;"]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #ffffff "]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: #ffffff"]:not([style*="background"]):not(.pitch-wrap *) { color: var(--text) !important; }
+html[data-theme="pro-light"] [style*="color:#cfd3dc;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#cfd3dc "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:#cfd3dc"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #cfd3dc;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #cfd3dc "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: #cfd3dc"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#e2e8f0;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#e2e8f0 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:#e2e8f0"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #e2e8f0;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #e2e8f0 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: #e2e8f0"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#c3c7d1;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#c3c7d1 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:#c3c7d1"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #c3c7d1;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #c3c7d1 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: #c3c7d1"]:not(.pitch-wrap *) { color: #424245 !important; }
+html[data-theme="pro-light"] [style*="color:#cbd5e1;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#cbd5e1 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:#cbd5e1"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #cbd5e1;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #cbd5e1 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: #cbd5e1"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#b9bdc8;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#b9bdc8 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:#b9bdc8"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #b9bdc8;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #b9bdc8 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: #b9bdc8"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#94a3b8;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#94a3b8 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:#94a3b8"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #94a3b8;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #94a3b8 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: #94a3b8"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:rgba(255,255,255,0.7);"]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:rgba(255,255,255,0.7) "]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:rgba(255,255,255,0.7)"]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: rgba(255,255,255,0.7);"]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: rgba(255,255,255,0.7) "]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: rgba(255,255,255,0.7)"]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:rgba(255,255,255,0.75);"]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:rgba(255,255,255,0.75) "]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:rgba(255,255,255,0.75)"]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: rgba(255,255,255,0.75);"]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: rgba(255,255,255,0.75) "]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: rgba(255,255,255,0.75)"]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:rgba(255,255,255,.7);"]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:rgba(255,255,255,.7) "]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:rgba(255,255,255,.7)"]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: rgba(255,255,255,.7);"]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: rgba(255,255,255,.7) "]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: rgba(255,255,255,.7)"]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:rgba(255, 255, 255, 0.7);"]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:rgba(255, 255, 255, 0.7) "]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:rgba(255, 255, 255, 0.7)"]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: rgba(255, 255, 255, 0.7);"]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: rgba(255, 255, 255, 0.7) "]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: rgba(255, 255, 255, 0.7)"]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:rgba(255, 255, 255, 0.75);"]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:rgba(255, 255, 255, 0.75) "]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:rgba(255, 255, 255, 0.75)"]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: rgba(255, 255, 255, 0.75);"]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: rgba(255, 255, 255, 0.75) "]:not([style*="background"]):not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: rgba(255, 255, 255, 0.75)"]:not([style*="background"]):not(.pitch-wrap *) { color: #6e6e73 !important; }
+html[data-theme="pro-light"] [style*="color:#34d399;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#34d399 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:#34d399"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #34d399;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #34d399 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: #34d399"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#6ee7b7;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#6ee7b7 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:#6ee7b7"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #6ee7b7;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #6ee7b7 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: #6ee7b7"]:not(.pitch-wrap *) { color: #188a4a !important; }
+html[data-theme="pro-light"] [style*="color:#10b981;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#10b981 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:#10b981"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #10b981;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #10b981 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: #10b981"]:not(.pitch-wrap *) { color: #0f8a5f !important; }
+html[data-theme="pro-light"] [style*="color:#f87171;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#f87171 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:#f87171"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #f87171;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #f87171 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: #f87171"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#ef4444;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#ef4444 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:#ef4444"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #ef4444;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #ef4444 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: #ef4444"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#ef4d4d;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#ef4d4d "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:#ef4d4d"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #ef4d4d;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #ef4d4d "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: #ef4d4d"]:not(.pitch-wrap *) { color: #d32f2f !important; }
+html[data-theme="pro-light"] [style*="color:#fca5a5;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#fca5a5 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:#fca5a5"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #fca5a5;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #fca5a5 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: #fca5a5"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#ffb4b4;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#ffb4b4 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:#ffb4b4"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #ffb4b4;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #ffb4b4 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: #ffb4b4"]:not(.pitch-wrap *) { color: #c62828 !important; }
+html[data-theme="pro-light"] [style*="color:#fbbf24;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#fbbf24 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:#fbbf24"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #fbbf24;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #fbbf24 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: #fbbf24"]:not(.pitch-wrap *) { color: #b45309 !important; }
+html[data-theme="pro-light"] [style*="color:#fde047;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#fde047 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:#fde047"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #fde047;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #fde047 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: #fde047"]:not(.pitch-wrap *) { color: #a16207 !important; }
+html[data-theme="pro-light"] [style*="color:#fde68a;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#fde68a "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:#fde68a"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #fde68a;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #fde68a "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: #fde68a"]:not(.pitch-wrap *) { color: #8a6500 !important; }
+html[data-theme="pro-light"] [style*="color:#38bdf8;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#38bdf8 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:#38bdf8"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #38bdf8;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #38bdf8 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: #38bdf8"]:not(.pitch-wrap *) { color: #0071e3 !important; }
+html[data-theme="pro-light"] [style*="color:#60a5fa;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#60a5fa "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:#60a5fa"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #60a5fa;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #60a5fa "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: #60a5fa"]:not(.pitch-wrap *) { color: #0a58ca !important; }
+html[data-theme="pro-light"] [style*="color:#a5b4fc;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#a5b4fc "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:#a5b4fc"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #a5b4fc;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #a5b4fc "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: #a5b4fc"]:not(.pitch-wrap *) { color: #5e5ce6 !important; }
+html[data-theme="pro-light"] [style*="color:#ff7a45;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color:#ff7a45 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color:#ff7a45"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #ff7a45;"]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style*="color: #ff7a45 "]:not(.pitch-wrap *),
+html[data-theme="pro-light"] [style$="color: #ff7a45"]:not(.pitch-wrap *) { color: #c2410c !important; }
+html[data-theme="pro-light"] [style*="background:rgba(255,255,255,0.08)"]:not(.pitch-wrap *), html[data-theme="pro-light"] [style*="background:rgba(255,255,255,0.06)"]:not(.pitch-wrap *) { background: rgba(0,0,0,.05) !important; }
+html[data-theme="pro-light"] [style*="border-top:1px solid rgba(255,255,255,"]:not(.pitch-wrap *) { border-top-color: var(--border) !important; }
+
+
+/* ==========================================================================
+   5. NON-OVERFLOWING THEME SELECTOR POPOVER (Fits sidebar 230px perfectly)
+   ========================================================================== */
+#kb-theme-switcher {
+  position: fixed; left: 14px; bottom: 14px; z-index: 9999;
+  width: 202px; box-sizing: border-box;
+  user-select: none;
+}
+#kb-theme-trigger {
+  width: 100%; height: 32px; padding: 0 12px; border-radius: 980px;
+  display: flex; align-items: center; justify-content: space-between;
+  border: 1px solid rgba(255, 255, 255, .14); outline: none; cursor: pointer;
+  font: 500 12px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif;
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  transition: all .15s ease; box-sizing: border-box;
+}
+:is(html:not([data-theme="pro-light"])) #kb-theme-trigger {
+  background: rgba(20, 23, 31, .92); color: #f2f4f8;
+  border-color: rgba(255, 255, 255, .14);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .45);
+}
+:is(html:not([data-theme="pro-light"])) #kb-theme-trigger:hover {
+  background: rgba(28, 32, 43, .96); border-color: rgba(255, 255, 255, .25);
+}
+html[data-theme="pro-light"] #kb-theme-trigger {
+  background: rgba(255, 255, 255, .94); color: #1d1d1f;
+  border-color: rgba(0, 0, 0, .14);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .08);
+}
+html[data-theme="pro-light"] #kb-theme-trigger:hover {
+  background: #ffffff; border-color: rgba(0, 0, 0, .25);
+}
+.kb-theme-current {
+  display: inline-flex; align-items: center; gap: 8px;
+}
+.kb-theme-chevron {
+  font-size: 10px; color: var(--muted); transition: transform .2s ease;
+}
+#kb-theme-switcher.open .kb-theme-chevron {
+  transform: rotate(180deg);
+}
+#kb-theme-menu {
+  position: absolute; bottom: 38px; left: 0; width: 100%;
+  border-radius: 14px; padding: 6px; box-sizing: border-box;
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  opacity: 0; pointer-events: none; transform: translateY(6px);
+  transition: opacity .15s ease, transform .15s ease;
+  z-index: 10000;
+}
+#kb-theme-switcher.open #kb-theme-menu {
+  opacity: 1; pointer-events: auto; transform: translateY(0);
+}
+:is(html:not([data-theme="pro-light"])) #kb-theme-menu {
+  background: rgba(18, 20, 26, .96);
+  border: 1px solid rgba(255, 255, 255, .16);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .6);
+}
+html[data-theme="pro-light"] #kb-theme-menu {
+  background: rgba(255, 255, 255, .98);
+  border: 1px solid rgba(0, 0, 0, .14);
+  box-shadow: 0 16px 36px rgba(0, 0, 0, .16);
+}
+.kb-theme-menu-title {
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+  padding: 5px 8px 4px; color: var(--muted);
+}
+.kb-theme-opt {
+  width: 100%; height: 30px; border-radius: 8px; border: 0; outline: none;
+  background: transparent; padding: 0 8px; box-sizing: border-box;
+  display: flex; align-items: center; justify-content: space-between;
+  font: 500 12px/1 -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", sans-serif;
+  cursor: pointer; transition: all .12s ease;
+}
+.kb-theme-opt-left {
+  display: inline-flex; align-items: center; gap: 8px;
+}
+:is(html:not([data-theme="pro-light"])) .kb-theme-opt {
+  color: #8b92a4;
+}
+:is(html:not([data-theme="pro-light"])) .kb-theme-opt:hover {
+  background: rgba(255, 255, 255, .08); color: #fff;
+}
+html[data-theme="pro-light"] .kb-theme-opt {
+  color: #6e6e73;
+}
+html[data-theme="pro-light"] .kb-theme-opt:hover {
+  background: rgba(0, 0, 0, .05); color: #1d1d1f;
+}
+.kb-theme-opt.active {
+  font-weight: 600;
+}
+:is(html:not([data-theme="pro-light"])) .kb-theme-opt.active {
+  color: #fff; background: rgba(255, 255, 255, .05);
+}
+html[data-theme="pro-light"] .kb-theme-opt.active {
+  color: #1d1d1f; background: rgba(0, 0, 0, .04);
+}
+.kb-chk {
+  font-size: 11px; opacity: 0; color: var(--orange); font-weight: 700;
+}
+.kb-theme-opt.active .kb-chk {
+  opacity: 1;
+}
+.dot {
+  width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex-shrink: 0;
+}
+.dot-space { background: #2997ff; }
+.dot-linear { background: #5e6ad2; }
+.dot-terminal { background: #f59e0b; }
+.dot-nordic { background: #ff7849; }
+.dot-light { background: #0071e3; }
+.sidebar { padding-bottom: 64px !important; }
+
+</style>
+<script id="kb-theme-early">(function(){try{
+  var v = localStorage.getItem('kb.designTheme');
+  var valid = ['space-gray', 'linear', 'terminal', 'nordic', 'pro-light'];
+  if (!v || !valid.includes(v)) {
+    if (v === 'pro' || v === 'pro-dark') v = 'space-gray';
+    else v = 'space-gray';
+  }
+  document.documentElement.setAttribute('data-theme', v);
+}catch(e){document.documentElement.setAttribute('data-theme','space-gray');}})();</script>
 </head>
 <body>
   <div id="app">
@@ -802,6 +1754,7 @@ table.data tr.tr-user-deal td {
     async leagues() { return (await this.get("/v4/leagues/selection")).it || []; }
     leagueOverview(l) { return this.get(`/v4/leagues/${l}/overview`); }
     leagueMe(l) { return this.get(`/v4/leagues/${l}/me`); }
+    leagueSettings(l) { return this.get(`/v4/leagues/${l}/settings`); }
     ranking(l) { return this.get(`/v4/leagues/${l}/ranking`); }
     market(l) { return this.get(`/v4/leagues/${l}/market`, null, 60); }
     managerPerformance(l, m) { return this.get(`/v4/leagues/${l}/managers/${m}/performance`); }
@@ -1136,6 +2089,11 @@ table.data tr.tr-user-deal td {
             } else {
               const it0 = res.it[0];
               if (it0.a || it0.amount || it0.v) amount = it0.a || it0.amount || it0.v;
+              // Kickbase returns the current streak day per league in `day` (the only place it is exposed)
+              const days = res.it.map((x) => Number(x && x.day)).filter((d) => d > 0);
+              if (days.length && typeof store !== "undefined") {
+                store.set("kb.bonusDay", { day: Math.max(...days), date: todayStr });
+              }
             }
           }
         }
@@ -1554,6 +2512,25 @@ table.data tr.tr-user-deal td {
     "Unselect All": "Alle abwählen",
     "Quick Select:": "Schnellauswahl:",
     "Reserves / Bench": "Ersatzbank / Reserve",
+    "MW Trend (Last Days)": "MW-Trend (letzte Tage)",
+    "Rising Value Only": "Nur MW-Steigerungen",
+    "Show only players whose market value is increasing in the last days": "Nur Spieler anzeigen, deren Marktwert in den letzten Tagen gestiegen ist",
+    "Market value increase or decrease over the last days (7 days). Click to sort by biggest risers!": "Marktwert-Veränderung der letzten Tage (7 Tage). Klicke zum Sortieren nach den größten Steigerungen!",
+    "24h market value change": "24h Marktwert-Änderung",
+    "7-day MW trend": "7-Tage Marktwert-Trend",
+    "Points (Total / Ø)": "Punkte (Gesamt / Ø)",
+    "Average points per game": "Punkteschnitt pro Spiel",
+    "Appearances this season and Points per €1M": "Einsätze diese Saison und Punkte pro €1M",
+    "Active bid:": "Aktives Gebot:",
+    "Click to update or withdraw": "Klicke zum Anpassen oder Zurückziehen",
+    "Click to update or withdraw your bid": "Klicke zum Anpassen oder Zurückziehen deines Gebots",
+    "Place a bid or click to update / withdraw your active bid": "Gebot abgeben oder aktives Gebot anpassen / zurückziehen",
+    "Current market value and 24h trend. If a manager listed with custom ask price, asking price is shown.": "Aktueller Marktwert und 24h-Trend. Bei Manager-Angeboten mit individuellem Preis wird der Angebotspreis angezeigt.",
+    "slots free": "Plätze frei",
+    "needed for Starting XI": "für Startelf benötigt",
+    "Squad full": "Kader voll",
+    "in this league": "in dieser Liga",
+    "league limit:": "Liga-Limit:",
 
     // Section Headers & Notes (ui.section)
     "Lineup & Pitch": "Aufstellung & Spielfeld",
@@ -1896,7 +2873,7 @@ table.data tr.tr-user-deal td {
     "Page": "Seite",
     "Showing": "Zeige",
     "of": "von",
-    "players": "Spielern",
+    "players": "Spieler",
     "Loading all players database across the league and teams…": "Spielerdatenbank der gesamten Bundesliga wird geladen…",
     "First page": "Erste Seite",
     "Previous page": "Vorherige Seite",
@@ -2269,6 +3246,8 @@ table.data tr.tr-user-deal td {
     "Current": "Aktuell",
     "Language": "Sprache",
     "starters": "Startelf",
+    "(shown after next collect)": "(wird nach dem nächsten Abholen angezeigt)",
+    "Kickbase only reports the streak day when the bonus is collected": "Kickbase meldet den Serientag nur beim Abholen des Bonus",
     "11 required": "11 erforderlich",
     "Auto-fill Best XI": "Beste 11 aufstellen",
     "Save Lineup": "Aufstellung speichern",
@@ -2284,7 +3263,9 @@ table.data tr.tr-user-deal td {
     "AI Lineup must have exactly 11 players to be saved to Kickbase.": "Die KI-Aufstellung muss genau 11 Spieler enthalten, um in Kickbase gespeichert zu werden.",
     "Could not save lineup: ": "Aufstellung konnte nicht gespeichert werden: ",
     "Cannot save lineup: Kickbase requires 11 players in your squad. Buy more players on the Transfermarkt!": "Aufstellung kann nicht gespeichert werden: Kickbase erfordert 11 Spieler im Kader. Kaufe weitere Spieler auf dem Transfermarkt!",
-    "Cannot save lineup: Exactly 11 players must be fielded.": "Aufstellung kann nicht gespeichert werden: Es müssen genau 11 Spieler aufgestellt sein."
+    "Cannot save lineup: Exactly 11 players must be fielded.": "Aufstellung kann nicht gespeichert werden: Es müssen genau 11 Spieler aufgestellt sein.",
+    "Lineup & formation saved locally for your planning! (Note: Kickbase server requires 11 players before matchday kickoff)": "Aufstellung & Formation lokal für deine Planung gespeichert! (Hinweis: Kickbase-Server erfordert 11 Spieler vor Spieltags-Anpfiff)",
+    "Saved locally! (Kickbase server requires 11 players to sync online).": "Lokal gespeichert! (Kickbase-Server erfordert 11 Spieler für den Online-Upload)."
   };
 
   function getLang() {
@@ -2519,7 +3500,9 @@ table.data tr.tr-user-deal td {
           }).join("")}</tr>`;
         }).join("")}</tbody></table></div>`;
       container.querySelectorAll("th").forEach((th) => th.addEventListener("click", () => {
-        const k = th.dataset.k; if (sortKey === k) desc = !desc; else { sortKey = k; desc = true; } render();
+        const k = th.dataset.k; if (sortKey === k) desc = !desc; else { sortKey = k; desc = true; }
+        if (opts.onSort) opts.onSort(sortKey, desc);
+        render();
       }));
       if (opts.onRowClick) {
         container.querySelectorAll("tbody tr[data-row-idx]").forEach((tr) => {
@@ -3191,11 +4174,38 @@ OFFICIAL KICKBASE RULES & STRATEGY DIRECTIVES:
     };
   }
 
-  // Full Gemini API call with official Kickbase rules
-  async function analyze({ budget, squad, startingXI, bench, market, formation }) {
+  const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes cache
+
+  function getSquadFingerprint({ budget, squad = [], startingXI = [], formation = "" }) {
+    const squadSig = squad.map((p) => `${p.id}:${p.rawStatus || 0}:${Math.round((p.marketValue || 0) / 100000)}`).sort().join("|");
+    const startersSig = startingXI.map((p) => p.id || p).sort().join(",");
+    const budgetRound = Math.round((budget || 0) / 50000);
+    return `${formation}_${startersSig}_${squadSig}_${budgetRound}`;
+  }
+
+  // Full Gemini API call with official Kickbase rules & smart caching
+  async function analyze({ budget, squad, startingXI, bench, market, formation, force = false, leagueId = "" }) {
     const key = getApiKey();
     if (!key) {
       return analyzeFallback({ budget, squad, startingXI, bench, market, formation });
+    }
+
+    const currentFp = getSquadFingerprint({ budget, squad, startingXI, formation });
+    const cacheKey = `kb.ai_cache.${leagueId || "default"}`;
+
+    if (!force) {
+      try {
+        const cached = (typeof store !== "undefined") ? store.get(cacheKey) : null;
+        if (cached && cached.timestamp && cached.data) {
+          const age = Date.now() - cached.timestamp;
+          if (age < CACHE_TTL_MS && cached.fingerprint === currentFp) {
+            console.log(`[KB.ai] Reusing cached Gemini analysis (${Math.round(age / 60000)}m old, squad unchanged).`);
+            cached.data.fromCache = true;
+            cached.data.cacheAgeMinutes = Math.round(age / 60000);
+            return cached.data;
+          }
+        }
+      } catch (_) {}
     }
 
     const model = getModel();
@@ -3309,6 +4319,12 @@ Analyze my squad strictly under Kickbase rules:
     if (!text) throw new Error("Gemini returned empty response.");
     const parsed = JSON.parse(text);
     parsed.isDemo = false;
+    parsed.fromCache = false;
+    try {
+      if (typeof store !== "undefined") {
+        store.set(cacheKey, { timestamp: Date.now(), fingerprint: currentFp, data: parsed });
+      }
+    } catch (_) {}
     return parsed;
   }
 
@@ -3704,6 +4720,23 @@ Analyze my squad strictly under Kickbase rules:
       if (S.page === "team") renderPage();
     });
     box.querySelector("#btn-recheck-bonus")?.addEventListener("click", () => handleClaimDailyBonus(true));
+
+    box.insertAdjacentHTML("beforeend", `<div id="side-bonus-streak" style="margin-top:6px;font-size:11.5px;color:var(--muted);display:flex;align-items:center;justify-content:space-between;gap:6px"></div>`);
+    updateBonusStreak();
+  }
+
+  // Kickbase only exposes the streak day in the response of GET /v4/bonus/collect (field `day`).
+  // It is stored when the bonus is collected through this app and shown here.
+  function updateBonusStreak() {
+    const el = document.getElementById("side-bonus-streak");
+    if (!el) return;
+    const rec = store.get("kb.bonusDay");
+    if (rec && rec.day) {
+      const isToday = rec.date === getTodayDateKey();
+      el.innerHTML = `<span>🔥 ${t("Streak")}: <b style="color:#fbbf24">${t("Day")} ${rec.day}</b>${isToday ? "" : ` <span style="opacity:.7">(${esc(rec.date)})</span>`}</span>`;
+    } else {
+      el.innerHTML = `<span style="opacity:.75" title="${esc(t("Kickbase only reports the streak day when the bonus is collected"))}">${t("Streak")}: – ${esc(t("(shown after next collect)"))}</span>`;
+    }
   }
 
   async function handleClaimDailyBonus(interactive = true) {
@@ -3999,12 +5032,13 @@ Analyze my squad strictly under Kickbase rules:
   // -------------------------------------------------------------- pages ----
   async function pageTeam(el, ctx) {
     el.innerHTML = ui.loading("Loading your squad and lineup…");
-    const [me, rank, squadRaw, lineupRaw, marketRaw] = await Promise.all([
+    const [me, rank, squadRaw, lineupRaw, marketRaw, leagueSettings] = await Promise.all([
       S.api.leagueMe(ctx.l),
       rankingRows(ctx.l),
       S.api.squad(ctx.l),
       S.api.lineup ? S.api.lineup(ctx.l) : Promise.resolve([]),
-      S.api.market(ctx.l)
+      S.api.market(ctx.l),
+      S.api.leagueSettings ? S.api.leagueSettings(ctx.l).catch(() => null) : Promise.resolve(null)
     ]);
     if (ctx.stale()) return;
 
@@ -4070,13 +5104,17 @@ Analyze my squad strictly under Kickbase rules:
     if (!startingIds.length && savedLineup && Array.isArray(savedLineup) && savedLineup.length) {
       startingIds = savedLineup.filter((id) => squad.some((p) => p.id === id));
     }
+    if (!startingIds.length && squad.length) {
+      startingIds = squad.slice(0, 11).map((p) => p.id);
+    }
 
-    // Helper to ensure full, valid 11-player lineup from squad without missing slots
+    // Helper to ensure full, valid lineup from squad without missing slots
     function ensureFullLineup() {
       const validSquadIds = new Set(squad.map((p) => p.id));
       startingIds = [...new Set(startingIds)].filter((id) => validSquadIds.has(id));
 
-      if (squad.length >= 11 && startingIds.length < 11) {
+      const targetCount = Math.min(11, squad.length);
+      if (startingIds.length < targetCount) {
         const bench = squad.filter((p) => !startingIds.includes(p.id)).sort((a, b) => {
           if (a.rawStatus === 0 && b.rawStatus !== 0) return -1;
           if (a.rawStatus !== 0 && b.rawStatus === 0) return 1;
@@ -4085,7 +5123,7 @@ Analyze my squad strictly under Kickbase rules:
 
         const formReq = KB.ai.getFormationReq(currentFormation);
         for (const [pos, count] of Object.entries(formReq)) {
-          if (startingIds.length >= 11) break;
+          if (startingIds.length >= targetCount) break;
           const currentCount = startingIds.filter((id) => squad.find((p) => p.id === id)?.position === pos).length;
           if (currentCount < count) {
             const needed = count - currentCount;
@@ -4097,7 +5135,7 @@ Analyze my squad strictly under Kickbase rules:
         }
 
         for (const bp of bench) {
-          if (startingIds.length >= 11) break;
+          if (startingIds.length >= targetCount) break;
           if (!startingIds.includes(bp.id)) {
             startingIds.push(bp.id);
           }
@@ -4134,11 +5172,16 @@ Analyze my squad strictly under Kickbase rules:
       try {
         const startingXI = startingIds.map((id) => squad.find((p) => p.id === id)).filter(Boolean);
         const bench = squad.filter((p) => !startingIds.includes(p.id));
-        if (forceGemini || KB.ai.getApiKey()) {
-          aiData = await KB.ai.analyze({ budget, squad, startingXI, bench, market, formation: currentFormation });
-        } else {
-          aiData = KB.ai.analyzeFallback({ budget, squad, startingXI, bench, market, formation: currentFormation });
-        }
+        aiData = await KB.ai.analyze({
+          budget,
+          squad,
+          startingXI,
+          bench,
+          market,
+          formation: currentFormation,
+          force: forceGemini,
+          leagueId: ctx.l
+        });
       } catch (err) {
         console.error("AI error:", err);
         aiData = KB.ai.analyzeFallback({
@@ -4156,10 +5199,25 @@ Analyze my squad strictly under Kickbase rules:
       }
     };
 
+    const maxPlayers = Number(me?.mppu || leagueSettings?.mppu || me?.maxPlayers || leagueSettings?.maxPlayers || 0) || null;
+    const squadSizeStr = maxPlayers ? `${squad.length}/${maxPlayers} ${t("players")}` : `${squad.length} ${t("players")}`;
+    const squadSub = maxPlayers
+      ? (squad.length < 11
+          ? `⚠️ ${11 - squad.length} ${t("needed for Starting XI")} (${t("max.")} ${maxPlayers})`
+          : (squad.length >= maxPlayers
+              ? `${t("Squad full")} (${t("max.")} ${maxPlayers})`
+              : `${maxPlayers - squad.length} ${t("slots free")} (${t("max.")} ${maxPlayers})`))
+      : t("currently owned");
+
     const cards = [
       { label: "Budget", value: money(budget), sub: budget < 0 ? "⚠️ negative! Must be ≥ 0 by Friday kickoff" : "kickoff ready", tone: budget < 0 ? "down" : "up" },
       { label: "Squad value", value: money(value), delta: signedMoney(ch), tone: tone(ch), sub: "today" },
-      { label: "Squad size", value: `${squad.length} players`, sub: "currently owned" }
+      {
+        label: "Squad size",
+        value: squadSizeStr,
+        sub: squadSub,
+        tone: squad.length < 11 ? "warn" : ""
+      }
     ];
     if (mine) cards.push(
       { label: "League rank", value: `#${mine.seasonRank}`, sub: `of ${rank.length} managers` },
@@ -4207,7 +5265,7 @@ Analyze my squad strictly under Kickbase rules:
       + `<div id="pitch-container"></div>`
       + ui.section("Bench (Substitutes)", "Click a bench player to swap into your Starting XI")
       + `<div id="bench-container"></div>`
-      + ui.section("Squad Overview", `${squad.length} ${t("players · click column to sort")}`)
+      + ui.section("Squad Overview", `${maxPlayers ? `${squad.length}/${maxPlayers}` : squad.length} ${t("players · click column to sort")}${maxPlayers ? ` (${t("max.")} ${maxPlayers} ${t("in this league")})` : ""}`)
       + `<div id="t-squad"></div>`
       + ui.section("Squad Market Value History & Purchase Tracker", "Marktwert development over time with purchase dates & prices (🛒) — click players to toggle or solo")
       + `<div id="team-mv-tracker" style="margin-bottom:22px"></div>`
@@ -4327,14 +5385,6 @@ Analyze my squad strictly under Kickbase rules:
       ensureFullLineup();
 
       const validStarting = [...new Set(startingIds)].filter((id) => squad.some((p) => p.id === id));
-      if (validStarting.length < 11) {
-        if (squad.length < 11) {
-          ui.toast(t("Cannot save lineup: Kickbase requires 11 players in your squad. Buy more players on the Transfermarkt!") + ` (${squad.length}/11)`, "warn");
-        } else {
-          ui.toast(t("Cannot save lineup: Exactly 11 players must be fielded.") + ` (${validStarting.length}/11)`, "warn");
-        }
-        return;
-      }
 
       let formationToSend = currentFormation;
       const starters = validStarting.map((id) => squad.find((p) => p.id === id)).filter(Boolean);
@@ -4348,15 +5398,28 @@ Analyze my squad strictly under Kickbase rules:
         formationToSend = "4-4-2";
       }
 
+      // Always save locally so user's visibility, formation, and planning persist!
+      store.set(`kb.lineup.${ctx.l}`, validStarting);
+      store.set(`kb.formation.${ctx.l}`, currentFormation || formationToSend);
+
+      // If fewer than 11 players, save locally and inform user (no blocking error)
+      if (validStarting.length < 11) {
+        if (showToast) {
+          ui.toast(
+            t("Lineup & formation saved locally for your planning! (Note: Kickbase server requires 11 players before matchday kickoff)") + ` (${validStarting.length}/11)`,
+            "info"
+          );
+        }
+        return;
+      }
+
       try {
         await S.api.updateLineup(ctx.l, { type: formationToSend, players: validStarting.map(String) });
-        store.set(`kb.lineup.${ctx.l}`, validStarting);
-        store.set(`kb.formation.${ctx.l}`, formationToSend);
         if (showToast) ui.toast(t("Lineup saved successfully to Kickbase!"), "ok");
       } catch (err) {
         const errMsg = err.message || String(err);
         if (errMsg.includes("LineupNotEnoughPlayers")) {
-          ui.toast(t("Kickbase rejected lineup: Exactly 11 players are required. Please field a full team."), "error");
+          ui.toast(t("Saved locally! (Kickbase server requires 11 players to sync online)."), "info");
         } else {
           ui.toast(t("Could not save lineup: ") + errMsg, "error");
         }
@@ -4495,6 +5558,7 @@ Analyze my squad strictly under Kickbase rules:
               currentFormation = `${d}-${m}-${f}`;
               store.set(`kb.formation.${ctx.l}`, currentFormation);
             }
+            store.set(`kb.lineup.${ctx.l}`, startingIds);
             renderPitch();
             renderBench();
             ui.toast(`${t("Added")} ${candidate.name} ${t("to Starting XI.")}`);
@@ -7667,7 +8731,10 @@ Analyze my squad strictly under Kickbase rules:
     el.innerHTML = ui.pageHead(ctx.name, "Transfermarkt", "Who's for sale – and who's worth the money.")
       + `<div id="bidding"></div>` + ui.section("All players on the Transfermarkt", `${market.length} ${t("listed · click any player to place or update a bid")}`)
       + `<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:12px">`
-      +   `<div class="seg" id="posf">${["GK", "DEF", "MID", "FWD"].map((p) => `<button data-p="${p}">${p}</button>`).join("")}</div>`
+      +   `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">`
+      +     `<div class="seg" id="posf">${["GK", "DEF", "MID", "FWD"].map((p) => `<button data-p="${p}">${p}</button>`).join("")}</div>`
+      +     `<button class="btn sm ${S.onlyMvGainers ? "primary" : ""}" id="btn-market-risers" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;padding:3px 10px;border-radius:8px" title="${t("Show only players whose market value is increasing in the last days")}"><span style="color:${S.onlyMvGainers ? "#fff" : "#34d399"}">▲</span> <span>${t("Rising Value Only")}</span></button>`
+      +   `</div>`
       +   `<label class="check" style="font-size:12.5px;color:var(--muted);cursor:pointer;display:inline-flex;align-items:center;gap:7px;margin:0;user-select:none">`
       +     `<input type="checkbox" id="chk-squad-graph" ${S.showSquadInMarketGraph ? "checked" : ""}>`
       +     `<span>${t("Compare my squad in graph (● Light Grey)")}</span>`
@@ -7681,6 +8748,12 @@ Analyze my squad strictly under Kickbase rules:
 
     const draw = () => {
       el.querySelectorAll("#posf button").forEach((b) => b.classList.toggle("on", S.positions.includes(b.dataset.p)));
+      const risersBtn = el.querySelector("#btn-market-risers");
+      if (risersBtn) {
+        risersBtn.classList.toggle("primary", !!S.onlyMvGainers);
+        const iconSpan = risersBtn.querySelector("span:first-child");
+        if (iconSpan) iconSpan.style.color = S.onlyMvGainers ? "#fff" : "#34d399";
+      }
       const chk = el.querySelector("#chk-squad-graph");
       if (chk) chk.checked = !!S.showSquadInMarketGraph;
 
@@ -7690,17 +8763,44 @@ Analyze my squad strictly under Kickbase rules:
         return;
       }
 
-      const view = market.filter((p) => S.positions.includes(p.position));
-      ui.table(el.querySelector("#t1"), view, cols(
+      let view = market.filter((p) => S.positions.includes(p.position));
+      if (S.onlyMvGainers) {
+        view = view.filter((p) => (Number(p.change7d) > 0) || (Number(p.change24h) > 0) || (p.trend === "up"));
+      }
+
+      const marketCols = [
         {
-          key: "id",
+          key: "myOfferPrice",
           label: "Bid",
-          fmt: (v, r) => (r.myOfferId || r.myOfferPrice)
-            ? `<button class="btn sm" style="height:26px;padding:0 9px;font-size:11.5px;border-color:rgba(16,185,129,0.45);color:#34d399">${ui.icon("edit")} ${t("Update bid")}</button>`
-            : `<button class="btn primary sm" style="height:26px;padding:0 10px;font-size:11.5px">${ui.icon("gavel")} ${t("Bid")}</button>`
+          title: "Place a bid or click to update / withdraw your active bid",
+          fmt: (v, r) => {
+            const hasBid = Boolean(r.myOfferId || r.myOfferPrice);
+            if (hasBid) {
+              const bidVal = r.myOfferPrice ? money(r.myOfferPrice) : t("Active");
+              return `<button class="btn sm" style="height:23px;padding:0 7px;font-size:11px;border-color:rgba(16,185,129,0.5);background:rgba(16,185,129,0.14);color:#34d399;font-weight:700" title="${t("Active bid:")} ${money(r.myOfferPrice || 0)} – ${t("Click to update or withdraw")}">✏️ ${bidVal}</button>`;
+            }
+            return `<button class="btn primary sm" style="height:23px;padding:0 8px;font-size:11px">${ui.icon("gavel")} ${t("Bid")}</button>`;
+          }
         },
-        "image", "name", "position", "status",
-        { key: "price", label: "Price", kind: "money" },
+        PLAYER_COLS.image,
+        {
+          key: "name",
+          label: "Player",
+          fmt: (v, r) => {
+            const pCol = (r && r.color) || KB.playerColor(r || v);
+            const rawSt = r && r.status;
+            let stBadge = "";
+            if (rawSt && rawSt !== "Fit" && rawSt !== "Fit (Matchday)") {
+              const isInj = rawSt === "Injured" || rawSt === "Verletzt" || rawSt === "Red card" || rawSt === "Rote Karte";
+              const isWarn = rawSt === "Doubtful" || rawSt === "Fraglich" || rawSt === "5th yellow" || rawSt === "Yellow-red";
+              const color = isInj ? "#f87171" : (isWarn ? "#fbbf24" : "var(--muted)");
+              const bg = isInj ? "rgba(248,113,113,0.16)" : (isWarn ? "rgba(251,191,36,0.16)" : "rgba(255,255,255,0.06)");
+              stBadge = `<span style="font-size:10px;padding:1px 5px;border-radius:4px;background:${bg};color:${color};font-weight:600;margin-left:4px" title="${esc(t(rawSt))}">${esc(t(rawSt))}</span>`;
+            }
+            return `<span style="display:inline-flex;align-items:center;gap:6px"><span class="player-color-dot" style="background:${pCol};box-shadow:0 0 6px ${pCol}88"></span><span style="font-weight:600">${esc(v)}</span>${stBadge}</span>`;
+          }
+        },
+        PLAYER_COLS.position,
         {
           key: "expiresInH",
           label: "Window ends",
@@ -7711,26 +8811,116 @@ Analyze my squad strictly under Kickbase rules:
             if (!exp) return v !== null && v !== undefined ? `${ui.fixed(1)(v)}h` : `<span class="muted">–</span>`;
             return `
               <div title="${t("Transfer window closes")} ${esc(exp.clockStr)} – ${t("player is unavailable after")}">
-                <b style="color:${exp.color}">${esc(exp.durationStr)}</b>
-                <div style="font-size:10.5px;color:var(--muted)" class="num">${esc(exp.clockStr)}</div>
+                <b style="color:${exp.color};font-size:12px">${esc(exp.durationStr)}</b>
+                <div style="font-size:10px;color:var(--muted)" class="num">${esc(exp.clockStr)}</div>
               </div>
             `;
           }
         },
-        { key: "seller", label: "Seller", fmt: (v) => v ? `<span class="pill-user-deal">👤 ${esc(v)} <span class="tag-user-p2p">${t("User")}</span></span>` : `<span class="muted" style="font-size:11.5px">🏪 Kickbase</span>` },
-        "marketValue",
-        { key: "myOfferPrice", label: "My bid", kind: "money", optional: true },
-        "totalPoints", "avgPoints", "gamesPlayed", "ppm"
-      ),
         {
-          sort: "expiresInH",
-          desc: false,
-          rowClass: (p) => (p.myOfferId || p.myOfferPrice) ? "me" : (p.seller ? "tr-user-deal" : ""),
-          onRowClick: (p) => openPlayerModal(ctx, p, { budget: me.b, market, squad }),
-          rowTitle: (p) => (p.myOfferId || p.myOfferPrice)
-            ? `Click to view player stats, MW history & update bid (${money(p.myOfferPrice)}) for ${p.name}`
-            : `Click to view player stats, MW history & place bid on ${p.name}`
-        });
+          key: "seller",
+          label: "Seller",
+          fmt: (v) => v
+            ? `<span style="font-size:11.5px;color:#fcd34d;font-weight:600;display:inline-flex;align-items:center;gap:3px" title="${t("Listed by manager")} ${esc(v)}"><span style="font-size:10.5px">👤</span> ${esc(v)}</span>`
+            : `<span class="muted" style="font-size:11px">Kickbase</span>`
+        },
+        {
+          key: "marketValue",
+          label: "Market value",
+          kind: "money",
+          title: "Current market value and 24h trend. If a manager listed with custom ask price, asking price is shown.",
+          fmt: (v, r) => {
+            if (!v) return '<span class="muted">–</span>';
+            const d24 = Number(r.change24h || 0);
+            const sign = d24 > 0 ? "▲ +" : (d24 < 0 ? "▼ " : "● ");
+            const toneCls = d24 > 0 ? "up" : (d24 < 0 ? "down" : "muted");
+            const hasCustomPrice = r.price && r.price !== r.marketValue;
+            return `
+              <div>
+                <b class="num" style="font-weight:700;${hasCustomPrice ? "color:#fbbf24" : ""}">${money(hasCustomPrice ? r.price : v)}</b>
+                <div style="font-size:10px;margin-top:1px" class="${toneCls} num" title="${t("24h market value change")}: ${signedMoney(d24)}${hasCustomPrice ? ` · MW: ${money(v)}` : ""}">
+                  ${hasCustomPrice ? `<span class="muted">MW ${money(v)} · </span>` : ""}${d24 !== 0 ? `${sign}${money(Math.abs(d24))}` : `<span class="muted">±€0</span>`}
+                </div>
+              </div>
+            `;
+          }
+        },
+        {
+          key: "change7d",
+          label: "MW Trend (Last Days)",
+          title: "Market value increase or decrease over the last days (7 days). Click to sort by biggest risers!",
+          right: true,
+          fmt: (v, r) => {
+            const d7 = (v !== null && v !== undefined) ? Number(v) : (r.change7d !== null && r.change7d !== undefined ? Number(r.change7d) : null);
+            const d24 = Number(r.change24h || 0);
+            if (d7 === null && d24 === 0) {
+              return `<span class="muted" style="font-size:11px">–</span>`;
+            }
+            const val = d7 !== null ? d7 : d24;
+            const isUp = val > 0;
+            const isDown = val < 0;
+            const pillCls = isUp ? "pill up" : (isDown ? "pill down" : "pill");
+            const arrow = isUp ? "▲ " : (isDown ? "▼ " : "");
+            const baseMv = (r.marketValue || 0) - val;
+            const pct = (baseMv > 0) ? Math.round((val / baseMv) * 1000) / 10 : 0;
+            const pctStr = (pct !== 0) ? ` (${val > 0 ? "+" : ""}${pct}%)` : "";
+
+            return `
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+                <span class="${pillCls}" style="font-size:11px;font-weight:700;padding:2px 7px;border-radius:6px;letter-spacing:0.02em" title="${t("7-day MW trend")}: ${signedMoney(val)}${pctStr}">
+                  ${arrow}${signedMoney(val)}${pctStr}
+                </span>
+                <span style="font-size:9.5px;color:var(--muted)" class="num" title="${t("24h market value change")}">24h: <span class="${d24 > 0 ? "up" : (d24 < 0 ? "down" : "")}">${d24 > 0 ? "+" : ""}${money(d24)}</span></span>
+              </div>
+            `;
+          }
+        },
+        {
+          key: "totalPoints",
+          label: "Points (Total / Ø)",
+          title: "Total points this season and average points per game",
+          right: true,
+          fmt: (v, r) => `
+            <div>
+              <b class="num" style="font-weight:700">${ui.int(v || 0)}</b>
+              <div style="font-size:10px;color:var(--muted)" class="num" title="${t("Average points per game")}">Ø ${ui.int(r.avgPoints || 0)}</div>
+            </div>
+          `
+        },
+        {
+          key: "gamesPlayed",
+          label: "Games",
+          title: "Appearances this season (Starts + Subs) and Points per €1M",
+          right: true,
+          fmt: (v, r) => {
+            const total = Number(v) || 0;
+            const starts = r.startsCount !== null && r.startsCount !== undefined ? Number(r.startsCount) : null;
+            const ppmStr = r.ppm ? `${ui.fixed(1)(r.ppm)}/M` : "";
+            return `
+              <div>
+                <b class="num">${ui.int(total)}</b>
+                <div style="font-size:10px;color:var(--muted)" class="num" title="${starts !== null ? `${starts} starts` : ""}${ppmStr ? ` · ${ppmStr}` : ""}">
+                  ${starts !== null ? `${starts} S` : ""}${ppmStr ? ` · ${ppmStr}` : ""}
+                </div>
+              </div>
+            `;
+          }
+        }
+      ];
+
+      ui.table(el.querySelector("#t1"), view, marketCols, {
+        sort: S.marketSort || "expiresInH",
+        desc: S.marketSortDesc !== undefined ? S.marketSortDesc : false,
+        onSort: (k, d) => {
+          S.marketSort = k;
+          S.marketSortDesc = d;
+        },
+        rowClass: (p) => (p.myOfferId || p.myOfferPrice) ? "me" : (p.seller ? "tr-user-deal" : ""),
+        onRowClick: (p) => openPlayerModal(ctx, p, { budget: me.b, market, squad }),
+        rowTitle: (p) => (p.myOfferId || p.myOfferPrice)
+          ? `Click to view player stats, MW history & update bid (${money(p.myOfferPrice)}) for ${p.name}`
+          : `Click to view player stats, MW history & place bid on ${p.name}`
+      });
 
       // Market player points (colored by position / pawn color)
       const marketPoints = view.map((p) => ({
@@ -7784,63 +8974,101 @@ Analyze my squad strictly under Kickbase rules:
     el.querySelectorAll("#posf button").forEach((b) => b.addEventListener("click", () => {
       const p = b.dataset.p; S.positions = S.positions.includes(p) ? S.positions.filter((x) => x !== p) : [...S.positions, p]; draw();
     }));
+    el.querySelector("#btn-market-risers")?.addEventListener("click", () => {
+      S.onlyMvGainers = !S.onlyMvGainers;
+      if (S.onlyMvGainers) {
+        S.marketSort = "change7d";
+        S.marketSortDesc = true;
+      }
+      draw();
+    });
     el.querySelector("#chk-squad-graph")?.addEventListener("change", (e) => {
       S.showSquadInMarketGraph = e.target.checked;
       draw();
     });
     draw();
 
-    // Enrich market players with exact season appearances & total points from player profile endpoint
-    if (market.length && S.api.player) {
+    // Enrich market players with exact season appearances & total points from player profile and historical MW
+    if (market.length) {
       let leagueSmdc = null;
-      Promise.all(market.map(async (p) => {
-        if (!p.id) return false;
-        const pInfo = await S.api.player(ctx.l, p.id);
-        if (!pInfo) return false;
-        if (pInfo.tp !== undefined && pInfo.tp !== null) p.totalPoints = Number(pInfo.tp);
-        if (pInfo.ap !== undefined && pInfo.ap !== null) p.avgPoints = Number(pInfo.ap);
-        if (pInfo.smdc !== undefined && pInfo.smdc !== null && Number(pInfo.smdc) > 0) {
-          p.seasonMatchdays = Number(pInfo.smdc);
-          leagueSmdc = Math.max(leagueSmdc || 0, p.seasonMatchdays);
+      const CHUNK_SIZE = 6;
+      (async () => {
+        let changed = false;
+        for (let i = 0; i < market.length; i += CHUNK_SIZE) {
+          const chunk = market.slice(i, i + CHUNK_SIZE);
+          await Promise.all(chunk.map(async (p) => {
+            if (!p.id) return;
+            try {
+              const [pInfo, hist] = await Promise.all([
+                (S.api.player ? S.api.player(ctx.l, p.id).catch(() => null) : Promise.resolve(null)),
+                fetchPlayerMvHistory(ctx.l, p.id).catch(() => null)
+              ]);
+              if (pInfo) {
+                if (pInfo.tp !== undefined && pInfo.tp !== null) p.totalPoints = Number(pInfo.tp);
+                if (pInfo.ap !== undefined && pInfo.ap !== null) p.avgPoints = Number(pInfo.ap);
+                if (pInfo.mv !== undefined && pInfo.mv !== null && Number(pInfo.mv) > 0) p.marketValue = Number(pInfo.mv);
+                if (pInfo.tfhmvt !== undefined && pInfo.tfhmvt !== null) p.change24h = Number(pInfo.tfhmvt);
+                if (pInfo.sdmvt !== undefined && pInfo.sdmvt !== null) p.change7d = Number(pInfo.sdmvt);
+                if (pInfo.smdc !== undefined && pInfo.smdc !== null && Number(pInfo.smdc) > 0) {
+                  p.seasonMatchdays = Number(pInfo.smdc);
+                  leagueSmdc = Math.max(leagueSmdc || 0, p.seasonMatchdays);
+                }
+                const starts = (pInfo.ismc !== undefined && pInfo.ismc !== null) ? Number(pInfo.ismc) : (p.startsCount ?? null);
+                const phArr = Array.isArray(pInfo.ph) ? pInfo.ph : null;
+                const phPlayed = phArr ? phArr.filter((x) => x && (x.hp || (x.p !== undefined && x.p !== 0))).length : 0;
+                let games = 0;
+                if (phPlayed > 0) games = phPlayed;
+                else if (starts !== null) games = starts;
+                const pts = p.totalPoints || 0;
+                const avg = p.avgPoints || 0;
+                if (games <= 0 && pts && avg) games = Math.max(1, Math.round(Math.abs(pts / avg)));
+                else if (games <= 0 && pts) games = 1;
+                if (starts !== null && starts > games) games = starts;
+                const curSmdc = p.seasonMatchdays || leagueSmdc;
+                if (curSmdc && games > curSmdc) games = curSmdc;
+                p.gamesPlayed = games;
+                if (starts !== null) p.startsCount = starts;
+                changed = true;
+              }
+              if (hist && hist.list && hist.list.length >= 2) {
+                const list = hist.list;
+                const curMv = list[list.length - 1].marketValue || p.marketValue;
+                const now = Date.now();
+                const sevenDaysAgo = now - (7 * 86400 * 1000);
+                const oneDayAgo = now - (86400 * 1000);
+                let closest7d = list[0], minD7 = Infinity;
+                let closest1d = list[0], minD1 = Infinity;
+                for (const item of list) {
+                  const d7 = Math.abs(item.timestamp - sevenDaysAgo);
+                  if (d7 < minD7) { minD7 = d7; closest7d = item; }
+                  const d1 = Math.abs(item.timestamp - oneDayAgo);
+                  if (d1 < minD1) { minD1 = d1; closest1d = item; }
+                }
+                const calc7d = curMv - closest7d.marketValue;
+                const calc24h = curMv - closest1d.marketValue;
+                if (p.change7d === null || p.change7d === undefined || p.change7d === 0) {
+                  p.change7d = calc7d;
+                  changed = true;
+                }
+                if (!p.change24h && calc24h !== 0) {
+                  p.change24h = calc24h;
+                  changed = true;
+                }
+              }
+            } catch (e) {}
+          }));
         }
-        const starts = (pInfo.ismc !== undefined && pInfo.ismc !== null) ? Number(pInfo.ismc) : (p.startsCount ?? null);
-        const phArr = Array.isArray(pInfo.ph) ? pInfo.ph : null;
-        const phPlayed = phArr ? phArr.filter((x) => x && (x.hp || (x.p !== undefined && x.p !== 0))).length : 0;
-        let games = 0;
-        if (phPlayed > 0) {
-          games = phPlayed;
-        } else if (starts !== null) {
-          games = starts;
-        }
-        const pts = p.totalPoints || 0;
-        const avg = p.avgPoints || 0;
-        if (games <= 0 && pts && avg) {
-          games = Math.max(1, Math.round(Math.abs(pts / avg)));
-        } else if (games <= 0 && pts) {
-          games = 1;
-        }
-        if (starts !== null && starts > games) {
-          games = starts;
-        }
-        const curSmdc = p.seasonMatchdays || leagueSmdc;
-        if (curSmdc && games > curSmdc) {
-          games = curSmdc;
-        }
-        p.gamesPlayed = games;
-        if (starts !== null) p.startsCount = starts;
-        return true;
-      })).then((results) => {
         if (leagueSmdc) {
           for (const p of market) {
             if (!p.seasonMatchdays) p.seasonMatchdays = leagueSmdc;
             if (p.gamesPlayed > leagueSmdc) p.gamesPlayed = leagueSmdc;
           }
         }
-        if (!ctx.stale() && results.some(Boolean)) {
+        if (!ctx.stale() && changed) {
           draw();
           renderBidding(el.querySelector("#bidding"), ctx, market, me.b, squad);
         }
-      }).catch(() => {});
+      })();
     }
 
     // Load & render Last Manager Transfers & Winning Bids section
@@ -11260,11 +12488,20 @@ Analyze my squad strictly under Kickbase rules:
     let aiData = null;
     let chatHistory = [];
 
-    const runAnalysis = async () => {
+    const runAnalysis = async (force = false) => {
       const cnt = el.querySelector("#adv-content");
       if (cnt) cnt.innerHTML = `<div class="loading"><div class="spinner"></div> ${t("Gemini is crunching league stats, injury reports, and transfer market trends…")}</div>`;
       try {
-        aiData = await KB.ai.analyze({ budget, squad, startingXI, bench, market, formation: currentFormation });
+        aiData = await KB.ai.analyze({
+          budget,
+          squad,
+          startingXI,
+          bench,
+          market,
+          formation: currentFormation,
+          force,
+          leagueId: ctx.l
+        });
       } catch (err) {
         ui.toast(err.message, "error");
         aiData = KB.ai.analyzeFallback({ budget, squad, startingXI, bench, market, formation: currentFormation });
@@ -11299,8 +12536,8 @@ Analyze my squad strictly under Kickbase rules:
         </div>
       `;
 
-      headEl.querySelector("#adv-rerun")?.addEventListener("click", runAnalysis);
-      headEl.querySelector("#adv-cfg")?.addEventListener("click", () => aiSettingsDialog(runAnalysis));
+      headEl.querySelector("#adv-rerun")?.addEventListener("click", () => runAnalysis(true));
+      headEl.querySelector("#adv-cfg")?.addEventListener("click", () => aiSettingsDialog(() => runAnalysis(true)));
 
       if (!aiData) return;
 
@@ -11529,7 +12766,7 @@ Analyze my squad strictly under Kickbase rules:
       chatIn?.addEventListener("keydown", (e) => { if (e.key === "Enter") doSend(); });
     }
 
-    runAnalysis();
+    runAnalysis(false);
   }
 
   function withdrawDialog(ctx, p) {
@@ -11737,4 +12974,78 @@ Analyze my squad strictly under Kickbase rules:
 </script>
 
 
+<div id="kb-theme-switcher" class="kb-theme-dropdown" role="region" aria-label="Theme Switcher">
+  <button type="button" id="kb-theme-trigger" aria-haspopup="true" aria-expanded="false" title="Switch Theme">
+    <span class="kb-theme-current">
+      <span class="dot dot-space" id="kb-theme-dot"></span>
+      <span id="kb-theme-active-title">Space Gray</span>
+    </span>
+    <span class="kb-theme-chevron">▾</span>
+  </button>
+  <div id="kb-theme-menu" role="menu">
+    <div class="kb-theme-menu-title">Theme Style</div>
+    <button type="button" class="kb-theme-opt" data-theme-val="space-gray"><span class="kb-theme-opt-left"><span class="dot dot-space"></span><span>Space Gray</span></span><span class="kb-chk">✓</span></button>
+    <button type="button" class="kb-theme-opt" data-theme-val="linear"><span class="kb-theme-opt-left"><span class="dot dot-linear"></span><span>Linear Obsidian</span></span><span class="kb-chk">✓</span></button>
+    <button type="button" class="kb-theme-opt" data-theme-val="terminal"><span class="kb-theme-opt-left"><span class="dot dot-terminal"></span><span>Sports Trader</span></span><span class="kb-chk">✓</span></button>
+    <button type="button" class="kb-theme-opt" data-theme-val="nordic"><span class="kb-theme-opt-left"><span class="dot dot-nordic"></span><span>Nordic Slate</span></span><span class="kb-chk">✓</span></button>
+    <button type="button" class="kb-theme-opt" data-theme-val="pro-light"><span class="kb-theme-opt-left"><span class="dot dot-light"></span><span>Apple Light</span></span><span class="kb-chk">✓</span></button>
+  </div>
+</div>
+<script id="kb-theme-switch">(function(){
+  var box = document.getElementById('kb-theme-switcher');if(!box)return;
+  var trigger = document.getElementById('kb-theme-trigger');
+  var dot = document.getElementById('kb-theme-dot');
+  var title = document.getElementById('kb-theme-active-title');
+  var meta = document.querySelector('meta[name="color-scheme"]');
+  var valid = {
+    'space-gray': { name: 'Space Gray', dot: 'dot-space' },
+    'linear': { name: 'Linear', dot: 'dot-linear' },
+    'terminal': { name: 'Trader', dot: 'dot-terminal' },
+    'nordic': { name: 'Nordic', dot: 'dot-nordic' },
+    'pro-light': { name: 'Light', dot: 'dot-light' }
+  };
+  function apply(t){
+    if(!t || !valid[t]){
+      if (t === 'pro' || t === 'pro-dark') t = 'space-gray';
+      else t = 'space-gray';
+    }
+    document.documentElement.setAttribute('data-theme', t);
+    if(title) title.textContent = valid[t].name;
+    if(dot) dot.className = 'dot ' + valid[t].dot;
+    var btns = box.querySelectorAll('.kb-theme-opt');
+    for(var i = 0; i < btns.length; i++){
+      var b = btns[i];
+      if(b.getAttribute('data-theme-val') === t){ b.classList.add('active'); }
+      else { b.classList.remove('active'); }
+    }
+    if(meta) meta.setAttribute('content', t === 'pro-light' ? 'light' : 'dark');
+  }
+  var cur = document.documentElement.getAttribute('data-theme') || 'space-gray';
+  apply(cur);
+
+  if(trigger){
+    trigger.addEventListener('click', function(e){
+      e.stopPropagation();
+      var isOpen = box.classList.toggle('open');
+      trigger.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    });
+  }
+
+  box.addEventListener('click', function(e){
+    var btn = e.target.closest('.kb-theme-opt');
+    if(!btn) return;
+    var val = btn.getAttribute('data-theme-val');
+    try{ localStorage.setItem('kb.designTheme', val); }catch(err){}
+    apply(val);
+    box.classList.remove('open');
+    if(trigger) trigger.setAttribute('aria-expanded', 'false');
+  });
+
+  document.addEventListener('click', function(e){
+    if(!box.contains(e.target)){
+      box.classList.remove('open');
+      if(trigger) trigger.setAttribute('aria-expanded', 'false');
+    }
+  });
+})();</script>
 </body></html>
