@@ -4536,7 +4536,15 @@ Analyze my squad strictly under Kickbase rules:
   ];
   const t = KB.i18n ? KB.i18n.t : (x) => x;
   const app = document.getElementById("app");
-  const S = { api: null, session: null, leagues: [], leagueId: null, page: "team", renderId: 0, lang: KB.i18n ? KB.i18n.getLang() : "de" };
+  const S = { api: null, session: null, leagues: [], leagueId: null, page: "team", renderId: 0, lang: KB.i18n ? KB.i18n.getLang() : "de", meName: "" };
+
+  function isSoulreaper() {
+    const sName = String(S.session?.userName || "").trim().toLowerCase();
+    if (sName === "soulreaper") return true;
+    if (S.session?.name && String(S.session.name).trim().toLowerCase() === "soulreaper") return true;
+    if (S.meName && String(S.meName).trim().toLowerCase() === "soulreaper") return true;
+    return false;
+  }
 
   function setLang(lang) {
     S.lang = lang;
@@ -4737,6 +4745,7 @@ Analyze my squad strictly under Kickbase rules:
             <div id="side-bonus-content"></div>
           </div>
 
+          ${isSoulreaper() ? `
           <div class="side-section" style="margin: 8px 0 12px; padding: 10px 12px; background: rgba(99, 102, 241, .08); border: 1px solid rgba(99, 102, 241, .2); border-radius: var(--radius-sm)">
             <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
               <span style="font-size:12px;font-weight:700;color:#a5b4fc;display:flex;align-items:center;gap:4px">
@@ -4748,18 +4757,21 @@ Analyze my squad strictly under Kickbase rules:
               ${KB.ai.getApiKey() ? t("API Key connected") : t("Built-in Rule Engine")}
             </div>
           </div>
+          ` : ""}
           <div class="row"><button class="btn sm" id="refresh">${ui.icon("refresh")} ${t("Refresh")}</button>
             <button class="btn sm" id="logout">${ui.icon("logout")} ${t("Log out")}</button></div>
           <div class="side-foot">v${VERSION} · ${t("v0.5.0 · Unofficial · Data from the Kickbase API")}</div>
         </aside>
         <main class="main">
-          <nav class="nav">${PAGES.map(([k, i, l]) => `<button data-page="${k}" class="${k === S.page ? "active" : ""}">${ui.icon(i)} ${t(l)}</button>`).join("")}</nav>
+          <nav class="nav">${PAGES.filter(([k]) => k !== "advisor" || isSoulreaper()).map(([k, i, l]) => `<button data-page="${k}" class="${k === S.page ? "active" : ""}">${ui.icon(i)} ${t(l)}</button>`).join("")}</nav>
           <div id="page"></div>
         </main>
       </div>`;
     renderBiddingSetting();
     renderDailyBonusCard();
-    document.getElementById("side-ai-cfg")?.addEventListener("click", () => aiSettingsDialog());
+    if (isSoulreaper()) {
+      document.getElementById("side-ai-cfg")?.addEventListener("click", () => aiSettingsDialog());
+    }
     document.querySelectorAll(".lang-toggle button").forEach((b) => b.addEventListener("click", (e) => { e.preventDefault(); setLang(b.dataset.lang); }));
     document.getElementById("league").addEventListener("change", (e) => { S.leagueId = e.target.value; store.set("kb.league", S.leagueId); rankingRows(S.leagueId).catch(() => {}); renderPage(); });
     document.getElementById("refresh").addEventListener("click", () => { S.api.clearCache(); renderPage(); });
@@ -4769,6 +4781,7 @@ Analyze my squad strictly under Kickbase rules:
   }
 
   function goto(page) {
+    if (page === "advisor" && !isSoulreaper()) page = "team";
     S.page = page; history.replaceState(null, "", "#" + page);
     document.querySelectorAll(".nav button").forEach((b) => b.classList.toggle("active", b.dataset.page === page));
     renderPage();
@@ -4945,6 +4958,10 @@ Analyze my squad strictly under Kickbase rules:
   }
 
   async function renderPage() {
+    if (S.page === "advisor" && !isSoulreaper()) {
+      S.page = "team";
+      history.replaceState(null, "", "#team");
+    }
     const id = ++S.renderId;
     const el = document.getElementById("page");
     const league = S.leagues.find((l) => l.i === S.leagueId);
@@ -5169,6 +5186,7 @@ Analyze my squad strictly under Kickbase rules:
       S.api.leagueSettings ? S.api.leagueSettings(ctx.l).catch(() => null) : Promise.resolve(null)
     ]);
     if (ctx.stale()) return;
+    if (me && me.n) S.meName = me.n;
 
     const squad = squadRaw.map((p) => tf.player(p));
     const market = (marketRaw.it || []).map((p) => tf.player(p, S.session?.userId));
@@ -5411,7 +5429,7 @@ Analyze my squad strictly under Kickbase rules:
       + matchdayBannerHtml
       + bonusBannerHtml
       + ui.kpis(cards)
-      + `<div id="ai-advisor-banner"></div>`
+      + (isSoulreaper() ? `<div id="ai-advisor-banner"></div>` : "")
       + ui.section("Lineup & Pitch", "Arrange your Starting XI, sub players & choose formation")
       + `<div id="pitch-container"></div>`
       + ui.section("Bench (Substitutes)", "Click a bench player to swap into your Starting XI")
@@ -5432,6 +5450,7 @@ Analyze my squad strictly under Kickbase rules:
     el.querySelector("#team-goto-live")?.addEventListener("click", () => goto("live"));
 
     function renderAdvisorBanner() {
+      if (!isSoulreaper()) return;
       const box = el.querySelector("#ai-advisor-banner");
       if (!box) return;
 
@@ -6143,7 +6162,9 @@ Analyze my squad strictly under Kickbase rules:
       }
     });
 
-    runAnalysis(false);
+    if (isSoulreaper()) {
+      runAnalysis(false);
+    }
   }
 
   const playerHistCache = new Map();
@@ -7868,21 +7889,13 @@ Analyze my squad strictly under Kickbase rules:
   // -------------------------------------------------------------- allplayers ----
   async function pageAllPlayers(el, ctx) {
     el.innerHTML = ui.loading("Loading all players database across the league and teams…");
-    const BUNDESLIGA_TEAM_IDS = ["2", "3", "4", "5", "7", "8", "9", "10", "11", "13", "14", "15", "18", "20", "24", "28", "40", "43"];
-    const [d, marketRaw, squadRaw, me, compDays, compTableRaw, teamProfilesRaw] = await Promise.all([
+    const [d, marketRaw, squadRaw, me, compDays, compTableRaw] = await Promise.all([
       leagueData(ctx.l),
       S.api.market(ctx.l),
       S.api.squad(ctx.l).catch(() => []),
       S.api.leagueMe(ctx.l).catch(() => ({})),
       S.api.competitionMatchdays ? S.api.competitionMatchdays(1).catch(() => null) : Promise.resolve(null),
-      S.api.competitionTable ? S.api.competitionTable(1).catch(() => null) : Promise.resolve(null),
-      Promise.all(BUNDESLIGA_TEAM_IDS.map(async (tid) => {
-        let p = S.api.competitionTeamProfile ? await S.api.competitionTeamProfile(tid).catch(() => null) : null;
-        if ((!p || !p.it || !p.it.length) && S.api.leagueTeamProfile && ctx.l) {
-          p = await S.api.leagueTeamProfile(ctx.l, tid).catch(() => null);
-        }
-        return p;
-      })).catch(() => [])
+      S.api.competitionTable ? S.api.competitionTable(1).catch(() => null) : Promise.resolve(null)
     ]);
     if (ctx.stale()) return;
 
@@ -7891,38 +7904,180 @@ Analyze my squad strictly under Kickbase rules:
     const mySquad = (squadRaw && squadRaw.length) ? squadRaw.map((p) => tf.player(p)) : d.squads.filter((p) => p.managerId === meId);
     const market = (marketRaw?.it || []).map((p) => tf.player(p, S.session?.userId));
 
-    // Build Bundesliga Team Name Lookup from competition data & matchdays
-    const teamMap = new Map();
-    // 1. Check competitionTable (it array)
-    const tableItems = compTableRaw?.it || compTableRaw?.value?.it || [];
-    for (const t of tableItems) {
-      const tid = String(t.tid || t.id || t.t || "");
-      const tName = t.tn || t.name || t.tname || "";
-      if (tid && tName) teamMap.set(tid, tName);
-    }
-    // 2. Check competition matchdays
-    const mdList = (compDays && Array.isArray(compDays.it)) ? compDays.it : (compDays && compDays.value && Array.isArray(compDays.value.it) ? compDays.value.it : []);
-    for (const md of mdList) {
-      for (const m of (md.it || md.m || md.matches || [])) {
-        if (m.t1 && m.t1sy) teamMap.set(String(m.t1), m.t1n || m.t1sy);
-        if (m.t2 && m.t2sy) teamMap.set(String(m.t2), m.t2n || m.t2sy);
+    // Canonical Kickbase Bundesliga Team IDs (strictly the 18 active 2026/27 1. Bundesliga clubs in Kickbase)
+    const BUNDESLIGA_TEAMS = {
+      "2": "Bayern München",
+      "3": "Borussia Dortmund",
+      "4": "Eintracht Frankfurt",
+      "5": "SC Freiburg",
+      "6": "Hamburger SV",
+      "7": "Bayer 04 Leverkusen",
+      "8": "FC Schalke 04",
+      "9": "VfB Stuttgart",
+      "10": "SV Werder Bremen",
+      "13": "FC Augsburg",
+      "14": "TSG Hoffenheim",
+      "15": "Borussia Mönchengladbach",
+      "18": "1. FSV Mainz 05",
+      "28": "1. FC Köln",
+      "29": "SC Paderborn 07",
+      "40": "1. FC Union Berlin",
+      "43": "RB Leipzig",
+      "52": "SV Elversberg"
+    };
+
+    // Other German clubs (relegated / 2. Bundesliga) so their players are never misidentified as 1. Bundesliga clubs
+    const EXTRA_TEAMS = {
+      "11": "VfL Wolfsburg",
+      "12": "Hannover 96",
+      "16": "1. FC Nürnberg",
+      "17": "Eintracht Braunschweig",
+      "19": "1. FC Kaiserslautern",
+      "20": "Hertha BSC",
+      "21": "Karlsruher SC",
+      "22": "Fortuna Düsseldorf",
+      "24": "VfL Bochum",
+      "25": "SpVgg Greuther Fürth",
+      "39": "FC St. Pauli",
+      "41": "SV Darmstadt 98",
+      "50": "1. FC Heidenheim",
+      "51": "Holstein Kiel",
+      "53": "1. FC Magdeburg"
+    };
+
+    const TEAM_ALIASES = {
+      // 1. Bundesliga (2026/27)
+      "fcb": "2", "bayern": "2", "bayern münchen": "2", "bayern muenchen": "2", "fc bayern": "2", "fc bayern münchen": "2",
+      "bvb": "3", "dortmund": "3", "borussia dortmund": "3",
+      "sge": "4", "frankfurt": "4", "eintracht frankfurt": "4", "eintracht": "4",
+      "scf": "5", "freiburg": "5", "sc freiburg": "5",
+      "hsv": "6", "hamburg": "6", "hamburger sv": "6",
+      "b04": "7", "leverkusen": "7", "bayer leverkusen": "7", "bayer 04 leverkusen": "7", "bayer 04": "7",
+      "s04": "8", "schalke": "8", "schalke 04": "8", "fc schalke 04": "8",
+      "vfb": "9", "stuttgart": "9", "vfb stuttgart": "9",
+      "svw": "10", "bremen": "10", "werder": "10", "werder bremen": "10", "sv werder bremen": "10",
+      "fca": "13", "augsburg": "13", "fc augsburg": "13",
+      "tsg": "14", "hoffenheim": "14", "tsg hoffenheim": "14", "tsg 1899 hoffenheim": "14",
+      "bmg": "15", "m'gladbach": "15", "gladbach": "15", "mönchengladbach": "15", "moenchengladbach": "15", "borussia m'gladbach": "15", "borussia mönchengladbach": "15",
+      "m05": "18", "mainz": "18", "mainz 05": "18", "1. fsv mainz 05": "18", "fsv mainz 05": "18",
+      "koe": "28", "köln": "28", "koeln": "28", "1. fc köln": "28", "fc köln": "28",
+      "scp": "29", "pad": "29", "paderborn": "29", "sc paderborn": "29", "sc paderborn 07": "29",
+      "fcu": "40", "union": "40", "union berlin": "40", "1. fc union berlin": "40",
+      "rbl": "43", "leipzig": "43", "rb leipzig": "43",
+      "elv": "52", "elversberg": "52", "sv elversberg": "52", "sv 07 elversberg": "52", "fc elversberg": "52",
+
+      // 2. Bundesliga / relegated clubs
+      "wob": "11", "wolfsburg": "11", "vfl wolfsburg": "11",
+      "h96": "12", "hannover": "12", "hannover 96": "12",
+      "fcn": "16", "nürnberg": "16", "nuernberg": "16", "1. fc nürnberg": "16",
+      "ebs": "17", "braunschweig": "17", "eintracht braunschweig": "17",
+      "fck": "19", "kaiserslautern": "19", "1. fc kaiserslautern": "19",
+      "bsc": "20", "hertha": "20", "hertha bsc": "20",
+      "ksc": "21", "karlsruhe": "21", "karlsruher sc": "21",
+      "f95": "22", "düsseldorf": "22", "duesseldorf": "22", "fortuna düsseldorf": "22",
+      "boc": "24", "bochum": "24", "vfl bochum": "24",
+      "sgf": "25", "fürth": "25", "fuerth": "25", "greuther fürth": "25", "spvgg greuther fürth": "25",
+      "stp": "39", "st. pauli": "39", "st pauli": "39", "fc st. pauli": "39",
+      "d98": "41", "darmstadt": "41", "sv darmstadt 98": "41",
+      "fch": "50", "heidenheim": "50", "1. fc heidenheim": "50",
+      "ksv": "51", "kiel": "51", "holstein kiel": "51",
+      "fcm": "53", "magdeburg": "53", "1. fc magdeburg": "53"
+    };
+
+    // Dynamically sync any live Kickbase team IDs from competitionTable / competitionMatchdays
+    // (e.g., if Paderborn or Elversberg use a different internal tid on the live Kickbase server)
+    function bindLiveTeamId(liveTid, rawNameOrSym) {
+      const tidStr = String(liveTid || "").trim();
+      const lower = String(rawNameOrSym || "").trim().toLowerCase();
+      if (!tidStr || !lower) return;
+      let matchedCanonicalName = null;
+      let oldTid = null;
+      if (TEAM_ALIASES[lower]) {
+        oldTid = TEAM_ALIASES[lower];
+        matchedCanonicalName = BUNDESLIGA_TEAMS[oldTid] || EXTRA_TEAMS[oldTid];
+      } else {
+        for (const [alias, cId] of Object.entries(TEAM_ALIASES)) {
+          if (lower === alias || lower.includes(alias)) {
+            oldTid = cId;
+            matchedCanonicalName = BUNDESLIGA_TEAMS[cId] || EXTRA_TEAMS[cId];
+            if (matchedCanonicalName) break;
+          }
+        }
+      }
+      if (matchedCanonicalName && BUNDESLIGA_TEAMS[oldTid]) {
+        if (oldTid !== tidStr) {
+          delete BUNDESLIGA_TEAMS[oldTid];
+          BUNDESLIGA_TEAMS[tidStr] = matchedCanonicalName;
+          for (const [alias, cId] of Object.entries(TEAM_ALIASES)) {
+            if (cId === oldTid) TEAM_ALIASES[alias] = tidStr;
+          }
+        }
       }
     }
 
-    // Common Bundesliga team ID fallbacks if any are missing
-    const BUNDESLIGA_DEFAULTS = {
-      "2": "Bayern München", "3": "Borussia Dortmund", "4": "Bayer 04 Leverkusen", "5": "RB Leipzig",
-      "7": "VfL Wolfsburg", "8": "Eintracht Frankfurt", "9": "Borussia M'gladbach", "10": "TSG Hoffenheim",
-      "11": "VfB Stuttgart", "13": "FC Augsburg", "14": "SC Freiburg", "15": "SV Werder Bremen",
-      "18": "1. FSV Mainz 05", "20": "1. FC Union Berlin", "24": "VfL Bochum", "28": "1. FC Heidenheim",
-      "40": "FC St. Pauli", "43": "Holstein Kiel"
-    };
-    for (const [tid, tName] of Object.entries(BUNDESLIGA_DEFAULTS)) {
-      if (!teamMap.has(tid)) teamMap.set(tid, tName);
+    if (Array.isArray(compTableRaw?.it)) {
+      for (const row of compTableRaw.it) {
+        bindLiveTeamId(row.tid || row.i, row.tn || row.n || row.tsm);
+      }
+    }
+    if (Array.isArray(compDays?.it)) {
+      for (const dayObj of compDays.it) {
+        for (const m of (dayObj?.it || [])) {
+          bindLiveTeamId(m.t1, m.t1n || m.t1sy);
+          bindLiveTeamId(m.t2, m.t2n || m.t2sy);
+        }
+      }
     }
 
-    // Full Bundesliga squads roster (~630 players across all 18 clubs)
-    const BUNDESLIGA_ROSTER = [["Manuel Neuer",2,"GK"],["Dayot Upamecano",2,"DEF"],["Min-jae Kim",2,"DEF"],["Joshua Kimmich",2,"MID"],["Serge Gnabry",2,"FWD"],["Leon Goretzka",2,"MID"],["Harry Kane",2,"FWD"],["Leroy Sané",2,"FWD"],["Kingsley Coman",2,"FWD"],["Eric Dier",2,"DEF"],["João Palhinha",2,"MID"],["Michael Olise",2,"FWD"],["Daniel Peretz",2,"GK"],["Alphonso Davies",2,"DEF"],["Arijon Ibrahimović",2,"MID"],["Hiroki Itō",2,"DEF"],["Raphaël Guerreiro",2,"DEF"],["Sacha Boey",2,"DEF"],["Gabriel Vidović",2,"MID"],["Thomas Müller",2,"FWD"],["Sven Ulreich",2,"GK"],["Konrad Laimer",2,"MID"],["Tarek Buchmann",2,"DEF"],["Max Schmitt",2,"GK"],["Noël Aséko",2,"MID"],["Wisdom Mike",2,"FWD"],["Anthony Pavlešić",2,"GK"],["Mathys Tel",2,"FWD"],["Jonas Urbig",2,"GK"],["Jonah Kusi-Asare",2,"FWD"],["Jamal Musiala",2,"MID"],["Josip Stanišić",2,"DEF"],["Aleksandar Pavlović",2,"MID"],["Lennart Karl",2,"MID"],["Adam Aznou",2,"DEF"],["Lukáš Hrádecký",4,"GK"],["Piero Hincapié",4,"DEF"],["Jonathan Tah",4,"DEF"],["Mario Hermoso",4,"DEF"],["Odilon Kossounou",4,"DEF"],["Jonas Hofmann",4,"MID"],["Robert Andrich",4,"MID"],["Florian Wirtz",4,"MID"],["Martin Terrier",4,"FWD"],["Edmond Tapsoba",4,"DEF"],["Arthur",4,"DEF"],["Patrik Schick",4,"FWD"],["Emiliano Buendía",4,"MID"],["Matěj Kovář",4,"GK"],["Alejo Sarco",4,"FWD"],["Nathan Tella",4,"FWD"],["Alejandro Grimaldo",4,"DEF"],["Amine Adli",4,"FWD"],["Victor Boniface",4,"GK"],["Nordi Mukiele",4,"DEF"],["Aleix García",4,"MID"],["Exequiel Palacios",4,"MID"],["Andrea Natali",4,"DEF"],["Artem Stepanow",4,"FWD"],["Jeremie Frimpong",4,"DEF"],["Gustavo Puerta",4,"MID"],["Granit Xhaka",4,"MID"],["Niklas Lomb",4,"GK"],["Sadik Fofana",4,"DEF"],["Francis Onyeka",4,"MID"],["Simeon Rapsch",4,"GK"],["Jeanuël Belocian",4,"DEF"],["Ayman Aourir",4,"MID"],["Kerim Alajbegović",4,"MID"],["Kevin Trapp",8,"GK"],["Arthur Theate",8,"DEF"],["Robin Koch",8,"DEF"],["Aurèle Amenda",8,"DEF"],["Oscar Højlund",8,"MID"],["Omar Marmoush",8,"FWD"],["Farès Chaïbi",8,"MID"],["Igor Matanović",8,"FWD"],["Hugo Ekitiké",8,"FWD"],["Rasmus Kristensen",8,"DEF"],["Ellyes Skhiri",8,"MID"],["Hugo Larsson",8,"MID"],["Elye Wahi",8,"FWD"],["Mahmoud Dahoud",8,"MID"],["Jean-Mattéo Bahoya",8,"FWD"],["Can Uzun",8,"FWD"],["Nathaniel Brown",8,"DEF"],["Timothy Chandler",8,"MID"],["Krisztián Lisztes",8,"FWD"],["Aurélio Buta",8,"DEF"],["Junior Dina Ebimbe",8,"MID"],["Mario Götze",8,"MID"],["Niels Nkounkou",8,"DEF"],["Michy Batshuayi",8,"FWD"],["Faride Alidou",8,"FWD"],["Jens Grahl",8,"GK"],["Nnamdi Collins",8,"DEF"],["Tuta",8,"DEF"],["Ansgar Knauff",8,"FWD"],["Ebu İş",8,"MID"],["Kauã Santos",8,"GK"],["Jérôme Onguéné",8,"DEF"],["Amil Šiljević",8,"GK"],["Noah Fenyő",8,"MID"],["Jens Petter Hauge",8,"FWD"],["Gregor Kobel",3,"GK"],["Yan Couto",3,"DEF"],["Waldemar Anton",3,"DEF"],["Nico Schlotterbeck",3,"DEF"],["Ramy Bensebaini",3,"DEF"],["Salih Özcan",3,"MID"],["Giovanni Reyna",3,"MID"],["Felix Nmecha",3,"MID"],["Sébastien Haller",3,"FWD"],["Serhou Guirassy",3,"FWD"],["Julian Brandt",3,"MID"],["Pascal Groß",3,"MID"],["Maximilian Beier",3,"FWD"],["Julien Duranville",3,"FWD"],["Carney Chukwuemeka",3,"MID"],["Youssoufa Moukoko",3,"FWD"],["Marcel Sabitzer",3,"MID"],["Donyell Malen",3,"FWD"],["Emre Can",3,"MID"],["Daniel Svensson",3,"DEF"],["Niklas Süle",3,"DEF"],["Julian Ryerson",3,"DEF"],["Karim Adeyemi",3,"FWD"],["Silas Ostrzinski",3,"GK"],["Jordi Paulina",3,"MID"],["Alexander Meyer",3,"GK"],["Marcel Lotka",3,"GK"],["Rodney Elongo-Yombo",3,"MID"],["Cole Campbell",3,"FWD"],["Kjell Wätjen",3,"MID"],["Filippo Mane",3,"DEF"],["Niklas Jessen",3,"DEF"],["Almugera Kabar",3,"DEF"],["Jamie Gittens",3,"FWD"],["Soumaïla Coulibaly",3,"DEF"],["Ayman Azhil",3,"MID"],["David Lelle",3,"DEF"],["Yannik Lührs",3,"DEF"],["Noah Atubolu",14,"GK"],["Philipp Lienhart",14,"DEF"],["Kenneth Schmidt",14,"DEF"],["Manuel Gulde",14,"DEF"],["Patrick Osterhage",14,"MID"],["Noah Weißhaupt",14,"MID"],["Maximilian Eggestein",14,"MID"],["Lucas Höler",14,"FWD"],["Daniel-Kofi Kyereh",14,"MID"],["Lukas Kübler",14,"DEF"],["Eren Dinkçi",14,"FWD"],["Niklas Beste",14,"MID"],["Junior Adamu",14,"FWD"],["Florian Müller",14,"GK"],["Roland Sallai",14,"MID"],["Florent Muslija",14,"MID"],["Jannik Huth",14,"GK"],["Kiliann Sildillia",14,"DEF"],["Maximilian Philipp",14,"FWD"],["Nicolas Höfler",14,"MID"],["Matthias Ginter",14,"DEF"],["Christian Günter",14,"DEF"],["Vincenzo Grifo",14,"MID"],["Jordy Makengo",14,"DEF"],["Merlin Röhl",14,"MID"],["Max Rosenfelder",14,"DEF"],["Michael Gregoritsch",14,"FWD"],["Berkay Yılmaz",14,"DEF"],["Ritsu Dōan",14,"MID"],["Bruno Ogbus",14,"DEF"],["Johan Manzambi",14,"MID"],["Yann Sturm",14,"MID"],["Lasse Rieß",18,"GK"],["Phillipp Mwene",18,"DEF"],["Moritz Jenz",18,"DEF"],["Aymen Barkok",18,"MID"],["Maxim Leitsch",18,"DEF"],["Kaishū Sano",18,"MID"],["Jae-sung Lee",18,"MID"],["Paul Nebel",18,"MID"],["Karim Onisiwo",18,"FWD"],["Arnaud Nordin",18,"MID"],["Marco Richter",18,"MID"],["Armindo Sieb",18,"FWD"],["Hyun-seok Hong",18,"MID"],["Lennard Maloney",18,"MID"],["Stefan Bell",18,"DEF"],["Gabriel Vidović",18,"MID"],["Nadiem Amiri",18,"MID"],["Anthony Caci",18,"DEF"],["Edimilson Fernandes",18,"DEF"],["Danny da Costa",18,"DEF"],["Nikolas Veratschnig",18,"MID"],["Andreas Hanche-Olsen",18,"DEF"],["Robin Zentner",18,"GK"],["Jonathan Burkardt",18,"FWD"],["Silvan Widmer",18,"DEF"],["Dominik Kohr",18,"DEF"],["Daniel Batz",18,"GK"],["Daniel Gleiber",18,"MID"],["Nelson Weiper",18,"FWD"],["Maxim Dal",18,"DEF"],["Péter Gulácsi",5,"GK"],["Mohamed Simakan",5,"DEF"],["Lutsharel Geertruida",5,"DEF"],["Willi Orbán",5,"DEF"],["El Chadaille Bitshiabu",5,"DEF"],["Eljif Elmas",5,"MID"],["Antonio Nusa",5,"MID"],["Amadou Haidara",5,"MID"],["Yussuf Poulsen",5,"FWD"],["Xavi Simons",5,"MID"],["Loïs Openda",5,"FWD"],["Nicolas Seiwald",5,"MID"],["Christoph Baumgartner",5,"MID"],["Lukas Klostermann",5,"DEF"],["Ridle Baku",5,"DEF"],["Arthur Vermeeren",5,"MID"],["André Silva",5,"FWD"],["Assan Ouédraogo",5,"MID"],["Kosta Nedeljković",5,"DEF"],["David Raum",5,"DEF"],["Castello Lukeba",5,"DEF"],["Xaver Schlager",5,"MID"],["Leopold Zingerle",5,"GK"],["Maarten Vandevoordt",5,"GK"],["Tidiam Gomis",5,"FWD"],["Robert Ramšak",5,"FWD"],["Benjamin Šeško",5,"FWD"],["Faik Sakar",5,"MID"],["Fabrice Hartmann",5,"MID"],["Nuha Jatta",5,"MID"],["Mika Walther",5,"MID"],["Benjamin Henrichs",5,"DEF"],["Kevin Kampl",5,"MID"],["Jonathan Norbye",5,"DEF"],["Viggo Gebel",5,"MID"],["Lionel Voufack",5,"DEF"],["Michael Zetterer",15,"GK"],["Olivier Deman",15,"DEF"],["Anthony Jung",15,"DEF"],["Niklas Stark",15,"DEF"],["Amos Pieper",15,"DEF"],["Jens Stage",15,"MID"],["Marvin Ducksch",15,"FWD"],["Mitchell Weiser",15,"DEF"],["André Silva",15,"FWD"],["Leonardo Bittencourt",15,"MID"],["Justin Njinmah",15,"FWD"],["Miloš Veljković",15,"DEF"],["Senne Lynen",15,"MID"],["Oliver Burke",15,"FWD"],["Marco Grüll",15,"FWD"],["Derrick Köhn",15,"DEF"],["Romano Schmid",15,"MID"],["Isak Hansen-Aarøen",15,"MID"],["Julián Malatini",15,"DEF"],["Markus Kolke",15,"GK"],["Felix Agu",15,"DEF"],["Skelly Alvero",15,"MID"],["Dikeni Salifou",15,"MID"],["Issa Kaboré",15,"DEF"],["Mio Backhaus",15,"GK"],["Marco Friedl",15,"DEF"],["Abdenego Nankishi",15,"FWD"],["Leon Opitz",15,"MID"],["Patrice Čović",15,"MID"],["Karim Coulibaly",15,"DEF"],["Keke Topp",15,"FWD"],["Maik Łukowicz",15,"FWD"],["Wesley Adeh",15,"MID"],["Mick Schmetgens",15,"DEF"],["Fabian Bredlow",11,"GK"],["Ameen al-Dakhil",11,"DEF"],["Ramon Hendriks",11,"DEF"],["Josha Vagnoman",11,"DEF"],["Yannik Keitel",11,"MID"],["Angelo Stiller",11,"MID"],["Maximilian Mittelstädt",11,"DEF"],["Enzo Millot",11,"MID"],["Ermedin Demirović",11,"FWD"],["Woo-yeong Jeong",11,"MID"],["El Bilal Touré",11,"FWD"],["Nick Woltemade",11,"FWD"],["Frans Krätzig",11,"DEF"],["Silas",11,"FWD"],["Luca Jaquez",11,"DEF"],["Pascal Stenzel",11,"DEF"],["Atakan Karazor",11,"MID"],["Justin Diehl",11,"FWD"],["Jamie Leweling",11,"FWD"],["Wahid Faghir",11,"FWD"],["Leonidas Stergiou",11,"DEF"],["Stefan Drljača",11,"GK"],["Thomas Kastanaras",11,"FWD"],["Dan-Axel Zagadou",11,"DEF"],["Jeff Chabot",11,"DEF"],["Luca Pfeiffer",11,"FWD"],["Jacob Bruun Larsen",11,"MID"],["Deniz Undav",11,"FWD"],["Chris Führich",11,"MID"],["Nikolas Nartey",11,"MID"],["Anthony Rouault",11,"DEF"],["Finn Jeltsch",11,"DEF"],["Ömer Beyaz",11,"MID"],["Fabian Rieder",11,"MID"],["Alexander Nübel",11,"GK"],["Luca Raimund",11,"MID"],["Dennis Seimen",11,"GK"],["Anrie Chase",11,"DEF"],["Jarzinho Malanga",11,"MID"],["Jonas Omlin",9,"GK"],["Fabio Chiarodia",9,"DEF"],["Kō Itakura",9,"DEF"],["Marvin Friedrich",9,"DEF"],["Kevin Stöger",9,"MID"],["Julian Weigl",9,"MID"],["Franck Honorat",9,"MID"],["Florian Neuhaus",9,"MID"],["Tim Kleindienst",9,"FWD"],["Shiō Fukuda",9,"FWD"],["Alassane Pléa",9,"FWD"],["Philipp Sander",9,"MID"],["Manu Koné",9,"MID"],["Nathan Ngoumou",9,"MID"],["Luca Netz",9,"DEF"],["Tobias Sippel",9,"GK"],["Stefan Lainer",9,"DEF"],["Noah Pesch",9,"MID"],["Robin Hack",9,"MID"],["Lukas Ullrich",9,"DEF"],["Rocco Reitz",9,"MID"],["Grant-Leon Ranos",9,"FWD"],["Joe Scally",9,"DEF"],["Nico Elvedi",9,"DEF"],["Tomáš Čvančara",9,"FWD"],["Moritz Nicolas",9,"GK"],["Charles Herrmann",9,"MID"],["Yvandro Borges Sanches",9,"MID"],["Niklas Swider",9,"MID"],["Jan Olschowsky",9,"GK"],["Tiago Pereira Cardoso",9,"GK"],["Veit Stange",9,"MID"],["Kamil Grabara",7,"GK"],["Kilian Fischer",7,"DEF"],["Sebastiaan Bornauw",7,"DEF"],["Maxence Lacroix",7,"DEF"],["Konstantinos Koulierakis",7,"DEF"],["Cédric Zesiger",7,"DEF"],["Mads Roerslev",7,"DEF"],["Aster Vranckx",7,"MID"],["Andreas Skov Olsen",7,"FWD"],["Nicolas Cozza",7,"DEF"],["Salih Özcan",7,"MID"],["Mohamed Amoura",7,"FWD"],["Lukas Nmecha",7,"FWD"],["Tiago Tomás",7,"FWD"],["Pavao Pervan",7,"GK"],["Rogério",7,"DEF"],["Bartosz Białek",7,"FWD"],["Jakub Kamiński",7,"MID"],["Kevin Behrens",7,"FWD"],["Denis Vavro",7,"DEF"],["Lovro Majer",7,"MID"],["Ridle Baku",7,"MID"],["Joakim Mæhle",7,"DEF"],["Mathys Angély",7,"DEF"],["Jonas Wind",7,"FWD"],["Bence Dárdai",7,"MID"],["Moritz Jenz",7,"DEF"],["Maximilian Arnold",7,"MID"],["Marius Müller",7,"GK"],["Niklas Klinger",7,"GK"],["Yannick Gerhardt",7,"MID"],["Mattias Svanberg",7,"MID"],["David Odogu",7,"DEF"],["Jan Bürger",7,"DEF"],["Jonathan Akaegbobi",7,"FWD"],["Bennit Bröger",7,"MID"],["Patrick Wimmer",7,"MID"],["Kevin Paredes",7,"MID"],["Manuel Braun",7,"DEF"],["Till Neininger",7,"DEF"],["Finn Dahmen",13,"GK"],["Robert Gumny",13,"DEF"],["Mads Pedersen",13,"DEF"],["Reece Oxford",13,"DEF"],["Chrislain Matsima",13,"DEF"],["Jeffrey Gouweleeuw",13,"DEF"],["Yusuf Kabadayı",13,"FWD"],["Elvis Rexhbeçaj",13,"MID"],["Samuel Essende",13,"FWD"],["Arne Maier",13,"MID"],["Marius Wolf",13,"DEF"],["Dimitrios Giannoulis",13,"DEF"],["Masaya Okugawa",13,"MID"],["Steve Mounié",13,"FWD"],["Rubén Vargas",13,"MID"],["Cédric Zesiger",13,"DEF"],["Kristijan Jakić",13,"MID"],["Tim Breithaupt",13,"MID"],["Felix Uduokhai",13,"DEF"],["Frank Onyeka",13,"MID"],["Alexis Claude-Maurice",13,"MID"],["Phillip Tietz",13,"FWD"],["Nediljko Labrović",13,"GK"],["Maximilian Bauer",13,"DEF"],["Fredrik Jensen",13,"MID"],["Daniel Klein",13,"GK"],["Arne Engels",13,"MID"],["Niklas Dorsch",13,"MID"],["Keven Schlotterbeck",13,"DEF"],["Nathanaël Mbuku",13,"FWD"],["Mert Kömür",13,"MID"],["Mërgim Berisha",13,"FWD"],["Noahkai Banks",13,"DEF"],["Felix Meiser",13,"DEF"],["Mahmut Küçükşahin",13,"MID"],["Henri Koudossou",13,"DEF"],["Juan Cabrera",13,"MID"],["David Deger",13,"DEF"],["Frederik Rønnow",20,"GK"],["Kevin Vogt",20,"DEF"],["Paul Jaeckel",20,"DEF"],["Diogo Leite",20,"DEF"],["Danilho Doekhi",20,"DEF"],["Robin Gosens",20,"DEF"],["Yorbe Vertessen",20,"FWD"],["Rani Khedira",20,"MID"],["Ivan Prtajin",20,"FWD"],["Kevin Volland",20,"FWD"],["Woo-yeong Jeong",20,"MID"],["András Schäfer",20,"MID"],["Leopold Querfeld",20,"DEF"],["Tom Rothe",20,"DEF"],["Benedict Hollerbach",20,"FWD"],["Jordan Siebatcheu",20,"FWD"],["Josip Juranović",20,"DEF"],["Janik Haberer",20,"MID"],["László Bénes",20,"MID"],["Tim Skarke",20,"MID"],["Andrej Ilić",20,"FWD"],["Robert Skov",20,"MID"],["Carl Klaus",20,"GK"],["Jérôme Roussillon",20,"DEF"],["Marin Ljubičić",20,"FWD"],["Christopher Trimmel",20,"DEF"],["Lucas Tousart",20,"MID"],["Aljoscha Kemlein",20,"MID"],["Alexander Schwolow",20,"GK"],["Yannic Stein",20,"GK"],["Oluwaseun Ogbemudia",20,"DEF"],["David Preu",20,"FWD"],["Ben Voll",40,"GK"],["Manolis Saliakas",40,"DEF"],["Karol Mets",40,"DEF"],["David Nemeth",40,"DEF"],["Hauke Wahl",40,"DEF"],["James Sands",40,"MID"],["Jackson Irvine",40,"MID"],["Eric Smith",40,"DEF"],["Abdoulie Ceesay",40,"FWD"],["Danel Sinani",40,"FWD"],["Johannes Eggestein",40,"FWD"],["Noah Weißhaupt",40,"FWD"],["Fin Stevens",40,"DEF"],["Carlo Boukhalfa",40,"MID"],["Oladapo Afolayan",40,"FWD"],["Scott Banks",40,"FWD"],["Andreas Albers",40,"FWD"],["Erik Ahlstrand",40,"MID"],["Lars Ritzka",40,"DEF"],["Nikola Vasilj",40,"GK"],["Philipp Treu",40,"DEF"],["Connor Metcalfe",40,"MID"],["Adam Dźwigała",40,"DEF"],["Elias Saad",40,"FWD"],["Simon Zoller",40,"FWD"],["Sören Ahlers",40,"GK"],["Morgan Guilavogui",40,"FWD"],["Sascha Burchert",40,"GK"],["Eric Oelschlägel",40,"GK"],["Maurides",40,"FWD"],["Muhammad Dahaba",40,"DEF"],["Ronny Seibt",40,"GK"],["Emil Staugaard",40,"DEF"],["Julien Yanda",40,"DEF"],["Romeo Aigbekaen",40,"FWD"],["Robert Wagner",40,"MID"],["Marwin Schmitz",40,"MID"],["Siebe Van der Heyden",40,"DEF"],["Oliver Baumann",10,"GK"],["Robin Hranáč",10,"DEF"],["Pavel Kadeřábek",10,"DEF"],["Tim Drexler",10,"DEF"],["Leo Østigård",10,"DEF"],["Ozan Kabak",10,"DEF"],["Grischa Prömel",10,"MID"],["Tom Bischof",10,"MID"],["Dennis Geiger",10,"MID"],["Ihlas Bebou",10,"FWD"],["Mërgim Berisha",10,"FWD"],["Florian Grillitsch",10,"MID"],["Christopher Lenz",10,"DEF"],["Gift Orban",10,"FWD"],["Valentin Gendrey",10,"DEF"],["Anton Stach",10,"MID"],["Umut Tohumcu",10,"MID"],["Diadie Samassékou",10,"MID"],["David Jurásek",10,"DEF"],["Finn Becker",10,"MID"],["Marius Bülter",10,"FWD"],["Alexander Prass",10,"DEF"],["Adam Hložek",10,"FWD"],["Marco John",10,"MID"],["Kevin Akpoguma",10,"DEF"],["Haris Tabaković",10,"FWD"],["Andrej Kramarić",10,"FWD"],["Florian Micheler",10,"MID"],["Jacob Bruun Larsen",10,"FWD"],["Bazoumana Touré",10,"FWD"],["Lars Strobl",10,"DEF"],["Jakob Busk",10,"GK"],["Max Moerstedt",10,"FWD"],["Stanley N’Soki",10,"DEF"],["Arthur Chaves",10,"DEF"],["Lúkas Petersson",10,"GK"],["Luca Philipp",10,"GK"],["Paul Hennrich",10,"FWD"],["Hennes Behrens",10,"DEF"],["Attila Szalai",10,"DEF"],["Noah König",10,"DEF"],["David Mokwa",10,"FWD"],["Erencan Yardımcı",10,"FWD"],["Tim Philipp",10,"GK"],["Luka Đurić",10,"MID"],["Kevin Müller",28,"GK"],["Marnon Busch",28,"DEF"],["Jan Schöppner",28,"MID"],["Tim Siersleben",28,"DEF"],["Benedikt Gimber",28,"DEF"],["Patrick Mainka",28,"DEF"],["Leonardo Scienza",28,"MID"],["Stefan Schimmer",28,"FWD"],["Paul Wanner",28,"MID"],["Denis Thomalla",28,"MID"],["Budu Siwsiwadse",28,"FWD"],["Frans Krätzig",28,"DEF"],["Maximilian Breunig",28,"FWD"],["Julian Niehues",28,"MID"],["Mathias Honsak",28,"MID"],["Marvin Pieringer",28,"FWD"],["Jonas Föhrenbach",28,"DEF"],["Luca Kerber",28,"MID"],["Adrian Beck",28,"MID"],["Vitus Eicher",28,"GK"],["Omar Traoré",28,"DEF"],["Christopher Negele",28,"MID"],["Thomas Keller",28,"DEF"],["Mikkel Kaufmann",28,"FWD"],["Norman Theuerkauf",28,"DEF"],["Sirlord Conteh",28,"MID"],["Lennard Maloney",28,"MID"],["Paul Tschernuth",28,"GK"],["Luka Janeš",28,"MID"],["Niklas Dorsch",28,"MID"],["Frank Feller",28,"GK"],["Timon Weiner",43,"GK"],["Marco Komenda",43,"DEF"],["Patrick Erras",43,"DEF"],["Carl Johansson",43,"DEF"],["Marko Ivezić",43,"MID"],["Steven Skrzybski",43,"MID"],["Finn Porath",43,"MID"],["Benedikt Pichler",43,"FWD"],["Lewis Holtby",43,"MID"],["Alexander Bernhardsson",43,"FWD"],["Ivan Nekić",43,"DEF"],["Max Geschwill",43,"DEF"],["Marvin Schulz",43,"MID"],["Andu Kelati",43,"MID"],["Timo Becker",43,"DEF"],["Shūto Machino",43,"FWD"],["Phil Harres",43,"FWD"],["Fiete Arp",43,"FWD"],["Thomas Dähne",43,"GK"],["Nicolai Remberg",43,"MID"],["Lasse Rosenboom",43,"DEF"],["Magnus Knudsen",43,"MID"],["David Zec",43,"DEF"],["Tymoteusz Puchacz",43,"DEF"],["Aurel Wagbe",43,"MID"],["Marcel Engelhardt",43,"GK"],["Jonas Sterner",43,"MID"],["Dominik Javorček",43,"DEF"],["Colin Kleine-Bekel",43,"DEF"],["Armin Gigović",43,"MID"],["John Tolkin",43,"DEF"],["Timo Horn",24,"GK"],["Cristian Gamboa",24,"DEF"],["Erhan Mašović",24,"DEF"],["Bernardo",24,"DEF"],["Ibrahima Sissoko",24,"MID"],["Lukas Daschner",24,"MID"],["Anthony Losilla",24,"MID"],["Myron Boadu",24,"FWD"],["Dani de Wit",24,"MID"],["Moritz Kwarteng",24,"MID"],["Georgios Masouras",24,"FWD"],["Jakov Medić",24,"DEF"],["Tim Oermann",24,"DEF"],["Felix Passlack",24,"DEF"],["Niklas Jahn",24,"MID"],["Agon Elezi",24,"MID"],["Tom Krauß",24,"MID"],["Samuel Bamba",24,"FWD"],["Matúš Bero",24,"MID"],["Iwan Ordez",24,"DEF"],["Gerrit Holtmann",24,"FWD"],["Aliou Baldé",24,"FWD"],["Kōji Miyoshi",24,"MID"],["Mats Pannewig",24,"MID"],["Mohammed Tolba",24,"DEF"],["Patrick Drewes",24,"GK"],["Lennart Koerdt",24,"MID"],["Moritz Broschinski",24,"FWD"],["Manuel Riemann",24,"GK"],["Maximilian Wittek",24,"DEF"],["Philipp Hofmann",24,"FWD"],["Paul Grave",24,"GK"],["Noah Loosli",24,"DEF"],["Kacper Koscierski",24,"DEF"]];
+    const BUNDESLIGA_TEAM_IDS = Object.keys(BUNDESLIGA_TEAMS);
+    // Also fetch teamprofile for any unknown tid present in squads/market so we can identify its tn
+    const extraProbeTids = new Set();
+    for (const p of [...d.squads, ...market, ...mySquad]) {
+      const tid = String(p.teamId || "").trim();
+      if (tid && !BUNDESLIGA_TEAMS[tid] && !EXTRA_TEAMS[tid]) extraProbeTids.add(tid);
+    }
+    const allFetchTids = [...new Set([...BUNDESLIGA_TEAM_IDS, ...extraProbeTids])];
+    const teamProfilesRaw = await Promise.all(allFetchTids.map(async (tid) => {
+      let p = S.api.competitionTeamProfile ? await S.api.competitionTeamProfile(tid).catch(() => null) : null;
+      if ((!p || !p.it || !p.it.length) && S.api.leagueTeamProfile && ctx.l) {
+        p = await S.api.leagueTeamProfile(ctx.l, tid).catch(() => null);
+      }
+      if (p && !p.tid && !p.id && !p.t) p.tid = tid;
+      if (p && (p.tn || p.name)) bindLiveTeamId(p.tid || tid, p.tn || p.name);
+      return p;
+    })).catch(() => []);
+    if (ctx.stale()) return;
+    // Refresh BUNDESLIGA_TEAM_IDS in case teamProfilesRaw bound a live tid for Paderborn/Elversberg
+    BUNDESLIGA_TEAM_IDS.length = 0;
+    BUNDESLIGA_TEAM_IDS.push(...Object.keys(BUNDESLIGA_TEAMS));
+
+    function resolveCanonicalTeam(teamId, teamName) {
+      const tidStr = String(teamId || "").trim();
+      if (BUNDESLIGA_TEAMS[tidStr]) {
+        return { teamId: tidStr, teamName: BUNDESLIGA_TEAMS[tidStr] };
+      }
+      if (EXTRA_TEAMS[tidStr]) {
+        return { teamId: tidStr, teamName: EXTRA_TEAMS[tidStr] };
+      }
+      const rawName = String(teamName || "").trim().toLowerCase();
+      if (rawName && TEAM_ALIASES[rawName]) {
+        const canonicalId = TEAM_ALIASES[rawName];
+        const name = BUNDESLIGA_TEAMS[canonicalId] || EXTRA_TEAMS[canonicalId];
+        if (name) return { teamId: canonicalId, teamName: name };
+      }
+      if (rawName) {
+        for (const [alias, canonicalId] of Object.entries(TEAM_ALIASES)) {
+          if (rawName === alias || rawName.includes(alias)) {
+            const name = BUNDESLIGA_TEAMS[canonicalId] || EXTRA_TEAMS[canonicalId];
+            if (name) return { teamId: canonicalId, teamName: name };
+          }
+        }
+      }
+      return { teamId: tidStr, teamName: teamName || (tidStr ? `Team ${tidStr}` : "Bundesliga") };
+    }
+
+    // Full Bundesliga squads roster (~630 players across all 18 2026/27 clubs)
+    const BUNDESLIGA_ROSTER = [["Manuel Neuer",2,"GK"],["Dayot Upamecano",2,"DEF"],["Min-jae Kim",2,"DEF"],["Jonathan Tah",2,"DEF"],["Joshua Kimmich",2,"MID"],["Serge Gnabry",2,"FWD"],["Leon Goretzka",2,"MID"],["Harry Kane",2,"FWD"],["Leroy Sané",2,"FWD"],["Kingsley Coman",2,"FWD"],["Eric Dier",2,"DEF"],["João Palhinha",2,"MID"],["Michael Olise",2,"FWD"],["Daniel Peretz",2,"GK"],["Alphonso Davies",2,"DEF"],["Arijon Ibrahimović",2,"MID"],["Hiroki Itō",2,"DEF"],["Raphaël Guerreiro",2,"DEF"],["Sacha Boey",2,"DEF"],["Gabriel Vidović",2,"MID"],["Thomas Müller",2,"FWD"],["Sven Ulreich",2,"GK"],["Konrad Laimer",2,"MID"],["Tarek Buchmann",2,"DEF"],["Max Schmitt",2,"GK"],["Noël Aséko",2,"MID"],["Wisdom Mike",2,"FWD"],["Anthony Pavlešić",2,"GK"],["Mathys Tel",2,"FWD"],["Jonas Urbig",2,"GK"],["Jonah Kusi-Asare",2,"FWD"],["Jamal Musiala",2,"MID"],["Josip Stanišić",2,"DEF"],["Aleksandar Pavlović",2,"MID"],["Lennart Karl",2,"MID"],["Adam Aznou",2,"DEF"],["Tom Bischof",2,"MID"],["Lukáš Hrádecký",7,"GK"],["Piero Hincapié",7,"DEF"],["Mario Hermoso",7,"DEF"],["Odilon Kossounou",7,"DEF"],["Jonas Hofmann",7,"MID"],["Robert Andrich",7,"MID"],["Florian Wirtz",7,"MID"],["Martin Terrier",7,"FWD"],["Edmond Tapsoba",7,"DEF"],["Arthur",7,"DEF"],["Patrik Schick",7,"FWD"],["Emiliano Buendía",7,"MID"],["Matěj Kovář",7,"GK"],["Alejo Sarco",7,"FWD"],["Nathan Tella",7,"FWD"],["Alejandro Grimaldo",7,"DEF"],["Amine Adli",7,"FWD"],["Victor Boniface",7,"FWD"],["Nordi Mukiele",7,"DEF"],["Aleix García",7,"MID"],["Exequiel Palacios",7,"MID"],["Andrea Natali",7,"DEF"],["Artem Stepanow",7,"FWD"],["Jeremie Frimpong",7,"DEF"],["Gustavo Puerta",7,"MID"],["Granit Xhaka",7,"MID"],["Niklas Lomb",7,"GK"],["Sadik Fofana",7,"DEF"],["Francis Onyeka",7,"MID"],["Simeon Rapsch",7,"GK"],["Jeanuël Belocian",7,"DEF"],["Ayman Aourir",7,"MID"],["Kerim Alajbegović",7,"MID"],["Ibrahim Maza",7,"MID"],["Mark Flekken",7,"GK"],["Jarell Quansah",7,"DEF"],["Malik Tillman",7,"MID"],["Ernest Poku",7,"FWD"],["Kevin Trapp",4,"GK"],["Arthur Theate",4,"DEF"],["Robin Koch",4,"DEF"],["Aurèle Amenda",4,"DEF"],["Oscar Højlund",4,"MID"],["Farès Chaïbi",4,"MID"],["Igor Matanović",4,"FWD"],["Hugo Ekitiké",4,"FWD"],["Rasmus Kristensen",4,"DEF"],["Ellyes Skhiri",4,"MID"],["Hugo Larsson",4,"MID"],["Elye Wahi",4,"FWD"],["Mahmoud Dahoud",4,"MID"],["Jean-Mattéo Bahoya",4,"FWD"],["Can Uzun",4,"FWD"],["Nathaniel Brown",4,"DEF"],["Timothy Chandler",4,"MID"],["Krisztián Lisztes",4,"FWD"],["Aurélio Buta",4,"DEF"],["Junior Dina Ebimbe",4,"MID"],["Mario Götze",4,"MID"],["Niels Nkounkou",4,"DEF"],["Michy Batshuayi",4,"FWD"],["Faride Alidou",4,"FWD"],["Jens Grahl",4,"GK"],["Nnamdi Collins",4,"DEF"],["Tuta",4,"DEF"],["Ansgar Knauff",4,"FWD"],["Ebu İş",4,"MID"],["Kauã Santos",4,"GK"],["Jérôme Onguéné",4,"DEF"],["Amil Šiljević",4,"GK"],["Noah Fenyő",4,"MID"],["Jens Petter Hauge",4,"FWD"],["Jonathan Burkardt",4,"FWD"],["Ritsu Dōan",4,"MID"],["Gregor Kobel",3,"GK"],["Yan Couto",3,"DEF"],["Waldemar Anton",3,"DEF"],["Nico Schlotterbeck",3,"DEF"],["Ramy Bensebaini",3,"DEF"],["Salih Özcan",3,"MID"],["Giovanni Reyna",3,"MID"],["Felix Nmecha",3,"MID"],["Sébastien Haller",3,"FWD"],["Serhou Guirassy",3,"FWD"],["Julian Brandt",3,"MID"],["Pascal Groß",3,"MID"],["Maximilian Beier",3,"FWD"],["Julien Duranville",3,"FWD"],["Carney Chukwuemeka",3,"MID"],["Youssoufa Moukoko",3,"FWD"],["Marcel Sabitzer",3,"MID"],["Donyell Malen",3,"FWD"],["Emre Can",3,"MID"],["Daniel Svensson",3,"DEF"],["Niklas Süle",3,"DEF"],["Julian Ryerson",3,"DEF"],["Karim Adeyemi",3,"FWD"],["Silas Ostrzinski",3,"GK"],["Jordi Paulina",3,"MID"],["Alexander Meyer",3,"GK"],["Marcel Lotka",3,"GK"],["Rodney Elongo-Yombo",3,"MID"],["Cole Campbell",3,"FWD"],["Kjell Wätjen",3,"MID"],["Filippo Mane",3,"DEF"],["Niklas Jessen",3,"DEF"],["Almugera Kabar",3,"DEF"],["Jamie Gittens",3,"FWD"],["Soumaïla Coulibaly",3,"DEF"],["Ayman Azhil",3,"MID"],["David Lelle",3,"DEF"],["Yannik Lührs",3,"DEF"],["Jobe Bellingham",3,"MID"],["Noah Atubolu",5,"GK"],["Philipp Lienhart",5,"DEF"],["Kenneth Schmidt",5,"DEF"],["Manuel Gulde",5,"DEF"],["Patrick Osterhage",5,"MID"],["Noah Weißhaupt",5,"MID"],["Maximilian Eggestein",5,"MID"],["Lucas Höler",5,"FWD"],["Daniel-Kofi Kyereh",5,"MID"],["Lukas Kübler",5,"DEF"],["Eren Dinkçi",5,"FWD"],["Niklas Beste",5,"MID"],["Junior Adamu",5,"FWD"],["Florian Müller",5,"GK"],["Roland Sallai",5,"MID"],["Florent Muslija",5,"MID"],["Jannik Huth",5,"GK"],["Kiliann Sildillia",5,"DEF"],["Maximilian Philipp",5,"FWD"],["Nicolas Höfler",5,"MID"],["Matthias Ginter",5,"DEF"],["Christian Günter",5,"DEF"],["Vincenzo Grifo",5,"MID"],["Jordy Makengo",5,"DEF"],["Merlin Röhl",5,"MID"],["Max Rosenfelder",5,"DEF"],["Michael Gregoritsch",5,"FWD"],["Berkay Yılmaz",5,"DEF"],["Bruno Ogbus",5,"DEF"],["Johan Manzambi",5,"MID"],["Yann Sturm",5,"MID"],["Yuito Suzuki",5,"MID"],["Cyriaque Irié",5,"FWD"],["Lasse Rieß",18,"GK"],["Phillipp Mwene",18,"DEF"],["Moritz Jenz",18,"DEF"],["Aymen Barkok",18,"MID"],["Maxim Leitsch",18,"DEF"],["Kaishū Sano",18,"MID"],["Jae-sung Lee",18,"MID"],["Paul Nebel",18,"MID"],["Karim Onisiwo",18,"FWD"],["Arnaud Nordin",18,"MID"],["Marco Richter",18,"MID"],["Armindo Sieb",18,"FWD"],["Hyun-seok Hong",18,"MID"],["Lennard Maloney",18,"MID"],["Stefan Bell",18,"DEF"],["Nadiem Amiri",18,"MID"],["Anthony Caci",18,"DEF"],["Edimilson Fernandes",18,"DEF"],["Danny da Costa",18,"DEF"],["Nikolas Veratschnig",18,"MID"],["Andreas Hanche-Olsen",18,"DEF"],["Robin Zentner",18,"GK"],["Silvan Widmer",18,"DEF"],["Dominik Kohr",18,"DEF"],["Daniel Batz",18,"GK"],["Daniel Gleiber",18,"MID"],["Nelson Weiper",18,"FWD"],["Maxim Dal",18,"DEF"],["Benedict Hollerbach",18,"FWD"],["Péter Gulácsi",43,"GK"],["Mohamed Simakan",43,"DEF"],["Lutsharel Geertruida",43,"DEF"],["Willi Orbán",43,"DEF"],["El Chadaille Bitshiabu",43,"DEF"],["Eljif Elmas",43,"MID"],["Antonio Nusa",43,"MID"],["Amadou Haidara",43,"MID"],["Yussuf Poulsen",43,"FWD"],["Xavi Simons",43,"MID"],["Loïs Openda",43,"FWD"],["Nicolas Seiwald",43,"MID"],["Christoph Baumgartner",43,"MID"],["Lukas Klostermann",43,"DEF"],["Ridle Baku",43,"DEF"],["Arthur Vermeeren",43,"MID"],["André Silva",43,"FWD"],["Assan Ouédraogo",43,"MID"],["Kosta Nedeljković",43,"DEF"],["David Raum",43,"DEF"],["Castello Lukeba",43,"DEF"],["Xaver Schlager",43,"MID"],["Leopold Zingerle",43,"GK"],["Maarten Vandevoordt",43,"GK"],["Tidiam Gomis",43,"FWD"],["Robert Ramšak",43,"FWD"],["Benjamin Šeško",43,"FWD"],["Faik Sakar",43,"MID"],["Fabrice Hartmann",43,"MID"],["Nuha Jatta",43,"MID"],["Mika Walther",43,"MID"],["Benjamin Henrichs",43,"DEF"],["Kevin Kampl",43,"MID"],["Jonathan Norbye",43,"DEF"],["Viggo Gebel",43,"MID"],["Lionel Voufack",43,"DEF"],["Johan Bakayoko",43,"FWD"],["Yan Diomande",43,"FWD"],["Rômulo",43,"FWD"],["Ezechiel Banzuzi",43,"MID"],["Michael Zetterer",10,"GK"],["Olivier Deman",10,"DEF"],["Anthony Jung",10,"DEF"],["Niklas Stark",10,"DEF"],["Amos Pieper",10,"DEF"],["Jens Stage",10,"MID"],["Marvin Ducksch",10,"FWD"],["Mitchell Weiser",10,"DEF"],["Leonardo Bittencourt",10,"MID"],["Justin Njinmah",10,"FWD"],["Miloš Veljković",10,"DEF"],["Senne Lynen",10,"MID"],["Oliver Burke",10,"FWD"],["Marco Grüll",10,"FWD"],["Derrick Köhn",10,"DEF"],["Romano Schmid",10,"MID"],["Isak Hansen-Aarøen",10,"MID"],["Julián Malatini",10,"DEF"],["Markus Kolke",10,"GK"],["Felix Agu",10,"DEF"],["Skelly Alvero",10,"MID"],["Dikeni Salifou",10,"MID"],["Issa Kaboré",10,"DEF"],["Mio Backhaus",10,"GK"],["Marco Friedl",10,"DEF"],["Abdenego Nankishi",10,"FWD"],["Leon Opitz",10,"MID"],["Patrice Čović",10,"MID"],["Karim Coulibaly",10,"DEF"],["Keke Topp",10,"FWD"],["Maik Łukowicz",10,"FWD"],["Wesley Adeh",10,"MID"],["Mick Schmetgens",10,"DEF"],["Samuel Mbangula",10,"FWD"],["Fabian Bredlow",9,"GK"],["Ameen al-Dakhil",9,"DEF"],["Ramon Hendriks",9,"DEF"],["Josha Vagnoman",9,"DEF"],["Yannik Keitel",9,"MID"],["Angelo Stiller",9,"MID"],["Maximilian Mittelstädt",9,"DEF"],["Enzo Millot",9,"MID"],["Ermedin Demirović",9,"FWD"],["Woo-yeong Jeong",9,"MID"],["El Bilal Touré",9,"FWD"],["Nick Woltemade",9,"FWD"],["Frans Krätzig",9,"DEF"],["Silas",9,"FWD"],["Luca Jaquez",9,"DEF"],["Pascal Stenzel",9,"DEF"],["Atakan Karazor",9,"MID"],["Justin Diehl",9,"FWD"],["Jamie Leweling",9,"FWD"],["Wahid Faghir",9,"FWD"],["Leonidas Stergiou",9,"DEF"],["Stefan Drljača",9,"GK"],["Thomas Kastanaras",9,"FWD"],["Dan-Axel Zagadou",9,"DEF"],["Jeff Chabot",9,"DEF"],["Luca Pfeiffer",9,"FWD"],["Jacob Bruun Larsen",9,"MID"],["Deniz Undav",9,"FWD"],["Chris Führich",9,"MID"],["Nikolas Nartey",9,"MID"],["Anthony Rouault",9,"DEF"],["Finn Jeltsch",9,"DEF"],["Ömer Beyaz",9,"MID"],["Fabian Rieder",9,"MID"],["Alexander Nübel",9,"GK"],["Luca Raimund",9,"MID"],["Dennis Seimen",9,"GK"],["Anrie Chase",9,"DEF"],["Jarzinho Malanga",9,"MID"],["Bilal El Khannouss",9,"MID"],["Lorenz Assignon",9,"DEF"],["Chema Andrés",9,"MID"],["Jonas Omlin",15,"GK"],["Fabio Chiarodia",15,"DEF"],["Kō Itakura",15,"DEF"],["Marvin Friedrich",15,"DEF"],["Kevin Stöger",15,"MID"],["Julian Weigl",15,"MID"],["Franck Honorat",15,"MID"],["Florian Neuhaus",15,"MID"],["Tim Kleindienst",15,"FWD"],["Shiō Fukuda",15,"FWD"],["Alassane Pléa",15,"FWD"],["Philipp Sander",15,"MID"],["Manu Koné",15,"MID"],["Nathan Ngoumou",15,"MID"],["Luca Netz",15,"DEF"],["Tobias Sippel",15,"GK"],["Stefan Lainer",15,"DEF"],["Noah Pesch",15,"MID"],["Robin Hack",15,"MID"],["Lukas Ullrich",15,"DEF"],["Rocco Reitz",15,"MID"],["Grant-Leon Ranos",15,"FWD"],["Joe Scally",15,"DEF"],["Nico Elvedi",15,"DEF"],["Tomáš Čvančara",15,"FWD"],["Moritz Nicolas",15,"GK"],["Charles Herrmann",15,"MID"],["Yvandro Borges Sanches",15,"MID"],["Niklas Swider",15,"MID"],["Jan Olschowsky",15,"GK"],["Tiago Pereira Cardoso",15,"GK"],["Veit Stange",15,"MID"],["Kevin Diks",15,"DEF"],["Haris Tabaković",15,"FWD"],["Finn Dahmen",13,"GK"],["Robert Gumny",13,"DEF"],["Mads Pedersen",13,"DEF"],["Reece Oxford",13,"DEF"],["Chrislain Matsima",13,"DEF"],["Jeffrey Gouweleeuw",13,"DEF"],["Yusuf Kabadayı",13,"FWD"],["Elvis Rexhbeçaj",13,"MID"],["Samuel Essende",13,"FWD"],["Arne Maier",13,"MID"],["Marius Wolf",13,"DEF"],["Dimitrios Giannoulis",13,"DEF"],["Masaya Okugawa",13,"MID"],["Steve Mounié",13,"FWD"],["Rubén Vargas",13,"MID"],["Kristijan Jakić",13,"MID"],["Tim Breithaupt",13,"MID"],["Felix Uduokhai",13,"DEF"],["Frank Onyeka",13,"MID"],["Alexis Claude-Maurice",13,"MID"],["Phillip Tietz",13,"FWD"],["Nediljko Labrović",13,"GK"],["Maximilian Bauer",13,"DEF"],["Fredrik Jensen",13,"MID"],["Daniel Klein",13,"GK"],["Arne Engels",13,"MID"],["Niklas Dorsch",13,"MID"],["Keven Schlotterbeck",13,"DEF"],["Nathanaël Mbuku",13,"FWD"],["Mert Kömür",13,"MID"],["Mërgim Berisha",13,"FWD"],["Noahkai Banks",13,"DEF"],["Felix Meiser",13,"DEF"],["Mahmut Küçükşahin",13,"MID"],["Henri Koudossou",13,"DEF"],["Juan Cabrera",13,"MID"],["David Deger",13,"DEF"],["Fabian Rieder",13,"MID"],["Frederik Rønnow",40,"GK"],["Kevin Vogt",40,"DEF"],["Paul Jaeckel",40,"DEF"],["Diogo Leite",40,"DEF"],["Danilho Doekhi",40,"DEF"],["Robin Gosens",40,"DEF"],["Yorbe Vertessen",40,"FWD"],["Rani Khedira",40,"MID"],["Ivan Prtajin",40,"FWD"],["Kevin Volland",40,"FWD"],["András Schäfer",40,"MID"],["Leopold Querfeld",40,"DEF"],["Tom Rothe",40,"DEF"],["Jordan Siebatcheu",40,"FWD"],["Josip Juranović",40,"DEF"],["Janik Haberer",40,"MID"],["László Bénes",40,"MID"],["Tim Skarke",40,"MID"],["Andrej Ilić",40,"FWD"],["Robert Skov",40,"MID"],["Carl Klaus",40,"GK"],["Jérôme Roussillon",40,"DEF"],["Marin Ljubičić",40,"FWD"],["Christopher Trimmel",40,"DEF"],["Lucas Tousart",40,"MID"],["Aljoscha Kemlein",40,"MID"],["Alexander Schwolow",40,"GK"],["Yannic Stein",40,"GK"],["Oluwaseun Ogbemudia",40,"DEF"],["David Preu",40,"FWD"],["Ilyas Ansah",40,"FWD"],["Derrick Köhn",40,"DEF"],["Oliver Baumann",14,"GK"],["Robin Hranáč",14,"DEF"],["Pavel Kadeřábek",14,"DEF"],["Tim Drexler",14,"DEF"],["Leo Østigård",14,"DEF"],["Ozan Kabak",14,"DEF"],["Grischa Prömel",14,"MID"],["Dennis Geiger",14,"MID"],["Ihlas Bebou",14,"FWD"],["Florian Grillitsch",14,"MID"],["Christopher Lenz",14,"DEF"],["Gift Orban",14,"FWD"],["Valentin Gendrey",14,"DEF"],["Anton Stach",14,"MID"],["Umut Tohumcu",14,"MID"],["Diadie Samassékou",14,"MID"],["David Jurásek",14,"DEF"],["Finn Becker",14,"MID"],["Marius Bülter",14,"FWD"],["Alexander Prass",14,"DEF"],["Adam Hložek",14,"FWD"],["Marco John",14,"MID"],["Kevin Akpoguma",14,"DEF"],["Andrej Kramarić",14,"FWD"],["Florian Micheler",14,"MID"],["Bazoumana Touré",14,"FWD"],["Lars Strobl",14,"DEF"],["Jakob Busk",14,"GK"],["Max Moerstedt",14,"FWD"],["Stanley N’Soki",14,"DEF"],["Arthur Chaves",14,"DEF"],["Lúkas Petersson",14,"GK"],["Luca Philipp",14,"GK"],["Paul Hennrich",14,"FWD"],["Hennes Behrens",14,"DEF"],["Attila Szalai",14,"DEF"],["Noah König",14,"DEF"],["David Mokwa",14,"FWD"],["Erencan Yardımcı",14,"FWD"],["Tim Philipp",14,"GK"],["Luka Đurić",14,"MID"],["Fisnik Asllani",14,"FWD"],["Wouter Burger",14,"MID"],["Bernardo",14,"DEF"],["Vladimír Coufal",14,"DEF"],["Leon Avdullahu",14,"MID"],["Daniel Heuer Fernandes",6,"GK"],["Matheo Raab",6,"GK"],["Tom Mickel",6,"GK"],["Miro Muheim",6,"DEF"],["Sebastian Schonlau",6,"DEF"],["Dennis Hadžikadunić",6,"DEF"],["William Mikelbrencis",6,"DEF"],["Noah Katterbach",6,"DEF"],["Silvan Hefti",6,"DEF"],["Guilherme Ramos",6,"DEF"],["Nicolas Oliveira",6,"DEF"],["Lucas Perrin",6,"DEF"],["Luka Vušković",6,"DEF"],["Daniel Elfadli",6,"MID"],["Ludovit Reis",6,"MID"],["Jonas Meffert",6,"MID"],["Immanuel Pherai",6,"MID"],["Łukasz Poręba",6,"MID"],["Adam Karabec",6,"MID"],["Fábio Vieira",6,"MID"],["Nicolai Remberg",6,"MID"],["Albert Sambi Lokonga",6,"MID"],["Robert Glatzel",6,"FWD"],["Davie Selke",6,"FWD"],["Jean-Luc Dompé",6,"FWD"],["Ransford-Yeboah Königsdörffer",6,"FWD"],["Bakery Jatta",6,"FWD"],["Emir Sahiti",6,"FWD"],["Fabio Baldé",6,"FWD"],["Otto Stange",6,"FWD"],["Rayan Philippe",6,"FWD"],["Yussuf Poulsen",6,"FWD"],["Marvin Schwäbe",28,"GK"],["Philipp Pentke",28,"GK"],["Matthias Köbbing",28,"GK"],["Anthony Racioppi",28,"GK"],["Timo Hübers",28,"DEF"],["Julian Pauli",28,"DEF"],["Dominique Heintz",28,"DEF"],["Luca Kilian",28,"DEF"],["Leart Paçarada",28,"DEF"],["Jusuf Gazibegović",28,"DEF"],["Jan Thielmann",28,"DEF"],["Max Finkgräfe",28,"DEF"],["Joel Schmied",28,"DEF"],["Rav van den Berg",28,"DEF"],["Sebastian Sebulonsen",28,"DEF"],["Eric Martel",28,"MID"],["Dejan Ljubičić",28,"MID"],["Denis Huseinbašić",28,"MID"],["Florian Kainz",28,"MID"],["Linton Maina",28,"MID"],["Mathias Olesen",28,"MID"],["Jacob Christensen",28,"MID"],["Marvin Obuz",28,"MID"],["Ísak Bergmann Jóhannesson",28,"MID"],["Jakub Kamiński",28,"MID"],["Tom Krauß",28,"MID"],["Tim Lemperle",28,"FWD"],["Damion Downs",28,"FWD"],["Luca Waldschmidt",28,"FWD"],["Steffen Tigges",28,"FWD"],["Sargis Adamyan",28,"FWD"],["Imad Rondić",28,"FWD"],["Mark Uth",28,"FWD"],["Said El Mala",28,"FWD"],["Ragnar Ache",28,"FWD"],["Marius Bülter",28,"FWD"],["Loris Karius",8,"GK"],["Justin Heekeren",8,"GK"],["Ron-Thorben Hoffmann",8,"GK"],["Timo Becker",8,"DEF"],["Derry Murkin",8,"DEF"],["Tomáš Kalas",8,"DEF"],["Hasan Kuruçay",8,"DEF"],["Taylan Bulut",8,"DEF"],["Adrian Gantenbein",8,"DEF"],["Vitalie Becker",8,"DEF"],["Anton Donkor",8,"DEF"],["Moussa N'Diaye",8,"DEF"],["Felipe Sánchez",8,"DEF"],["Paul Seguin",8,"MID"],["Ron Schallenberg",8,"MID"],["Soufiane El-Faouzi",8,"MID"],["Janik Bachmann",8,"MID"],["Tobias Mohr",8,"MID"],["Amin Younes",8,"MID"],["Finn Porath",8,"MID"],["Max Grüger",8,"MID"],["Moussa Sylla",8,"FWD"],["Kenan Karaman",8,"FWD"],["Edin Džeko",8,"FWD"],["Pape Meïssa Ba",8,"FWD"],["Christopher Antwi-Adjei",8,"FWD"],["Emil Højlund",8,"FWD"],["Bryan Lasme",8,"FWD"],["Christian Gomis",8,"FWD"],["Markus Schubert",29,"GK"],["Pelle Boevink",29,"GK"],["Felix Götze",29,"DEF"],["Tjark Scheller",29,"DEF"],["Marcel Hoffmeier",29,"DEF"],["Calvin Brackelmann",29,"DEF"],["Laurin Curda",29,"DEF"],["Mattes Hansen",29,"DEF"],["Raphael Obermair",29,"DEF"],["Filip Bilbija",29,"MID"],["Santiago Castañeda",29,"MID"],["Sebastian Klaas",29,"MID"],["Mika Baur",29,"MID"],["David Kinsombi",29,"MID"],["Nick Bätzner",29,"MID"],["Luis Engelns",29,"MID"],["Adriano Grimaldi",29,"FWD"],["Sven Michel",29,"FWD"],["Koen Kostons",29,"FWD"],["Lucas Copado",29,"FWD"],["Stefano Marino",29,"FWD"],["Nicolas Kristof",52,"GK"],["Tim Boss",52,"GK"],["Lukas Pinckert",52,"DEF"],["Maximilian Rohr",52,"DEF"],["Maurice Neubauer",52,"DEF"],["Elias Baum",52,"DEF"],["Florian Le Joncour",52,"DEF"],["Felix Keidel",52,"DEF"],["Jan Gyamerah",52,"DEF"],["Robin Fellhauer",52,"MID"],["Semih Şahin",52,"MID"],["Carlo Sickinger",52,"MID"],["Muhammed Damar",52,"MID"],["Tom Zimmerschied",52,"MID"],["Lukas Petkov",52,"MID"],["Manuel Feil",52,"MID"],["Frederik Schmahl",52,"MID"],["Bambasé Conté",52,"MID"],["Luca Schnellbacher",52,"FWD"],["Younes Ebnoutalib",52,"FWD"],["Filimon Gerezgiher",52,"FWD"],["Mohammad Mahmoud",52,"FWD"]];
 
     // Helper to normalize names for resilient matching (strips umlauts, accents, spaces, punctuation)
     const norm = (s) => (s || "")
@@ -7964,10 +8119,9 @@ Analyze my squad strictly under Kickbase rules:
         target.position = source.position;
         target.posCode = source.posCode || target.posCode;
       }
-      if ((!target.teamName || target.teamName.startsWith("Team ")) && source.teamName && !source.teamName.startsWith("Team ")) {
-        target.teamName = source.teamName;
-      }
-      if (!target.teamId && source.teamId) target.teamId = source.teamId;
+      const resTeam = resolveCanonicalTeam(source.teamId || target.teamId, source.teamName || target.teamName);
+      if (resTeam.teamId) target.teamId = resTeam.teamId;
+      if (resTeam.teamName && !resTeam.teamName.startsWith("Team ")) target.teamName = resTeam.teamName;
       if (!target.totalPoints && source.totalPoints) target.totalPoints = source.totalPoints;
       if (!target.avgPoints && source.avgPoints) target.avgPoints = source.avgPoints;
       if ((!target.marketValue || target.marketValue === 500000) && source.marketValue && source.marketValue !== 500000) {
@@ -8000,9 +8154,12 @@ Analyze my squad strictly under Kickbase rules:
     // Pre-index official Bundesliga roster by full name and by team + last name
     const rosterByName = new Map();
     const rosterByTeamAndLast = new Map();
-    for (const [pName, tid, pos] of BUNDESLIGA_ROSTER) {
-      rosterByName.set(norm(pName), { name: pName, tid: String(tid), pos });
-      rosterByTeamAndLast.set(`${tid}_${norm(lastName(pName))}`, { name: pName, tid: String(tid), pos });
+    for (const [pName, rawTid, pos] of BUNDESLIGA_ROSTER) {
+      const resolvedTid = ( String(rawTid) === "29" && TEAM_ALIASES["paderborn"] )
+        ? TEAM_ALIASES["paderborn"]
+        : ( (String(rawTid) === "52" && TEAM_ALIASES["elversberg"]) ? TEAM_ALIASES["elversberg"] : String(rawTid) );
+      rosterByName.set(norm(pName), { name: pName, tid: resolvedTid, pos });
+      rosterByTeamAndLast.set(`${resolvedTid}_${norm(lastName(pName))}`, { name: pName, tid: resolvedTid, pos });
     }
 
     // Build comprehensive database of ALL players in the game
@@ -8012,6 +8169,9 @@ Analyze my squad strictly under Kickbase rules:
 
     const registerPlayer = (item) => {
       if (!item) return;
+      const res = resolveCanonicalTeam(item.teamId, item.teamName);
+      item.teamId = res.teamId;
+      item.teamName = res.teamName;
       if (item.id) playersMap.set(String(item.id), item);
       if (item.name) {
         liveByName.set(norm(item.name), item);
@@ -8021,11 +8181,11 @@ Analyze my squad strictly under Kickbase rules:
 
     // 1. Index all manager squad players in the league
     for (const p of d.squads) {
-      const pId = String(p.id);
-      const tName = teamMap.get(String(p.teamId)) || p.teamName || (p.teamId ? `Team ${p.teamId}` : "Bundesliga");
+      const resTeam = resolveCanonicalTeam(p.teamId, p.teamName);
       const item = {
         ...p,
-        teamName: tName,
+        teamId: resTeam.teamId,
+        teamName: resTeam.teamName,
         isMine: p.managerId === meId,
         ownerType: p.managerId === meId ? "mine" : "manager"
       };
@@ -8036,17 +8196,22 @@ Analyze my squad strictly under Kickbase rules:
     for (const p of market) {
       const pId = String(p.id);
       const existing = playersMap.get(pId) || liveByName.get(norm(p.name));
-      const tName = teamMap.get(String(p.teamId)) || p.teamName || (p.teamId ? `Team ${p.teamId}` : "Bundesliga");
+      const resTeam = resolveCanonicalTeam(p.teamId, p.teamName);
       if (existing) {
         existing.isOnMarket = true;
         existing.marketPrice = p.price || p.marketValue;
+        if (resTeam.teamName && !resTeam.teamName.startsWith("Team ")) {
+          existing.teamName = resTeam.teamName;
+          existing.teamId = resTeam.teamId;
+        }
         if (!playersMap.has(pId)) playersMap.set(pId, existing);
       } else {
         const item = {
           ...p,
           manager: "Market",
           managerId: "market",
-          teamName: tName,
+          teamId: resTeam.teamId,
+          teamName: resTeam.teamName,
           isMine: false,
           ownerType: "market",
           isOnMarket: true,
@@ -8061,18 +8226,23 @@ Analyze my squad strictly under Kickbase rules:
     for (const p of mySquad) {
       const pId = String(p.id);
       const existing = playersMap.get(pId) || liveByName.get(norm(p.name));
-      const tName = teamMap.get(String(p.teamId)) || p.teamName || (p.teamId ? `Team ${p.teamId}` : "Bundesliga");
+      const resTeam = resolveCanonicalTeam(p.teamId, p.teamName);
       if (existing) {
         existing.manager = (d.rank.find((r) => r.id === meId) || {}).name || "You";
         existing.managerId = meId;
         existing.isMine = true;
         existing.ownerType = "mine";
+        if (resTeam.teamName && !resTeam.teamName.startsWith("Team ")) {
+          existing.teamName = resTeam.teamName;
+          existing.teamId = resTeam.teamId;
+        }
       } else {
         const item = {
           ...p,
           manager: (d.rank.find((r) => r.id === meId) || {}).name || "You",
           managerId: meId,
-          teamName: tName,
+          teamId: resTeam.teamId,
+          teamName: resTeam.teamName,
           isMine: true,
           ownerType: "mine"
         };
@@ -8088,8 +8258,10 @@ Analyze my squad strictly under Kickbase rules:
         if (!tp) continue;
         const items = tp.it || tp.players || (Array.isArray(tp) ? tp : []);
         if (!Array.isArray(items)) continue;
-        const tid = String(tp.tid || tp.id || tp.t || "");
-        const tName = tp.tn || tp.name || teamMap.get(tid) || BUNDESLIGA_DEFAULTS[tid] || `Team ${tid}`;
+        const rawTid = String(tp.tid || tp.id || tp.t || "");
+        const resTeam = resolveCanonicalTeam(rawTid, tp.tn || tp.name);
+        const tid = resTeam.teamId;
+        const tName = resTeam.teamName;
         for (const p of items) {
           const pId = String(p.i || p.id || p.pi || "");
           if (!pId) continue;
@@ -8334,58 +8506,72 @@ Analyze my squad strictly under Kickbase rules:
       "aljoschakemlein": 4500000, "alexanderschwolow": 1500000, "yannicstein": 500000, "oluwaseunogbemudia": 600000,
       "davidpreu": 600000,
 
-      // --- Bochum (TID 24) ---
-      "timohorn": 1500000, "cristiangamboa": 1000000, "erhanmasovic": 4500000, "bernardo": 6500000,
-      "ibrahimasissoko": 5500000, "lukasdaschner": 2500000, "myronboadu": 6500000, "danidewit": 5500000,
-      "moritzkwarteng": 2000000, "georgiosmasouras": 5000000, "jakovmedic": 3000000, "timoermann": 3500000,
-      "felixpasslack": 2500000, "niklasjahn": 600000, "agonelezi": 1200000, "tomkrauss": 5000000,
-      "samuelbamba": 1500000, "iwanordez": 2500000, "gerritholtmann": 2000000, "alioubalde": 3500000,
-      "kojimiyoshi": 3000000, "matspannewig": 1500000, "mohammedtolba": 600000, "patrickdrewes": 2000000,
-      "lennartkoerdt": 800000, "moritzbroschinski": 2500000, "manuelriemann": 1000000, "maximilianwittek": 3500000,
-      "philipphofmann": 2500000, "paulgrave": 500000, "noahloosli": 1500000, "kacperkoscierski": 500000,
+      // --- Hamburger SV (TID 6) ---
+      "danielheuerfernandes": 4500000, "matheoraab": 3000000, "tommickel": 500000, "miromuheim": 9500000,
+      "sebastianschonlau": 5500000, "dennishadzikadunic": 5000000, "williammikelbrencis": 3000000, "noahkatterbach": 3500000,
+      "silvanhefti": 4000000, "guilhermeramos": 2000000, "nicolasoliveira": 1500000, "lucasperrin": 2500000,
+      "lukavuskovic": 12000000, "danielelfadli": 4500000, "ludovitreis": 9000000, "jonasmeffert": 5500000,
+      "immanuelpherai": 4500000, "lukaszporeba": 3000000, "adamkarabec": 5000000, "fabiovieira": 14000000,
+      "nicolairemberg": 5500000, "albertsambilokonga": 11000000, "robertglatzel": 11000000, "davieselke": 8500000,
+      "jeanlucdompe": 8500000, "ransfordyeboahkoenigsdoerffer": 6500000, "bakeryjatta": 3500000, "emirsahiti": 4500000,
+      "fabiobalde": 4000000, "ottostange": 2000000, "rayanphilippe": 7000000,
 
-      // --- Heidenheim (TID 28) ---
-      "marnonbusch": 2000000, "janschoeppner": 4500000, "timsiersleben": 3500000, "benediktgimber": 4000000,
-      "stefanschimmer": 1500000, "denisthomalla": 1500000, "budusiwsiwadse": 3500000, "maximilianbreunig": 2500000,
-      "julianniehues": 2000000, "mathiashonsak": 3000000, "jonasfoehrenbach": 3500000, "lucakerber": 2500000,
-      "adrianbeck": 3000000, "vituseicher": 600000, "omartraore": 4500000, "christophernegele": 600000,
-      "thomaskeller": 1500000, "mikkelkaufmann": 3500000, "normantheuerkauf": 800000, "sirlordconteh": 2500000,
-      "paultschernuth": 500000, "lukajanes": 500000, "frankfeller": 500000,
+      // --- 1. FC Köln (TID 28) ---
+      "marvinschwaebe": 8500000, "philipppentke": 600000, "matthiaskoebbing": 500000, "anthonyracioppi": 1500000,
+      "timoheubers": 8500000, "timohuebers": 8500000, "julianpauli": 5500000, "dominiqueheintz": 3500000,
+      "lucakilian": 2500000, "leartpacarada": 6500000, "jusufgazibegovic": 6000000, "janthielmann": 7500000,
+      "maxfinkgraefe": 6500000, "joelschmied": 4500000, "ravvandenberg": 8000000, "sebastiansebulonsen": 4000000,
+      "ericmartel": 11000000, "dejanljubicic": 8500000, "denishuseinbasic": 7000000, "floriankainz": 6500000,
+      "lintonmaina": 8000000, "mathiasolesen": 2500000, "jacobchristensen": 2000000, "marvinobuz": 2500000,
+      "isakbergmannjohannesson": 7500000, "jakubkaminski": 8000000, "tomkrauss": 6000000, "timlemperle": 9500000,
+      "damiondowns": 8500000, "lucawaldschmidt": 6000000, "steffentigges": 2500000, "sargisadamyan": 1800000,
+      "imadrondic": 3500000, "markuth": 1500000, "saidelmala": 4500000, "ragnarache": 8500000,
 
-      // --- St. Pauli (TID 40) ---
-      "benvoll": 800000, "manolissaliakas": 3500000, "karolmets": 3000000, "davidnemeth": 2500000,
-      "jamessands": 4500000, "jacksonirvine": 4500000, "abdoulieceesay": 1000000, "danelsinani": 2000000,
-      "finstevens": 2500000, "carloboukhalfa": 2500000, "oladapoafolayan": 4000000, "scottbanks": 2500000,
-      "andreasalbers": 1000000, "erikahlstrand": 1500000, "larsritzka": 2000000, "philipptreu": 4500000,
-      "connormetcalfe": 3000000, "adamdzwigala": 1500000, "eliassaad": 4500000, "simonzoller": 1000000,
-      "soerenahlers": 600000, "morganguilavogui": 4000000, "saschaburchert": 800000, "ericoelschlaegel": 600000,
-      "maurides": 1500000, "muhammaddahaba": 600000, "ronnyseibt": 500000, "emilstaugaard": 600000,
-      "julienyanda": 500000, "romeoaigbekaen": 600000, "robertwagner": 4000000, "marwinschmitz": 500000,
-      "siebevanderheyden": 2500000,
+      // --- FC Schalke 04 (TID 8) ---
+      "loriskarius": 3500000, "justinheekeren": 4000000, "ronthorbenhoffmann": 1200000, "timobecker": 5500000,
+      "derrymurkin": 6500000, "tomaskalas": 3500000, "hasankurucay": 4000000, "taylanbulut": 8500000,
+      "adriangantenbein": 3000000, "vitaliebecker": 3500000, "antondonkor": 2500000, "moussandiaye": 3000000,
+      "felipesanchez": 2500000, "paulseguin": 6500000, "ronschallenberg": 6000000, "soufianeelfaouzi": 4500000,
+      "janikbachmann": 3500000, "tobiasmohr": 4500000, "aminyounes": 3500000, "finnporath": 4000000,
+      "maxgrueger": 4000000, "moussasylla": 14000000, "kenankaraman": 12500000, "edindzeko": 9500000,
+      "papemeissaba": 5500000, "christopherantwiadjei": 4000000, "emilhoejlund": 4500000, "bryanlasme": 3000000,
+      "christiangomis": 4500000,
 
-      // --- Holstein Kiel (TID 43) ---
-      "marcokomenda": 1800000, "patrickerras": 2000000, "carljohansson": 2000000, "markoivezic": 2500000,
-      "stevenskrzybski": 2500000, "finnporath": 2500000, "benediktpichler": 3000000, "lewisholtby": 1800000,
-      "alexanderbernhardsson": 3500000, "ivannekic": 1200000, "maxgeschwill": 2500000, "marvinschulz": 2000000,
-      "andukelati": 1500000, "timobecker": 3500000, "philharres": 1500000, "fietearp": 2500000,
-      "thomasdaehne": 1000000, "nicolairemberg": 2500000, "lasserosenboom": 1500000, "magnusknudsen": 3000000,
-      "davidzec": 2000000, "tymoteuszpuchacz": 3500000, "aurelwagbe": 800000, "marcelengelhardt": 600000,
-      "jonassterner": 1200000, "dominikjavorcek": 1800000, "colinkleinebekel": 3000000, "armingigovic": 4500000,
-      "johntolkin": 3500000
+      // --- SC Paderborn 07 (TID 29) ---
+      "markusschubert": 3000000, "pelleboevink": 2500000, "felixgoetze": 5500000, "tjarkscheller": 3000000,
+      "marcelhoffmeier": 4000000, "calvinbrackelmann": 5500000, "laurincurda": 4500000, "matteshansen": 3500000,
+      "raphaelobermair": 7500000, "filipbilbija": 8500000, "santiagocastaneda": 6500000, "sebastianklaas": 4500000,
+      "mikabaur": 4000000, "davidkinsombi": 3500000, "nickbaetzner": 5000000, "luisengelns": 4500000,
+      "adrianogrimaldi": 2500000, "svenmichel": 3000000, "koenkostons": 5500000, "lucascopado": 4000000,
+      "stefanomarino": 3000000,
+
+      // --- SV Elversberg (TID 52) ---
+      "nicolaskristof": 5500000, "timboss": 800000, "lukaspinckert": 4500000, "maximilianrohr": 4000000,
+      "mauriceneubauer": 6500000, "eliasbaum": 7500000, "florianlejoncour": 3500000, "felixkeidel": 3000000,
+      "jangyamerah": 3000000, "robinfellhauer": 6000000, "semihsahin": 6500000, "carlosickinger": 4000000,
+      "muhammeddamar": 9500000, "tomzimmerschied": 4500000, "lukaspetkov": 6000000, "manuelfeil": 3000000,
+      "frederikschmahl": 3000000, "bambaseconte": 4500000, "lucaschnellbacher": 4500000, "younesebnoutalib": 5500000,
+      "filimongerezgiher": 3000000, "mohammadmahmoud": 3000000
     };
 
     const hasLiveTeamProfiles = Array.isArray(teamProfilesRaw) && teamProfilesRaw.some(tp => tp && (tp.it || tp.players || []).length > 0);
 
     for (const [pName, tid, pos] of BUNDESLIGA_ROSTER) {
       const nKey = norm(pName);
-      const lastKey = `${tid}_${norm(lastName(pName))}`;
+      const strTid = (String(tid) === "29" && TEAM_ALIASES["paderborn"])
+        ? TEAM_ALIASES["paderborn"]
+        : ((String(tid) === "52" && TEAM_ALIASES["elversberg"]) ? TEAM_ALIASES["elversberg"] : String(tid));
+      const lastKey = `${strTid}_${norm(lastName(pName))}`;
       const liveMatch = liveByName.get(nKey) || byTeamAndLast.get(lastKey);
-      const standardTeam = teamMap.get(String(tid)) || BUNDESLIGA_DEFAULTS[String(tid)] || `Team ${tid}`;
+      const standardTeam = BUNDESLIGA_TEAMS[strTid] || `Team ${strTid}`;
       const baselineMv = STAR_VALUATION_MAP[nKey] || 1500000;
 
       if (liveMatch) {
         if (!liveMatch.position || liveMatch.position === "?") liveMatch.position = pos;
-        if (!liveMatch.teamName) liveMatch.teamName = standardTeam;
+        if (!liveMatch.teamName || liveMatch.teamName.startsWith("Team ")) {
+          liveMatch.teamName = standardTeam;
+          liveMatch.teamId = strTid;
+        }
         if ((!liveMatch.marketValue || liveMatch.marketValue === 500000) && STAR_VALUATION_MAP[nKey]) {
           liveMatch.marketValue = STAR_VALUATION_MAP[nKey];
         }
@@ -8396,12 +8582,12 @@ Analyze my squad strictly under Kickbase rules:
         registerPlayer(liveMatch);
       } else if (!hasLiveTeamProfiles) {
         // Only insert synthetic players as an emergency fallback if official team profiles failed to load entirely
-        const syntheticId = `bl_${tid}_${encodeURIComponent(pName)}`;
+        const syntheticId = `bl_${strTid}_${encodeURIComponent(pName)}`;
         const newItem = {
           id: syntheticId,
           name: pName,
           color: KB.playerColor ? KB.playerColor(syntheticId, pName) : "#38bdf8",
-          teamId: String(tid),
+          teamId: strTid,
           teamName: standardTeam,
           position: pos,
           posCode: ({ GK: 1, DEF: 2, MID: 3, FWD: 4 })[pos] || 3,
@@ -8425,13 +8611,18 @@ Analyze my squad strictly under Kickbase rules:
 
     function isCurrentlyInBundesliga(p) {
       if (!p) return false;
+      const res = resolveCanonicalTeam(p.teamId, p.teamName);
+      if (res.teamId) {
+        p.teamId = res.teamId;
+        p.teamName = res.teamName;
+      }
       const tid = String(p.teamId || "");
       if (!BUNDESLIGA_TEAM_IDS.includes(tid)) return false;
       const rawSt = Number(p.rawStatus ?? 0);
       if ((rawSt & 128) !== 0) return false;
       const stText = String(p.status || "").toLowerCase();
       if (stText.includes("left league") || stText.includes("liga verlassen")) return false;
-      if (String(p.id).startsWith("bl_") && !p._inTeamProfile) return false;
+      if (hasLiveTeamProfiles && String(p.id).startsWith("bl_") && !p._inTeamProfile) return false;
       return true;
     }
 
@@ -8447,9 +8638,18 @@ Analyze my squad strictly under Kickbase rules:
     let curPage = 1;
     let curPageSize = 20;
 
-    const availableTeams = [...new Set(allPlayersList.filter(isCurrentlyInBundesliga).map((p) => p.teamName).filter(Boolean))].sort();
+    const availableTeams = Object.values(BUNDESLIGA_TEAMS).sort((a, b) => a.localeCompare(b, "de"));
 
     function renderView() {
+      // Ensure all players have canonical team names
+      for (const p of allPlayersList) {
+        const res = resolveCanonicalTeam(p.teamId, p.teamName);
+        if (res.teamId) {
+          p.teamId = res.teamId;
+          p.teamName = res.teamName;
+        }
+      }
+
       // Deduplicate player pool to ensure zero duplicates across roster, teamprofiles & enrichment
       const dedupMap = new Map();
       const dedupedList = [];
@@ -8486,11 +8686,13 @@ Analyze my squad strictly under Kickbase rules:
         if (curOwner === "free" && p.ownerType !== "free") return false;
         if (curOwner === "managers" && (p.ownerType !== "manager" || p.isMine)) return false;
         if (curSearch) {
-          const s = curSearch.toLowerCase();
+          const s = curSearch.toLowerCase().trim();
           const matchName = p.name && p.name.toLowerCase().includes(s);
           const matchTeam = p.teamName && p.teamName.toLowerCase().includes(s);
           const matchOwner = p.manager && p.manager.toLowerCase().includes(s);
-          if (!matchName && !matchTeam && !matchOwner) return false;
+          const aliasTid = TEAM_ALIASES[s];
+          const matchAlias = aliasTid && String(p.teamId) === aliasTid;
+          if (!matchName && !matchTeam && !matchOwner && !matchAlias) return false;
         }
         return true;
       });
@@ -13607,6 +13809,10 @@ Analyze my squad strictly under Kickbase rules:
 
 
   async function pageAdvisor(el, ctx) {
+    if (!isSoulreaper()) {
+      goto("team");
+      return;
+    }
     el.innerHTML = ui.loading(t("Consulting Gemini AI Coach…"));
     const [me, squadRaw, lineupRaw, marketRaw] = await Promise.all([
       S.api.leagueMe(ctx.l),
@@ -14032,6 +14238,7 @@ Analyze my squad strictly under Kickbase rules:
   }
 
   function aiSettingsDialog(onSaved) {
+    if (!isSoulreaper()) return;
     ui.dialog("Gemini AI Settings", (body, close) => {
       const currentKey = KB.ai.getApiKey();
       const currentModel = KB.ai.getModel();
