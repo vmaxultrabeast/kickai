@@ -1755,7 +1755,10 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
     leagueOverview(l) { return this.get(`/v4/leagues/${l}/overview`); }
     leagueMe(l) { return this.get(`/v4/leagues/${l}/me`); }
     leagueSettings(l) { return this.get(`/v4/leagues/${l}/settings`); }
-    ranking(l) { return this.get(`/v4/leagues/${l}/ranking`); }
+    ranking(l, dayNumber = null) {
+      const q = dayNumber ? { dayNumber } : null;
+      return this.get(`/v4/leagues/${l}/ranking`, q);
+    }
     market(l) { return this.get(`/v4/leagues/${l}/market`, null, 60); }
     managerPerformance(l, m) { return this.get(`/v4/leagues/${l}/managers/${m}/performance`); }
     managerSquad(l, m) { return this.get(`/v4/leagues/${l}/managers/${m}/squad`); }
@@ -1820,6 +1823,10 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
         return await this.get(`/v4/leagues/${leagueId}/teams/${teamId}/teamprofile/`, null, 1800);
       } catch (e) { return null; }
     }
+    async news(comp = 1, start = 0, max = 50) {
+      try { return await this.get(`/v4/base/news/${comp}`, { start, max }, 120); }
+      catch (e) { return { it: [] }; }
+    }
     playerImage(playerId, size = 1) {
       if (!playerId || String(playerId).startsWith("bl_") || isNaN(Number(playerId))) return null;
       return `${CDN_URL}/pool/playersbig/${playerId}.png`;
@@ -1830,8 +1837,11 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
       try { return await this.get(`/v4/leagues/${l}/teamcenter/myeleven`, null, 15); }
       catch (e) { return null; }
     }
-    async userTeamCenter(l, userId) {
-      try { return await this.get(`/v4/leagues/${l}/users/${userId}/teamcenter`, null, 15); }
+    async userTeamCenter(l, userId, dayNumber = null) {
+      try {
+        const q = dayNumber ? { dayNumber } : null;
+        return await this.get(`/v4/leagues/${l}/users/${userId}/teamcenter`, q, 60);
+      }
       catch (e) { return null; }
     }
     async matchDetails(m) {
@@ -2176,14 +2186,14 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
     const mv = first(p, "mv") || 0;
     const pts = first(p, "p", "tp") || 0;
     const avg = first(p, "ap") || 0;
-    const fn = first(p, "fn") || "";
-    const ln = first(p, "n", "pn", "ln") || "";
     const exs = first(p, "exs");
     const offer = myOffer(p, userId);
     const rawSt = first(p, "st") || 0;
     const posNum = first(p, "pos") || 0;
     const pid = String(first(p, "i", "pi") ?? "");
-    const pName = `${fn} ${ln}`.trim();
+    const fn = (first(p, "fn", "firstName") || "").trim();
+    const rawLn = (first(p, "ln", "lastName") || first(p, "n", "pn") || "").trim();
+    const pName = (fn && rawLn && !rawLn.toLowerCase().startsWith(fn.toLowerCase())) ? `${fn} ${rawLn}` : (rawLn || fn);
     const col = playerColor(pid, pName);
     const rawIsmc = first(p, "ismc");
     const starts = (rawIsmc !== undefined && rawIsmc !== null) ? Number(rawIsmc) : null;
@@ -2799,6 +2809,32 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
     "In": "Eingewechselt",
     "Starter": "Startelf",
     "Bench": "Bank",
+    "Fielded Starting XI": "Aufgestellte Startelf",
+    "Current Squad Preview": "Aktueller Kader (Vorschau)",
+    "Fielded Lineup": "Aufgestellte Elf",
+    "with official points earned.": "inklusive offiziell erzielter Punkte.",
+    "Actual fielded Starting XI from Matchday": "Tatsächlich aufgestellte Startelf von Spieltag",
+    "Showing the exact 11 players you fielded on Matchday": "Zeigt die 11 Spieler, die du an Spieltag",
+    "Showing your currently active squad and Starting XI for the upcoming matchday.": "Zeigt deinen aktuell aktiven Kader und deine Startelf für den kommenden Spieltag.",
+    "Matchday Standings & Manager Lineups (Last Matchday)": "Spieltags-Tabelle & Manager-Startelfen (Letzter Spieltag)",
+    "Final standings from the matchday across your league. Click \"Inspect Lineup\" to inspect any manager's Starting XI.": "Offizieller Endstand des Spieltags in deiner Liga. Klicke auf „Aufstellung ansehen“, um die Startelf eines Managers zu prüfen.",
+    "Starting XI Pitch (Last Matchday)": "Startelf-Spielfeld (Letzter Spieltag)",
+    "Pitch view showing starter points contribution from the last matchday": "Spielfeldansicht mit den Punkten der aufgestellten Startelf des letzten Spieltags",
+    "Player Performance Table (Last Matchday)": "Spieler-Leistungstabelle (Letzter Spieltag)",
+    "Player scores and team points contribution from the last matchday": "Punkte und Team-Beitrag der Spieler des letzten Spieltags",
+    "Bench players points from last matchday": "Punkte der Bankspieler vom letzten Spieltag",
+    "Player was sold mid-matchday but still scores for this game": "Spieler wurde nach dem Spieltag verkauft, erzielte aber Punkte für dieses Spiel",
+    "Sold": "Verkauft",
+    "pts behind #1": "Pkt. hinter Platz 1",
+    "Leading the Matchday": "Spieltags-Führender",
+    "Last Matchday Results": "Ergebnisse letzter Spieltag",
+    "Official final results · Next matchday starts on upcoming game day": "Offizielle Endergebnisse · Nächster Spieltag startet am kommenden Spieltag",
+    "Final Score:": "Endergebnis:",
+    "Final Rank": "End-Platzierung",
+    "Pitch Below ↓": "Zum Spielfeld ↓",
+    "Inspect Lineup ▾": "Aufstellung ansehen ▾",
+    "Hide Lineup ▴": "Aufstellung verbergen ▴",
+    "Total Starter Score:": "Punkte der Startelf:",
 
     // Transfermarkt & Player Details
     "The Transfermarkt is currently empty.": "Der Transfermarkt ist derzeit leer.",
@@ -3265,7 +3301,106 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
     "Cannot save lineup: Kickbase requires 11 players in your squad. Buy more players on the Transfermarkt!": "Aufstellung kann nicht gespeichert werden: Kickbase erfordert 11 Spieler im Kader. Kaufe weitere Spieler auf dem Transfermarkt!",
     "Cannot save lineup: Exactly 11 players must be fielded.": "Aufstellung kann nicht gespeichert werden: Es müssen genau 11 Spieler aufgestellt sein.",
     "Lineup & formation saved locally for your planning! (Note: Kickbase server requires 11 players before matchday kickoff)": "Aufstellung & Formation lokal für deine Planung gespeichert! (Hinweis: Kickbase-Server erfordert 11 Spieler vor Spieltags-Anpfiff)",
-    "Saved locally! (Kickbase server requires 11 players to sync online).": "Lokal gespeichert! (Kickbase-Server erfordert 11 Spieler für den Online-Upload)."
+    "Saved locally! (Kickbase server requires 11 players to sync online).": "Lokal gespeichert! (Kickbase-Server erfordert 11 Spieler für den Online-Upload).",
+    "3 Defenders": "Dreierkette (3 DEF)",
+    "4 Defenders": "Viererkette (4 DEF)",
+    "5 Defenders": "Fünferkette (5 DEF)",
+    "Cannot swap: replacing": "Auswechslung nicht möglich: Ersetzen von",
+    "with": "durch",
+    "does not match any official Kickbase formation. Change formation in the dropdown first!": "ergibt keine offizielle Kickbase-Formation. Bitte wechsle zuerst die Formation im Dropdown!",
+    "Select a player on the pitch first to swap with": "Wähle zuerst einen Spieler auf dem Spielfeld aus, um ihn zu tauschen gegen",
+    "Matchday (Live / Last)": "Spieltag (Live / Letzter)",
+    "Live Matchday": "Spieltag (Live / Letzter)",
+    "Matchday": "Spieltag",
+    "Last Matchday Results": "Letzter Spieltag (Endergebnis)",
+    "Ongoing Matchday": "Laufender Spieltag",
+    "Live Matchday Feed": "Live-Spieltag Feed",
+    "Ongoing Matchday Standings": "Laufender Spieltag (Zwischenstand)",
+    "Official final results · Next matchday starts on upcoming game day": "Offizielle Endergebnisse · Nächster Spieltag startet am kommenden Spieltag",
+    "Weekend matches in progress · Upcoming matches scheduled": "Wochenend-Spiele laufen · Weitere Partien stehen noch an",
+    "Live Score:": "Live-Punkte:",
+    "Interim Score:": "Zwischenstand:",
+    "Final Score:": "Endergebnis:",
+    "Live Rank": "Live-Rang",
+    "Interim Rank": "Zwischenrang",
+    "Final Rank": "Endrang",
+    "Between matchdays, Kickbase displays the final points from the last matchday mapped to your active squad and lineup until the next kickoff.": "Zwischen den Spieltagen zeigt Kickbase das Endergebnis des letzten Spieltags, dargestellt mit deinem aktuellen Kader und Aufstellung bis zum nächsten Spieltags-Anpfiff.",
+    "Starting XI Pitch (Last Matchday)": "Startelf-Spielfeld (Letzter Spieltag)",
+    "Starting XI Pitch (Ongoing)": "Startelf-Spielfeld (Laufender Spieltag)",
+    "Pitch view showing starter points contribution from the last matchday": "Spielfeld-Ansicht mit den Punktebeiträgen der Startelf aus dem letzten Spieltag",
+    "Points Contribution Race (Last Matchday)": "Punkte-Beitrags-Rennen (Letzter Spieltag)",
+    "Player scores and team points contribution from the last matchday": "Spielerpunkte und Punktebeitrag zum Teamergebnis aus dem letzten Spieltag",
+    "Player Performance Table (Last Matchday)": "Spieler-Leistungstabelle (Letzter Spieltag)",
+    "Matchday Standings & Manager Lineups (Last Matchday)": "Spieltags-Tabelle & Manager-Aufstellungen (Letzter Spieltag)",
+    "Ongoing Matchday Standings & Manager Lineups": "Laufender Spieltag: Tabelle & Manager-Aufstellungen",
+    "Live Matchday Standings & Manager Lineups": "Live-Spieltag: Tabelle & Manager-Aufstellungen",
+    "Final standings from the matchday across your league. Click \"Inspect Lineup\" to inspect any manager's Starting XI.": "Endstand des Spieltags in deiner Liga. Klicke auf „Aufstellung ansehen“, um die Startelf jedes Managers einzusehen.",
+    "Ongoing Matchday Active (Live)": "Live-Spieltag aktiv",
+    "Score:": "Ergebnis:",
+    "Rank": "Rang",
+    "View Matchday Center ↗": "Zum Spieltag-Center ↗",
+    "Ongoing Matchday Player Performance Table": "Laufender Spieltag: Spieler-Leistungstabelle",
+    "Live Starting XI Pitch": "Live Startelf-Spielfeld",
+    "Live Total:": "Live-Gesamt:",
+    "Interim Total:": "Zwischenstand:",
+    "Final Total:": "Endergebnis:",
+    "Reserves & Bench": "Ersatzbank & Reservisten",
+    "Bench players points from last matchday": "Bankspieler-Punkte aus dem letzten Spieltag",
+    "Pitch view showing live status and scoring starters": "Spielfeld-Ansicht mit Live-Status und punktenden Spielern",
+    "Player Points Race & Contribution": "Punkte-Rennen & Teambeitrag",
+    "Top Performer:": "Top-Scorer:",
+    "Bench Points:": "Bank-Punkte:",
+    "Starters:": "Startelf:",
+    "Refresh Live Scores": "Spieltag aktualisieren",
+    "Refresh Scores": "Ergebnisse aktualisieren",
+    "News & Activities": "News & Aktivitäten",
+    "League feed: Transfer updates, market listings, manager deals & Kickbase news": "Liga-Feed: Transfer-Aktivitäten, Markt-Neuzugänge, Manager-Deals & Kickbase News",
+    "All Activities": "Alle Aktivitäten",
+    "Transfers & Deals": "Transfers & Deals",
+    "New on Transfermarkt": "Neu auf dem Transfermarkt",
+    "League Events": "Liga-Ereignisse",
+    "Kickbase Magazin": "Kickbase Magazin",
+    "My Activities": "Meine Aktivitäten",
+    "Search player or manager…": "Spieler oder Manager suchen…",
+    "Refresh Feed": "Feed aktualisieren",
+    "Transfers (7 Days)": "Transfers (7 Tage)",
+    "New on Market (7D)": "Neu auf dem Markt (7T)",
+    "Biggest Transfer": "Größter Transfer",
+    "Active Managers": "Aktive Manager",
+    "Transfer Volume": "Transfer-Volumen",
+    "Today": "Heute",
+    "Yesterday": "Gestern",
+    "This Week": "Diese Woche",
+    "Earlier": "Früher",
+    "Transfer completed": "Transfer abgeschlossen",
+    "Manager Deal": "Manager-Deal",
+    "Purchase": "Kauf",
+    "Sale": "Verkauf",
+    "Manager joined": "Manager beigetreten",
+    "League Founded": "Liga gegründet",
+    "League Event": "Liga-Ereignis",
+    "over MW": "über MW",
+    "under MW": "unter MW",
+    "at Market Value": "zum Marktwert",
+    "Read full article ↗": "Artikel lesen ↗",
+    "No activity found matching your filter.": "Keine Aktivitäten für den gewählten Filter gefunden.",
+    "Just now": "Gerade eben",
+    "bought": "kaufte",
+    "sold": "verkaufte",
+    "from": "von",
+    "to": "an",
+    "listed": "setzte",
+    "on the Transfermarkt for": "auf den Transfermarkt für",
+    "View Player": "Spieler ansehen",
+    "Players listed on TM": "Auf dem Transfermarkt",
+    "Involved in recent deals": "An Deals beteiligt",
+    "League Activities & News": "Liga-Aktivitäten & News",
+    "Live League Activity Feed": "Live Liga-Feed",
+    "Events": "Ereignisse",
+    "Event": "Ereignis",
+    "bids placed": "Gebote abgegeben",
+    "1 bids placed": "1 Gebot abgegeben",
+    "Try selecting another filter or searching for a different player/manager.": "Wähle einen anderen Filter oder suche nach einem anderen Spieler/Manager."
   };
 
   function getLang() {
@@ -3489,7 +3624,7 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
       });
       container.innerHTML = `<div class="table-wrap fade-in"><table class="data"><thead><tr>${cols.map((c) =>
         `<th class="${KINDS[c.kind || "text"][1] ? "r" : ""}" data-k="${c.key}" title="${esc(t(c.title || ""))}">${esc(t(c.label))}${sortKey === c.key ? `<span class="sort">${desc ? "arrow_downward" : "arrow_upward"}</span>` : ""}</th>`).join("")}
-        </tr></thead><tbody>${sorted.map((r, idx) => {
+        </tr></thead><tbody>${sorted.length ? sorted.map((r, idx) => {
           const rCls = [opts.rowClass ? opts.rowClass(r) : "", opts.onRowClick ? "clickable-row" : ""].filter(Boolean).join(" ");
           const rTitle = opts.rowTitle ? opts.rowTitle(r) : (opts.onRowClick ? "Click to open" : "");
           return `<tr class="${rCls}" ${opts.onRowClick ? `data-row-idx="${idx}"` : ""} ${rTitle ? `title="${esc(rTitle)}"` : ""}>${cols.map((c) => {
@@ -3498,7 +3633,7 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
             const isRight = c.right !== undefined ? c.right : right;
             return `<td class="${isRight ? "r" : ""}">${formatted}</td>`;
           }).join("")}</tr>`;
-        }).join("")}</tbody></table></div>`;
+        }).join("") : `<tr><td colspan="${cols.length}" class="muted" style="text-align:center;padding:24px">${esc(opts.empty || t("No data"))}</td></tr>`}</tbody></table></div>`;
       container.querySelectorAll("th").forEach((th) => th.addEventListener("click", () => {
         const k = th.dataset.k; if (sortKey === k) desc = !desc; else { sortKey = k; desc = true; }
         if (opts.onSort) opts.onSort(sortKey, desc);
@@ -3944,53 +4079,43 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
 (function (KB) {
   "use strict";
 
+  // Official Kickbase Formations (exactly 10 supported by Kickbase)
   const FORMATIONS = {
-    // Standard formations
+    // 3 Defenders (Dreierkette)
+    "3-4-3": { GK: 1, DEF: 3, MID: 4, FWD: 3 },
+    "3-5-2": { GK: 1, DEF: 3, MID: 5, FWD: 2 },
+    "3-6-1": { GK: 1, DEF: 3, MID: 6, FWD: 1 },
+
+    // 4 Defenders (Viererkette)
     "4-3-3": { GK: 1, DEF: 4, MID: 3, FWD: 3 },
     "4-4-2": { GK: 1, DEF: 4, MID: 4, FWD: 2 },
-    "3-5-2": { GK: 1, DEF: 3, MID: 5, FWD: 2 },
-    "3-4-3": { GK: 1, DEF: 3, MID: 4, FWD: 3 },
-    "4-2-3-1": { GK: 1, DEF: 4, MID: 5, FWD: 1 },
     "4-5-1": { GK: 1, DEF: 4, MID: 5, FWD: 1 },
+    "4-2-4": { GK: 1, DEF: 4, MID: 2, FWD: 4 },
+
+    // 5 Defenders (Fünferkette)
+    "5-2-3": { GK: 1, DEF: 5, MID: 2, FWD: 3 },
     "5-3-2": { GK: 1, DEF: 5, MID: 3, FWD: 2 },
     "5-4-1": { GK: 1, DEF: 5, MID: 4, FWD: 1 },
-    "5-2-3": { GK: 1, DEF: 5, MID: 2, FWD: 3 },
-
-    // Multi-Striker Formations (Up to 5 Strikers 🔥)
-    "3-2-5": { GK: 1, DEF: 3, MID: 2, FWD: 5 },
-    "2-3-5": { GK: 1, DEF: 2, MID: 3, FWD: 5 },
-    "4-1-5": { GK: 1, DEF: 4, MID: 1, FWD: 5 },
-    "1-4-5": { GK: 1, DEF: 1, MID: 4, FWD: 5 },
-
-    // Attacking Formations (4 Strikers ⚡)
-    "3-3-4": { GK: 1, DEF: 3, MID: 3, FWD: 4 },
-    "4-2-4": { GK: 1, DEF: 4, MID: 2, FWD: 4 },
-    "2-4-4": { GK: 1, DEF: 2, MID: 4, FWD: 4 },
-
-    // Flexible Formations
-    "2-5-3": { GK: 1, DEF: 2, MID: 5, FWD: 3 },
-    "3-6-1": { GK: 1, DEF: 3, MID: 6, FWD: 1 },
-    "4-6-0": { GK: 1, DEF: 4, MID: 6, FWD: 0 },
   };
 
   function parseFormation(str) {
     if (!str || typeof str !== "string") return null;
-    const parts = str.split("-").map(Number);
-    if (parts.length === 3 && parts.every((n) => !isNaN(n) && n >= 0)) {
-      return { GK: 1, DEF: parts[0], MID: parts[1], FWD: parts[2] };
-    }
+    if (str === "4-2-3-1") str = "4-5-1";
+    if (FORMATIONS[str]) return FORMATIONS[str];
     return null;
   }
 
   function getFormationReq(formation, starters = []) {
+    if (formation === "4-2-3-1") formation = "4-5-1";
     if (FORMATIONS[formation]) return FORMATIONS[formation];
     const parsed = parseFormation(formation);
     if (parsed) return parsed;
-    if (starters && starters.length) {
+    if (starters && starters.length === 11) {
       const d = starters.filter((p) => p.position === "DEF").length;
       const m = starters.filter((p) => p.position === "MID").length;
       const f = starters.filter((p) => p.position === "FWD").length;
-      return { GK: 1, DEF: d, MID: m, FWD: f };
+      const formKey = `${d}-${m}-${f}`;
+      if (FORMATIONS[formKey]) return FORMATIONS[formKey];
     }
     return FORMATIONS["4-4-2"];
   }
@@ -4004,8 +4129,10 @@ OFFICIAL KICKBASE RULES & STRATEGY DIRECTIVES:
    - Any negative balance MUST be cleared before Friday by selling surplus or declining players.
 
 2. STARTING XI FORMATION & PENALTIES:
-   - Starting lineup must have 1 Goalkeeper (GK) and any combination of 10 outfield players (DEF, MID, FWD totaling 10).
-   - Any formation is valid, including all-out attack with 4 or 5 strikers (e.g. 3-2-5, 2-3-5, 4-1-5, 1-4-5, 3-3-4, 4-2-4, 2-4-4) as well as classic shapes (4-3-3, 4-4-2, 3-5-2).
+   - Starting lineup must have exactly 1 Goalkeeper (GK) and 10 outfield players (DEF, MID, FWD totaling 10 outfield, 11 total).
+   - ONLY the 10 official Kickbase formations are permitted:
+     3-4-3, 3-5-2, 3-6-1, 4-2-4, 4-3-3, 4-4-2, 4-5-1, 5-2-3, 5-3-2, 5-4-1.
+     (Min 3 defenders, min 2 midfielders, min 1 forward).
    - Empty starting slots incur a massive penalty of -100 POINTS each!
    - Injured (status 1), Doubtful (status 2), Rehab (status 4), or Suspended players (status 8: Red card, 16: Yellow-red, 32: 5th yellow) score 0 points if fielded.
    - You MUST identify any injured/doubtful/suspended starters and recommend subbing them off for fit bench options or market buys.
@@ -4232,7 +4359,7 @@ You must return a valid JSON object strictly matching this schema:
       "message": "Clear explanation"
     }
   ],
-  "recommendedFormation": "4-3-3" | "4-4-2" | "3-5-2" | "3-4-3" | "4-2-3-1" | "4-5-1" | "5-3-2" | "5-4-1" | "5-2-3",
+  "recommendedFormation": "3-4-3" | "3-5-2" | "3-6-1" | "4-2-4" | "4-3-3" | "4-4-2" | "4-5-1" | "5-2-3" | "5-3-2" | "5-4-1",
   "lineupChanges": [
     {
       "action": "bench" | "start",
@@ -4398,8 +4525,9 @@ Analyze my squad strictly under Kickbase rules:
 
   const VERSION = "0.5.0";
   const PAGES = [
+    ["news", "newspaper", "News & Activities"],
     ["team", "sports_soccer", "My team"],
-    ["live", "live_tv", "Live Matchday"],
+    ["live", "live_tv", "Matchday (Live / Last)"],
     ["market", "storefront", "Transfermarkt"],
     ["managers", "groups", "Managers"],
     ["allplayers", "travel_explore", "All Players"],
@@ -4823,7 +4951,7 @@ Analyze my squad strictly under Kickbase rules:
     const ctx = { l: S.leagueId, name: league ? league.n : "", stale: () => id !== S.renderId };
     el.innerHTML = ui.loading();
     try {
-      await ({ team: pageTeam, live: pageLive, advisor: pageAdvisor, managers: pageManagers, players: pagePlayers, allplayers: pageAllPlayers, market: pageMarket })[S.page](el, ctx);
+      await ({ team: pageTeam, live: pageLive, advisor: pageAdvisor, managers: pageManagers, players: pagePlayers, allplayers: pageAllPlayers, market: pageMarket, news: pageNews })[S.page](el, ctx);
     } catch (err) { if (!ctx.stale()) handleError(err, el); }
   }
 
@@ -4843,8 +4971,8 @@ Analyze my squad strictly under Kickbase rules:
     `;
   }
 
-  async function rankingRows(l) {
-    const res = tf.ranking(await S.api.ranking(l));
+  async function rankingRows(l, dayNumber = null) {
+    const res = tf.ranking(await S.api.ranking(l, dayNumber));
     const myId = myManagerId(res);
     const mine = res.find((r) => r.id === myId);
     if (mine && mine.image) {
@@ -5091,76 +5219,99 @@ Analyze my squad strictly under Kickbase rules:
     const value = squad.reduce((s, p) => s + p.marketValue, 0);
     const ch = squad.reduce((s, p) => s + (p.change24h || 0), 0);
 
-    // Formation state
+    // Formation state (strictly official Kickbase formations only)
     let currentFormation = store.get(`kb.formation.${ctx.l}`, "4-4-2");
-    if (!KB.ai.FORMATIONS[currentFormation] && !KB.ai.parseFormation(currentFormation)) currentFormation = "4-4-2";
+    if (currentFormation === "4-2-3-1") currentFormation = "4-5-1";
+    if (!KB.ai.FORMATIONS[currentFormation]) {
+      currentFormation = "4-4-2";
+      store.set(`kb.formation.${ctx.l}`, currentFormation);
+    }
 
     // Lineup state (Kickbase API lineup takes precedence over local storage)
     let startingIds = [];
     if (Array.isArray(lineupRaw) && lineupRaw.length) {
       startingIds = lineupRaw.map((p) => String(p.i || p.id || p.pi || "")).filter((id) => squad.some((p) => p.id === id));
+      if (startingIds.length === 11) {
+        const starters = startingIds.map((id) => squad.find((p) => p.id === id)).filter(Boolean);
+        const d = starters.filter((p) => p.position === "DEF").length;
+        const m = starters.filter((p) => p.position === "MID").length;
+        const f = starters.filter((p) => p.position === "FWD").length;
+        const natForm = `${d}-${m}-${f}`;
+        if (KB.ai.FORMATIONS[natForm]) {
+          currentFormation = natForm;
+          store.set(`kb.formation.${ctx.l}`, currentFormation);
+        }
+      }
     }
     const savedLineup = store.get(`kb.lineup.${ctx.l}`);
     if (!startingIds.length && savedLineup && Array.isArray(savedLineup) && savedLineup.length) {
       startingIds = savedLineup.filter((id) => squad.some((p) => p.id === id));
     }
-    if (!startingIds.length && squad.length) {
-      startingIds = squad.slice(0, 11).map((p) => p.id);
-    }
 
-    // Helper to ensure full, valid lineup from squad without missing slots
-    function ensureFullLineup() {
+    // Strictly reconcile Starting XI with current official Kickbase formation
+    function reconcileLineupWithFormation(targetFormation = currentFormation) {
+      if (!KB.ai.FORMATIONS[targetFormation]) targetFormation = "4-4-2";
+      currentFormation = targetFormation;
+      store.set(`kb.formation.${ctx.l}`, currentFormation);
+
+      const formReq = KB.ai.FORMATIONS[currentFormation];
       const validSquadIds = new Set(squad.map((p) => p.id));
       startingIds = [...new Set(startingIds)].filter((id) => validSquadIds.has(id));
 
-      const targetCount = Math.min(11, squad.length);
-      if (startingIds.length < targetCount) {
-        const bench = squad.filter((p) => !startingIds.includes(p.id)).sort((a, b) => {
+      const currentByPos = { GK: [], DEF: [], MID: [], FWD: [] };
+      startingIds.forEach((id) => {
+        const p = squad.find((x) => x.id === id);
+        if (p && currentByPos[p.position]) currentByPos[p.position].push(p);
+      });
+
+      const reconciledStarting = [];
+
+      // 1. Keep up to needed players per position (fit players first, then highest scoring)
+      for (const pos of ["GK", "DEF", "MID", "FWD"]) {
+        const needed = formReq[pos] || 0;
+        const current = currentByPos[pos] || [];
+        current.sort((a, b) => {
           if (a.rawStatus === 0 && b.rawStatus !== 0) return -1;
           if (a.rawStatus !== 0 && b.rawStatus === 0) return 1;
           return (b.avgPoints || 0) - (a.avgPoints || 0) || (b.marketValue || 0) - (a.marketValue || 0);
         });
+        reconciledStarting.push(...current.slice(0, needed).map((p) => p.id));
+      }
 
-        const formReq = KB.ai.getFormationReq(currentFormation);
-        for (const [pos, count] of Object.entries(formReq)) {
-          if (startingIds.length >= targetCount) break;
-          const currentCount = startingIds.filter((id) => squad.find((p) => p.id === id)?.position === pos).length;
-          if (currentCount < count) {
-            const needed = count - currentCount;
-            const matchingBench = bench.filter((p) => p.position === pos && !startingIds.includes(p.id));
-            for (let i = 0; i < Math.min(needed, matchingBench.length); i++) {
-              startingIds.push(matchingBench[i].id);
-            }
-          }
-        }
+      // 2. Fill deficit slots with matching position players from bench
+      const bench = squad.filter((p) => !reconciledStarting.includes(p.id)).sort((a, b) => {
+        if (a.rawStatus === 0 && b.rawStatus !== 0) return -1;
+        if (a.rawStatus !== 0 && b.rawStatus === 0) return 1;
+        return (b.avgPoints || 0) - (a.avgPoints || 0) || (b.marketValue || 0) - (a.marketValue || 0);
+      });
 
-        for (const bp of bench) {
-          if (startingIds.length >= targetCount) break;
-          if (!startingIds.includes(bp.id)) {
-            startingIds.push(bp.id);
+      for (const pos of ["GK", "DEF", "MID", "FWD"]) {
+        const needed = formReq[pos] || 0;
+        const currentCount = reconciledStarting.filter((id) => squad.find((p) => p.id === id)?.position === pos).length;
+        if (currentCount < needed) {
+          const neededCount = needed - currentCount;
+          const candidates = bench.filter((p) => p.position === pos && !reconciledStarting.includes(p.id));
+          for (let i = 0; i < Math.min(neededCount, candidates.length); i++) {
+            reconciledStarting.push(candidates[i].id);
           }
         }
       }
 
-      if (startingIds.length === 11) {
-        const starters = startingIds.map((id) => squad.find((p) => p.id === id)).filter(Boolean);
-        const dCount = starters.filter((p) => p.position === "DEF").length;
-        const mCount = starters.filter((p) => p.position === "MID").length;
-        const fCount = starters.filter((p) => p.position === "FWD").length;
-        const form = `${dCount}-${mCount}-${fCount}`;
-        if (KB.ai.FORMATIONS[form]) {
-          currentFormation = form;
-          store.set(`kb.formation.${ctx.l}`, currentFormation);
-        }
-      }
+      startingIds = reconciledStarting;
+      store.set(`kb.lineup.${ctx.l}`, startingIds);
+    }
+
+    function ensureFullLineup() {
+      reconcileLineupWithFormation(currentFormation);
     }
 
     ensureFullLineup();
 
-    // Live matchday scores
+    // Matchday scores (Live or Last Matchday)
     const liveStarters = startingIds.map((id) => squad.find((p) => p.id === id)).filter(Boolean);
     const liveTotalPoints = liveStarters.reduce((sum, p) => sum + (p.livePoints || 0), 0);
-    const hasLiveMatchday = liveStarters.some((p) => p.livePoints !== null && p.livePoints !== undefined) || (mine && mine.matchdayPoints !== null);
+    const isLiveNow = liveStarters.some((p) => p.matchStatus === 1);
+    const hasMatchdayData = liveStarters.some((p) => p.livePoints !== null && p.livePoints !== undefined) || (mine && mine.matchdayPoints !== null);
 
     let selectedPitchPlayerId = null;
     let aiData = null;
@@ -5241,23 +5392,23 @@ Analyze my squad strictly under Kickbase rules:
         </div>
       </div>` : "";
 
-    const liveMatchdayBannerHtml = hasLiveMatchday ? `
-      <div class="alert ok" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin: 0 0 16px;background:linear-gradient(135deg, rgba(16, 185, 129, .15), rgba(6, 78, 59, .3));border-color:rgba(16, 185, 129, .4)">
+    const matchdayBannerHtml = hasMatchdayData ? `
+      <div class="alert ok" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin: 0 0 16px;background:${isLiveNow ? "linear-gradient(135deg, rgba(16, 185, 129, .15), rgba(6, 78, 59, .3))" : "linear-gradient(135deg, rgba(59, 130, 246, .12), rgba(30, 58, 138, .25))"};border-color:${isLiveNow ? "rgba(16, 185, 129, .4)" : "rgba(59, 130, 246, .35)"}">
         <div style="display:flex;align-items:center;gap:12px">
-          <span class="live-dot"></span>
+          ${isLiveNow ? `<span class="live-dot"></span>` : `<span style="font-size:20px">🏆</span>`}
           <div>
-            <div style="font-size:11px;font-weight:700;color:#6ee7b7;text-transform:uppercase;letter-spacing:0.5px">${t("Ongoing Matchday Active")}</div>
+            <div style="font-size:11px;font-weight:700;color:${isLiveNow ? "#6ee7b7" : "#93c5fd"};text-transform:uppercase;letter-spacing:0.5px">${isLiveNow ? t("Ongoing Matchday Active (Live)") : t("Last Matchday Results")}</div>
             <div style="font-size:18px;font-weight:800;color:#fff;display:flex;align-items:center;gap:8px">
-              Live Score: <span style="color:#34d399">${(liveTotalPoints || mine?.matchdayPoints || 0) > 0 ? "+" : ""}${liveTotalPoints || mine?.matchdayPoints || 0} pts</span>
-              ${mine?.matchdayRank ? `<span class="pill up" style="font-size:11.5px">Rank #${mine.matchdayRank}</span>` : ""}
+              ${isLiveNow ? t("Live Score:") : t("Score:")} <span style="color:${isLiveNow ? "#34d399" : "#60a5fa"}">${(liveTotalPoints || mine?.matchdayPoints || 0) > 0 ? "+" : ""}${liveTotalPoints || mine?.matchdayPoints || 0} pts</span>
+              ${mine?.matchdayRank ? `<span class="pill up" style="font-size:11.5px">${t("Rank")} #${mine.matchdayRank}</span>` : ""}
             </div>
           </div>
         </div>
-        <button class="btn sm primary" id="team-goto-live" style="background:#10b981;border-color:#10b981;white-space:nowrap">${ui.icon("live_tv")} ${t("View Live Match Center ↗")}</button>
+        <button class="btn sm primary" id="team-goto-live" style="background:${isLiveNow ? "#10b981" : "#3b82f6"};border-color:${isLiveNow ? "#10b981" : "#3b82f6"};white-space:nowrap">${ui.icon("live_tv")} ${isLiveNow ? t("View Live Match Center ↗") : t("View Matchday Center ↗")}</button>
       </div>` : "";
 
     el.innerHTML = ui.pageHead(ctx.name, "My team", "Your live squad, Starting XI, budget, and real-time matchday performance.")
-      + liveMatchdayBannerHtml
+      + matchdayBannerHtml
       + bonusBannerHtml
       + ui.kpis(cards)
       + `<div id="ai-advisor-banner"></div>`
@@ -5430,7 +5581,7 @@ Analyze my squad strictly under Kickbase rules:
       const pitchEl = el.querySelector("#pitch-container");
       if (!pitchEl) return;
       const startingPlayers = startingIds.map((id) => squad.find((p) => p.id === id)).filter(Boolean);
-      const formReq = KB.ai.getFormationReq(currentFormation, startingPlayers);
+      const formReq = KB.ai.FORMATIONS[currentFormation] || KB.ai.FORMATIONS["4-4-2"];
 
       const byPos = { FWD: [], MID: [], DEF: [], GK: [] };
       startingPlayers.forEach((p) => {
@@ -5440,9 +5591,8 @@ Analyze my squad strictly under Kickbase rules:
       const rows = ["FWD", "MID", "DEF", "GK"].map((pos) => {
         const needed = formReq[pos] || 0;
         const current = byPos[pos] || [];
-        const slotsCount = Math.max(needed, current.length);
         const slots = [];
-        for (let i = 0; i < slotsCount; i++) {
+        for (let i = 0; i < needed; i++) {
           if (i < current.length) {
             const p = current[i];
             const isSel = selectedPitchPlayerId === p.id;
@@ -5481,34 +5631,22 @@ Analyze my squad strictly under Kickbase rules:
             <div class="pitch-formation">
               <label for="formation-sel" style="font-weight:600;font-size:13px;color:#cfd3dc">Formation:</label>
               <select class="input sm" id="formation-sel" style="width:140px">
-                <optgroup label="5 Strikers 🔥">
-                  <option value="3-2-5" ${currentFormation === "3-2-5" ? "selected" : ""}>3-2-5 (5 FWD)</option>
-                  <option value="2-3-5" ${currentFormation === "2-3-5" ? "selected" : ""}>2-3-5 (5 FWD)</option>
-                  <option value="4-1-5" ${currentFormation === "4-1-5" ? "selected" : ""}>4-1-5 (5 FWD)</option>
-                  <option value="1-4-5" ${currentFormation === "1-4-5" ? "selected" : ""}>1-4-5 (5 FWD)</option>
+                <optgroup label="${t('3 Defenders')}">
+                  <option value="3-4-3" ${currentFormation === "3-4-3" ? "selected" : ""}>3-4-3</option>
+                  <option value="3-5-2" ${currentFormation === "3-5-2" ? "selected" : ""}>3-5-2</option>
+                  <option value="3-6-1" ${currentFormation === "3-6-1" ? "selected" : ""}>3-6-1</option>
                 </optgroup>
-                <optgroup label="4 Strikers ⚡">
-                  <option value="3-3-4" ${currentFormation === "3-3-4" ? "selected" : ""}>3-3-4 (4 FWD)</option>
-                  <option value="4-2-4" ${currentFormation === "4-2-4" ? "selected" : ""}>4-2-4 (4 FWD)</option>
-                  <option value="2-4-4" ${currentFormation === "2-4-4" ? "selected" : ""}>2-4-4 (4 FWD)</option>
-                </optgroup>
-                <optgroup label="Standard">
+                <optgroup label="${t('4 Defenders')}">
                   <option value="4-3-3" ${currentFormation === "4-3-3" ? "selected" : ""}>4-3-3</option>
                   <option value="4-4-2" ${currentFormation === "4-4-2" ? "selected" : ""}>4-4-2</option>
-                  <option value="3-5-2" ${currentFormation === "3-5-2" ? "selected" : ""}>3-5-2</option>
-                  <option value="3-4-3" ${currentFormation === "3-4-3" ? "selected" : ""}>3-4-3</option>
-                  <option value="4-2-3-1" ${currentFormation === "4-2-3-1" ? "selected" : ""}>4-2-3-1</option>
                   <option value="4-5-1" ${currentFormation === "4-5-1" ? "selected" : ""}>4-5-1</option>
+                  <option value="4-2-4" ${currentFormation === "4-2-4" ? "selected" : ""}>4-2-4</option>
+                </optgroup>
+                <optgroup label="${t('5 Defenders')}">
+                  <option value="5-2-3" ${currentFormation === "5-2-3" ? "selected" : ""}>5-2-3</option>
                   <option value="5-3-2" ${currentFormation === "5-3-2" ? "selected" : ""}>5-3-2</option>
                   <option value="5-4-1" ${currentFormation === "5-4-1" ? "selected" : ""}>5-4-1</option>
-                  <option value="5-2-3" ${currentFormation === "5-2-3" ? "selected" : ""}>5-2-3</option>
                 </optgroup>
-                <optgroup label="Other">
-                  <option value="2-5-3" ${currentFormation === "2-5-3" ? "selected" : ""}>2-5-3</option>
-                  <option value="3-6-1" ${currentFormation === "3-6-1" ? "selected" : ""}>3-6-1</option>
-                  <option value="4-6-0" ${currentFormation === "4-6-0" ? "selected" : ""}>4-6-0</option>
-                </optgroup>
-                ${!["3-2-5","2-3-5","4-1-5","1-4-5","3-3-4","4-2-4","2-4-4","4-3-3","4-4-2","3-5-2","3-4-3","4-2-3-1","4-5-1","5-3-2","5-4-1","5-2-3","2-5-3","3-6-1","4-6-0"].includes(currentFormation) ? `<option value="${currentFormation}" selected>Custom (${currentFormation})</option>` : ""}
               </select>
               <span class="${startingPlayers.length === 11 ? "pill up" : "pill down"}" style="font-size:12px;font-weight:600">${startingPlayers.length}/11 ${t("starters")}${startingPlayers.length < 11 ? ` ⚠️ (${t("11 required")})` : ""}</span>
             </div>
@@ -5544,33 +5682,21 @@ Analyze my squad strictly under Kickbase rules:
       pitchEl.querySelectorAll("[data-empty-pos]").forEach((elSlot) => {
         elSlot.addEventListener("click", () => {
           const pos = elSlot.dataset.emptyPos;
-          let candidate = squad.find((p) => p.position === pos && !startingIds.includes(p.id));
-          if (!candidate) {
-            candidate = squad.find((p) => !startingIds.includes(p.id));
-          }
+          const candidate = squad.find((p) => p.position === pos && !startingIds.includes(p.id));
           if (candidate) {
             startingIds.push(candidate.id);
-            const starters = startingIds.map((id) => squad.find((p) => p.id === id)).filter(Boolean);
-            const d = starters.filter((p) => p.position === "DEF").length;
-            const m = starters.filter((p) => p.position === "MID").length;
-            const f = starters.filter((p) => p.position === "FWD").length;
-            if (d + m + f === 10) {
-              currentFormation = `${d}-${m}-${f}`;
-              store.set(`kb.formation.${ctx.l}`, currentFormation);
-            }
-            store.set(`kb.lineup.${ctx.l}`, startingIds);
+            reconcileLineupWithFormation(currentFormation);
             renderPitch();
             renderBench();
-            ui.toast(`${t("Added")} ${candidate.name} ${t("to Starting XI.")}`);
+            ui.toast(`${t("Added")} ${candidate.name} ${t("to Starting XI.")}`, "ok");
           } else {
-            ui.toast(t("No available bench players. Buy one from Market!"), "warn");
+            ui.toast(t("No available bench players for position") + ` ${pos}. ` + t("Buy one from Market!"), "warn");
           }
         });
       });
 
       pitchEl.querySelector("#formation-sel")?.addEventListener("change", (e) => {
-        currentFormation = e.target.value;
-        store.set(`kb.formation.${ctx.l}`, currentFormation);
+        reconcileLineupWithFormation(e.target.value);
         renderPitch();
         renderBench();
       });
@@ -5640,41 +5766,67 @@ Analyze my squad strictly under Kickbase rules:
           const benchP = squad.find((p) => p.id === benchId);
           if (!benchP) return;
 
+          const formReq = KB.ai.FORMATIONS[currentFormation] || KB.ai.FORMATIONS["4-4-2"];
+
           if (selectedPitchPlayerId) {
-            startingIds = startingIds.map((id) => (id === selectedPitchPlayerId ? benchId : id));
-            const swappedPitch = squad.find((p) => p.id === selectedPitchPlayerId);
-            selectedPitchPlayerId = null;
-            ui.toast(`Substituted ${benchP.name} in for ${swappedPitch?.name || "player"}!`);
-          } else {
-            const samePosStarters = startingIds.map((id) => squad.find((p) => p.id === id)).filter((p) => p && p.position === benchP.position);
-            const injuredOne = samePosStarters.find((p) => p.rawStatus !== 0);
-            if (injuredOne) {
-              startingIds = startingIds.map((id) => (id === injuredOne.id ? benchId : id));
-              ui.toast(`Substituted ${benchP.name} in for injured ${injuredOne.name}!`);
-            } else if (samePosStarters.length) {
-              const worst = samePosStarters.sort((a, b) => a.avgPoints - b.avgPoints)[0];
-              startingIds = startingIds.map((id) => (id === worst.id ? benchId : id));
-              ui.toast(`Substituted ${benchP.name} in for ${worst.name}.`);
+            const pitchP = squad.find((p) => p.id === selectedPitchPlayerId);
+            if (!pitchP) return;
+
+            if (benchP.position === pitchP.position) {
+              startingIds = startingIds.map((id) => (id === selectedPitchPlayerId ? benchId : id));
+              selectedPitchPlayerId = null;
+              ui.toast(`Substituted ${benchP.name} in for ${pitchP.name}!`, "ok");
             } else {
-              if (startingIds.length < 11) {
-                startingIds.push(benchId);
-                ui.toast(`Added ${benchP.name} to Starting XI.`);
+              // Different position swap (e.g. DEF for MID): check if resulting shape is an official Kickbase formation
+              const testStarters = startingIds.map((id) => (id === selectedPitchPlayerId ? benchId : id)).map((id) => squad.find((p) => p.id === id)).filter(Boolean);
+              const d = testStarters.filter((p) => p.position === "DEF").length;
+              const m = testStarters.filter((p) => p.position === "MID").length;
+              const f = testStarters.filter((p) => p.position === "FWD").length;
+              const newForm = `${d}-${m}-${f}`;
+
+              if (KB.ai.FORMATIONS[newForm]) {
+                startingIds = startingIds.map((id) => (id === selectedPitchPlayerId ? benchId : id));
+                currentFormation = newForm;
+                store.set(`kb.formation.${ctx.l}`, currentFormation);
+                selectedPitchPlayerId = null;
+                ui.toast(`Substituted ${benchP.name} in for ${pitchP.name} (Formation: ${currentFormation})!`, "ok");
               } else {
-                startingIds[0] = benchId;
-                ui.toast(`Substituted ${benchP.name} into Starting XI.`);
+                ui.toast(
+                  t("Cannot swap: replacing") + ` ${pitchP.position} ${t("with")} ${benchP.position} ` +
+                  t("does not match any official Kickbase formation. Change formation in the dropdown first!"),
+                  "warn"
+                );
+                return;
+              }
+            }
+          } else {
+            // No pitch player pre-selected
+            const currentSamePos = startingIds.filter((id) => squad.find((p) => p.id === id)?.position === benchP.position);
+            const neededForPos = formReq[benchP.position] || 0;
+
+            if (currentSamePos.length < neededForPos) {
+              startingIds.push(benchId);
+              ui.toast(`Added ${benchP.name} to Starting XI!`, "ok");
+            } else {
+              const starters = startingIds.map((id) => squad.find((p) => p.id === id)).filter(Boolean);
+              const samePosStarters = starters.filter((p) => p.position === benchP.position);
+              const injuredOne = samePosStarters.find((p) => p.rawStatus !== 0);
+
+              if (injuredOne) {
+                startingIds = startingIds.map((id) => (id === injuredOne.id ? benchId : id));
+                ui.toast(`Substituted ${benchP.name} in for injured ${injuredOne.name}!`, "ok");
+              } else if (samePosStarters.length) {
+                const worst = [...samePosStarters].sort((a, b) => (a.avgPoints || 0) - (b.avgPoints || 0))[0];
+                startingIds = startingIds.map((id) => (id === worst.id ? benchId : id));
+                ui.toast(`Substituted ${benchP.name} in for ${worst.name}.`, "ok");
+              } else {
+                ui.toast(t("Select a player on the pitch first to swap with") + ` ${benchP.name}.`, "info");
+                return;
               }
             }
           }
-          // Dynamically detect formation if 10 outfielders
-          const starters = startingIds.map((id) => squad.find((p) => p.id === id)).filter(Boolean);
-          const d = starters.filter((p) => p.position === "DEF").length;
-          const m = starters.filter((p) => p.position === "MID").length;
-          const f = starters.filter((p) => p.position === "FWD").length;
-          if (d + m + f === 10) {
-            currentFormation = `${d}-${m}-${f}`;
-            store.set(`kb.formation.${ctx.l}`, currentFormation);
-          }
-          store.set(`kb.lineup.${ctx.l}`, startingIds);
+
+          reconcileLineupWithFormation(currentFormation);
           renderPitch();
           renderBench();
         });
@@ -11510,6 +11662,598 @@ Analyze my squad strictly under Kickbase rules:
     });
   }
 
+  // -------------------------------------------------------------- news ----
+  async function pageNews(el, ctx) {
+    el.innerHTML = ui.loading(t("Loading league activities and news…"));
+    const me = await S.api.leagueMe(ctx.l).catch(() => null);
+    const compId = (me && me.cpi) ? String(me.cpi) : "1";
+    const [feedRaw, newsRaw, rank, squadRaw, marketRaw] = await Promise.all([
+      S.api.activitiesFeed ? S.api.activitiesFeed(ctx.l, 300).catch(() => ({ af: [] })) : Promise.resolve({ af: [] }),
+      S.api.news ? S.api.news(compId, 0, 30).catch(() => ({ it: [] })) : Promise.resolve({ it: [] }),
+      rankingRows(ctx.l).catch(() => []),
+      S.api.squad(ctx.l).catch(() => []),
+      S.api.market(ctx.l).catch(() => ({ it: [] }))
+    ]);
+    if (ctx.stale()) return;
+
+    const myName = S.session?.userName || me?.n || "";
+    const squad = Array.isArray(squadRaw) ? squadRaw.map((p) => tf.player(p, S.session?.userId)) : [];
+    const market = (marketRaw && Array.isArray(marketRaw.it)) ? marketRaw.it.map((p) => tf.player(p, S.session?.userId)) : [];
+
+    // Player lookup
+    const playerMap = new Map();
+    squad.forEach((p) => playerMap.set(String(p.id), p));
+    market.forEach((p) => {
+      if (!playerMap.has(String(p.id))) playerMap.set(String(p.id), p);
+    });
+
+    // Manager lookup
+    const managerMap = new Map();
+    rank.forEach((m) => {
+      if (m.name) managerMap.set(m.name.toLowerCase().trim(), m);
+      if (m.id) managerMap.set(String(m.id), m);
+    });
+
+    // Parse feed items
+    const rawItems = (feedRaw && Array.isArray(feedRaw.af)) ? feedRaw.af : [];
+    const feedActivities = [];
+
+    for (const raw of rawItems) {
+      const tCode = Number(raw.t ?? 0);
+      const d = raw.data || raw.meta || {};
+      const dt = (raw.dt || raw.date) ? new Date(raw.dt || raw.date) : null;
+      const id = String(raw.i || raw.id || Math.random());
+
+      const pid = String(d.pi || d.pid || d.i || "");
+      const knownP = playerMap.get(pid);
+
+      const pFirstName = d.fn || d.pfn || knownP?.firstName || "";
+      const pLastName = d.ln || d.pn || d.pln || d.n || knownP?.lastName || "";
+      const pFullName = (d.pkn || knownP?.name || `${pFirstName} ${pLastName}`.trim() || pLastName || pFirstName || (pid ? "Player #" + pid : "")).trim();
+      const pPos = knownP?.position || (d.pos ? tf.pos(d.pos) : "");
+      const pImg = knownP?.image || (d.pim && KB.imageUrl ? KB.imageUrl(d.pim) : (pid && pid !== "0" && KB.imageUrl ? KB.imageUrl(`pool/playersbig/${pid}.png`) : null));
+      const pCol = knownP?.color || (pFullName ? KB.playerColor(pid, pFullName) : "#94a3b8");
+
+      // 1. New Player on Transfermarkt (tCode 3)
+      if (tCode === 3 || (!d.byr && !d.bn && (d.sn || d.slr) && (d.p !== undefined || d.mv !== undefined) && !d.trp)) {
+        const sellerName = (d.sn || d.slr || "Kickbase").trim();
+        const sellerMgr = managerMap.get(sellerName.toLowerCase());
+        const price = Number(d.p ?? d.mv ?? 0);
+        const mw = Number(d.mv ?? d.pmv ?? price);
+        const isMine = sellerName.toLowerCase() === myName.toLowerCase();
+
+        feedActivities.push({
+          id,
+          type: "market_listing",
+          category: "market",
+          tCode,
+          date: dt,
+          title: t("New on Transfermarkt"),
+          icon: "storefront",
+          playerId: pid,
+          playerName: pFullName,
+          playerPosition: pPos,
+          playerImage: pImg,
+          playerColor: pCol,
+          price,
+          marketValue: mw,
+          sellerName,
+          sellerImage: sellerMgr?.image || null,
+          isMine,
+          raw
+        });
+      }
+      // 2. Transfers (tCode 12, 15, 2 or price/buyer/seller present)
+      else if (tCode === 12 || tCode === 15 || tCode === 2 || d.trp !== undefined || (d.byr && d.slr)) {
+        const buyerName = (d.byr || d.bn || (tCode === 2 ? null : "Kickbase") || "Kickbase").trim();
+        const sellerName = (d.slr || d.sn || (tCode === 12 ? "Kickbase" : (buyerName !== "Kickbase" ? "Kickbase" : null)) || "Kickbase").trim();
+        const price = Number(d.trp ?? d.p ?? 0);
+        const mw = Number(d.mv ?? d.pmv ?? 0);
+        const buyerMgr = managerMap.get(buyerName.toLowerCase());
+        const sellerMgr = managerMap.get(sellerName.toLowerCase());
+        const isUserTransfer = Boolean(buyerName && sellerName && buyerName.toLowerCase() !== "kickbase" && sellerName.toLowerCase() !== "kickbase");
+        const isMine = buyerName.toLowerCase() === myName.toLowerCase() || sellerName.toLowerCase() === myName.toLowerCase();
+        const bids = d.ofc ?? d.bids ?? null;
+
+        feedActivities.push({
+          id,
+          type: "transfer",
+          category: "transfers",
+          tCode,
+          date: dt,
+          title: t("Transfer completed"),
+          icon: isUserTransfer ? "handshake" : (buyerName.toLowerCase() !== "kickbase" ? "shopping_cart" : "sell"),
+          playerId: pid,
+          playerName: pFullName,
+          playerPosition: pPos,
+          playerImage: pImg,
+          playerColor: pCol,
+          price,
+          marketValue: mw,
+          buyerName,
+          buyerImage: buyerMgr?.image || null,
+          sellerName,
+          sellerImage: sellerMgr?.image || null,
+          isUserTransfer,
+          isMine,
+          bids,
+          raw
+        });
+      }
+      // 3. Manager joined / League events (tCode 5, 6, 7)
+      else if (tCode === 5 || tCode === 6 || tCode === 7) {
+        const uName = (d.un || d.n || d.name || "Manager").trim();
+        const uMgr = managerMap.get(uName.toLowerCase());
+        const isJoined = tCode === 5;
+        const isFounded = tCode === 6;
+
+        feedActivities.push({
+          id,
+          type: "league_event",
+          category: "league",
+          tCode,
+          date: dt,
+          title: isJoined ? t("Manager joined") : (isFounded ? t("League Founded") : t("League Event")),
+          icon: isJoined ? "person_add" : "emoji_events",
+          managerName: uName,
+          managerImage: uMgr?.image || null,
+          isMine: uName.toLowerCase() === myName.toLowerCase(),
+          raw
+        });
+      }
+      // 4. Matchday summary / winner (tCode 8, 17)
+      else if (tCode === 8 || tCode === 17 || d.md !== undefined) {
+        const mdNum = d.md || d.day || "?";
+        const winnerName = (d.un || d.n || d.winner || "").trim();
+        const winnerMgr = managerMap.get(winnerName.toLowerCase());
+        const pts = Number(d.p ?? d.points ?? 0);
+
+        feedActivities.push({
+          id,
+          type: "matchday_summary",
+          category: "league",
+          tCode,
+          date: dt,
+          title: `${t("Matchday")} ${mdNum} ${t("finished")}`,
+          icon: "military_tech",
+          matchdayNum: mdNum,
+          managerName: winnerName,
+          managerImage: winnerMgr?.image || null,
+          points: pts,
+          isMine: winnerName.toLowerCase() === myName.toLowerCase(),
+          raw
+        });
+      }
+      // 5. General activity
+      else {
+        const textDesc = d.ti || d.t || d.d || d.desc || d.text || "";
+        if (textDesc || pFullName) {
+          feedActivities.push({
+            id,
+            type: "general",
+            category: "league",
+            tCode,
+            date: dt,
+            title: textDesc || t("League Event"),
+            icon: "info",
+            playerId: pid,
+            playerName: pFullName,
+            playerPosition: pPos,
+            playerImage: pImg,
+            playerColor: pCol,
+            raw
+          });
+        }
+      }
+    }
+
+    // Parse official news articles
+    const newsArticles = (newsRaw && Array.isArray(newsRaw.it) ? newsRaw.it : []).map((art) => {
+      const id = String(art.i || art.id || Math.random());
+      const dt = art.dt ? new Date(art.dt) : null;
+      const img = art.ci ? (KB.imageUrl ? KB.imageUrl(art.ci) : `https://kickbase.b-cdn.net/${art.ci.replace(/^\//, '')}`) : null;
+      return {
+        id,
+        isArticle: true,
+        category: "magazine",
+        date: dt,
+        title: art.ti || art.t || "Kickbase News",
+        tag: art.rl || t("Kickbase Magazin"),
+        image: img,
+        description: art.d || "",
+        url: art.url || null,
+        linkLabel: art.lb || t("Read full article ↗"),
+        icon: "newspaper"
+      };
+    });
+
+    // 7-day stats for hero cards
+    const nowTime = Date.now();
+    const sevenDaysAgo = nowTime - 7 * 86400000;
+    const recentTransfers = feedActivities.filter((a) => a.type === "transfer" && a.date && a.date.getTime() >= sevenDaysAgo);
+    const totalVolume = recentTransfers.reduce((s, a) => s + (a.price || 0), 0);
+    const recentListings = feedActivities.filter((a) => a.type === "market_listing" && a.date && a.date.getTime() >= sevenDaysAgo);
+    const biggestDeal = [...recentTransfers].sort((a, b) => (b.price || 0) - (a.price || 0))[0] || null;
+    const activeManagers = new Set(recentTransfers.flatMap((a) => [a.buyerName, a.sellerName]).filter((n) => n && n.toLowerCase() !== "kickbase")).size;
+
+    function formatTimeLabel(d) {
+      if (!d || isNaN(d.getTime())) return "";
+      const now = new Date();
+      const diffSec = Math.floor((now.getTime() - d.getTime()) / 1000);
+      if (diffSec < 60) return t("Just now");
+      const diffMin = Math.floor(diffSec / 60);
+      if (diffMin < 60) return `${diffMin} Min.`;
+      const diffHours = Math.floor(diffMin / 60);
+      if (diffHours < 24 && now.getDate() === d.getDate()) {
+        return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+      }
+      const days = Math.floor(diffHours / 24);
+      if (days === 1 || (days === 0 && now.getDate() !== d.getDate())) {
+        return `${t("Yesterday")}, ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+      }
+      return `${d.toLocaleDateString(S.lang === "de" ? "de-DE" : "en-US", { day: "2-digit", month: "short" })}, ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+    }
+
+    function getGroupLabel(d) {
+      if (!d || isNaN(d.getTime())) return t("Earlier");
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const itemDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const diffDays = Math.round((today - itemDay) / 86400000);
+      if (diffDays === 0) return t("Today");
+      if (diffDays === 1) return t("Yesterday");
+      if (diffDays <= 7) return t("This Week");
+      return t("Earlier");
+    }
+
+    let currentFilter = "all";
+    let searchQuery = "";
+
+    function renderFeedView() {
+      let pool = [];
+      if (currentFilter === "all") {
+        pool = [...feedActivities, ...newsArticles];
+      } else if (currentFilter === "transfers") {
+        pool = feedActivities.filter((a) => a.category === "transfers");
+      } else if (currentFilter === "market") {
+        pool = feedActivities.filter((a) => a.category === "market");
+      } else if (currentFilter === "league") {
+        pool = feedActivities.filter((a) => a.category === "league");
+      } else if (currentFilter === "magazine") {
+        pool = newsArticles;
+      } else if (currentFilter === "mine") {
+        pool = feedActivities.filter((a) => a.isMine);
+      }
+
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase().trim();
+        pool = pool.filter((item) => {
+          if (item.playerName && item.playerName.toLowerCase().includes(q)) return true;
+          if (item.buyerName && item.buyerName.toLowerCase().includes(q)) return true;
+          if (item.sellerName && item.sellerName.toLowerCase().includes(q)) return true;
+          if (item.managerName && item.managerName.toLowerCase().includes(q)) return true;
+          if (item.title && item.title.toLowerCase().includes(q)) return true;
+          if (item.description && item.description.toLowerCase().includes(q)) return true;
+          return false;
+        });
+      }
+
+      pool.sort((a, b) => {
+        const tA = a.date ? a.date.getTime() : 0;
+        const tB = b.date ? b.date.getTime() : 0;
+        return tB - tA;
+      });
+
+      const groups = new Map();
+      pool.forEach((item) => {
+        const grp = getGroupLabel(item.date);
+        if (!groups.has(grp)) groups.set(grp, []);
+        groups.get(grp).push(item);
+      });
+
+      const myCount = feedActivities.filter((a) => a.isMine).length;
+      const transferCount = feedActivities.filter((a) => a.category === "transfers").length;
+      const marketCount = feedActivities.filter((a) => a.category === "market").length;
+      const leagueCount = feedActivities.filter((a) => a.category === "league").length;
+
+      let timelineHtml = "";
+      if (groups.size === 0) {
+        timelineHtml = `
+          <div class="card pad" style="text-align:center;padding:48px 24px;background:var(--surface)">
+            <div style="font-size:36px;margin-bottom:8px">📭</div>
+            <div style="font-weight:700;font-size:16px;color:var(--text);margin-bottom:4px">${t("No activity found matching your filter.")}</div>
+            <div class="muted" style="font-size:12.5px">${t("Try selecting another filter or searching for a different player/manager.")}</div>
+          </div>
+        `;
+      } else {
+        timelineHtml = Array.from(groups.entries()).map(([grpTitle, items]) => `
+          <div style="margin-bottom: 24px">
+            <div style="display:flex;align-items:center;gap:10px;margin: 18px 0 10px">
+              <span style="font-weight:800;font-size:13px;text-transform:uppercase;letter-spacing:0.05em;color:var(--muted)">${grpTitle}</span>
+              <div style="flex:1;height:1px;background:var(--border)"></div>
+              <span class="muted" style="font-size:11px">${items.length} ${items.length === 1 ? t("Event") : t("Events")}</span>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              ${items.map((item) => {
+                if (item.isArticle) {
+                  return `
+                    <div class="news-item-card" style="background:var(--surface-2);border:1px solid var(--border);border-left:3px solid #ff5a1f;border-radius:12px;padding:14px 16px">
+                      <div style="display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap">
+                        ${item.image ? `<img src="${esc(item.image)}" style="width:120px;height:75px;object-fit:cover;border-radius:8px;border:1px solid var(--border)" onerror="this.style.display='none'">` : ""}
+                        <div style="flex:1;min-width:200px">
+                          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
+                            <span class="pill sm" style="font-size:10.5px;padding:1px 6px;background:rgba(255,90,31,0.15);color:#ff7a45;border:1px solid rgba(255,90,31,0.3)">
+                              📰 ${esc(item.tag)}
+                            </span>
+                            <span style="font-size:11.5px;color:var(--muted)">${formatTimeLabel(item.date)}</span>
+                          </div>
+                          <div style="font-weight:700;font-size:15px;color:#f8fafc;line-height:1.3">${esc(item.title)}</div>
+                          ${item.description ? `<p style="font-size:12.5px;color:var(--muted);margin:4px 0 6px;line-height:1.4">${esc(item.description)}</p>` : ""}
+                          ${item.url ? `<a href="${esc(item.url)}" target="_blank" rel="noopener" class="btn sm ghost" style="height:24px;font-size:11.5px;padding:0 8px;display:inline-flex;align-items:center;gap:4px;text-decoration:none">${esc(item.linkLabel)}</a>` : ""}
+                        </div>
+                      </div>
+                    </div>
+                  `;
+                }
+
+                if (item.type === "transfer") {
+                  let diffHtml = "";
+                  if (item.price > 0 && item.marketValue > 0) {
+                    const diff = item.price - item.marketValue;
+                    const pct = Math.round((diff / item.marketValue) * 1000) / 10;
+                    if (diff > 0) {
+                      diffHtml = `<div class="pill up" style="font-size:11px;margin-top:2px">+${money(diff)} (+${pct}%) ${t("over MW")}</div>`;
+                    } else if (diff === 0) {
+                      diffHtml = `<div class="pill" style="font-size:11px;background:rgba(255,255,255,0.08);color:#94a3b8;margin-top:2px">${t("at Market Value")}</div>`;
+                    } else {
+                      diffHtml = `<div class="pill down" style="font-size:11px;margin-top:2px">${money(diff)} (${pct}%) ${t("under MW")}</div>`;
+                    }
+                  }
+
+                  const accentCol = item.isUserTransfer ? "#8b5cf6" : (item.buyerName.toLowerCase() !== "kickbase" ? "#10b981" : "#3b82f6");
+                  return `
+                    <div class="news-item-card" data-open-player="${item.playerId || ""}" style="background:var(--surface-2);border:1px solid ${item.isMine ? "rgba(16, 185, 129, 0.4)" : "var(--border)"};border-left:3px solid ${accentCol};border-radius:12px;padding:14px 16px;cursor:${item.playerId ? "pointer" : "default"};display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+                      <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:220px">
+                        ${item.playerId ? ui.pawn({ id: item.playerId, name: item.playerName, image: item.playerImage, position: item.playerPosition, color: item.playerColor }, 40) : `<div style="width:40px;height:40px;border-radius:50%;background:rgba(139,92,246,0.15);display:grid;place-items:center;color:#a5b4fc">${ui.icon(item.icon)}</div>`}
+                        <div>
+                          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                            <span class="pill sm" style="font-size:10.5px;padding:1px 6px;background:${accentCol}22;color:${accentCol};border:1px solid ${accentCol}44">
+                              ${item.isUserTransfer ? t("Manager Deal") : (item.buyerName.toLowerCase() !== "kickbase" ? t("Purchase") : t("Sale"))}
+                            </span>
+                            ${item.isMine ? `<span class="pill up" style="font-size:10px;padding:1px 5px">${t("YOU")}</span>` : ""}
+                            <span style="font-size:11.5px;color:var(--muted)">${formatTimeLabel(item.date)}</span>
+                          </div>
+                          <div style="font-weight:700;font-size:14px;margin-top:3px;color:#f8fafc">
+                            <span>${esc(item.buyerName)}</span>
+                            <span style="font-weight:400;color:var(--muted)"> ${t("bought")} </span>
+                            <span style="color:#38bdf8;font-weight:700">${esc(item.playerName)}</span>
+                            <span style="font-weight:400;color:var(--muted)"> ${t("from")} </span>
+                            <span>${esc(item.sellerName)}</span>
+                          </div>
+                          <div style="font-size:11px;color:var(--muted);display:flex;align-items:center;gap:8px;margin-top:2px">
+                            ${item.marketValue > 0 ? `<span>${t("MW")}: ${money(item.marketValue)}</span>` : ""}
+                            ${item.bids ? `<span>• 🎯 ${item.bids === 1 ? t("1 bids placed") : `${item.bids} ${t("bids placed")}`}</span>` : ""}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style="text-align:right;flex-shrink:0">
+                        <div style="font-size:16px;font-weight:800;color:#f8fafc">
+                          ${money(item.price)}
+                        </div>
+                        ${diffHtml}
+                      </div>
+                    </div>
+                  `;
+                }
+
+                if (item.type === "market_listing") {
+                  return `
+                    <div class="news-item-card" data-open-player="${item.playerId || ""}" style="background:var(--surface-2);border:1px solid ${item.isMine ? "rgba(245, 158, 11, 0.4)" : "var(--border)"};border-left:3px solid #f59e0b;border-radius:12px;padding:14px 16px;cursor:${item.playerId ? "pointer" : "default"};display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+                      <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:220px">
+                        ${ui.pawn({ id: item.playerId, name: item.playerName, image: item.playerImage, position: item.playerPosition, color: item.playerColor }, 40)}
+                        <div>
+                          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+                            <span class="pill sm" style="font-size:10.5px;padding:1px 6px;background:rgba(245,158,11,0.15);color:#fbbf24;border:1px solid rgba(245,158,11,0.3)">
+                              🏪 ${t("Transfermarkt")}
+                            </span>
+                            ${item.isMine ? `<span class="pill up" style="font-size:10px;padding:1px 5px">${t("YOU")}</span>` : ""}
+                            <span style="font-size:11.5px;color:var(--muted)">${formatTimeLabel(item.date)}</span>
+                          </div>
+                          <div style="font-weight:700;font-size:14px;margin-top:3px;color:#f8fafc">
+                            <span>${esc(item.sellerName)}</span>
+                            <span style="font-weight:400;color:var(--muted)"> ${t("listed")} </span>
+                            <span style="color:#38bdf8;font-weight:700">${esc(item.playerName)}</span>
+                            <span style="font-weight:400;color:var(--muted)"> ${t("on the Transfermarkt for")} </span>
+                            <span style="color:#f8fafc;font-weight:700">${money(item.price)}</span>
+                          </div>
+                          <div style="font-size:11px;color:var(--muted);margin-top:2px">
+                            ${item.marketValue > 0 ? `<span>${t("MW")}: ${money(item.marketValue)}</span>` : ""}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style="text-align:right;flex-shrink:0">
+                        <button class="btn sm ghost" data-open-player="${item.playerId}" style="height:28px;font-size:12px">
+                          ${ui.icon("visibility")} ${t("View Player")}
+                        </button>
+                      </div>
+                    </div>
+                  `;
+                }
+
+                // League Event or general
+                return `
+                  <div class="news-item-card" style="background:var(--surface-2);border:1px solid var(--border);border-left:3px solid #6366f1;border-radius:12px;padding:14px 16px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+                    <div style="display:flex;align-items:center;gap:12px;flex:1">
+                      <div style="width:40px;height:40px;border-radius:50%;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);display:grid;place-items:center;color:#a5b4fc;font-size:20px">
+                        ${ui.icon(item.icon || "emoji_events")}
+                      </div>
+                      <div>
+                        <div style="display:flex;align-items:center;gap:6px">
+                          <span class="pill sm" style="font-size:10.5px;padding:1px 6px;background:rgba(99,102,241,0.15);color:#a5b4fc;border:1px solid rgba(99,102,241,0.3)">
+                            🏆 ${t("League Event")}
+                          </span>
+                          <span style="font-size:11.5px;color:var(--muted)">${formatTimeLabel(item.date)}</span>
+                        </div>
+                        <div style="font-weight:700;font-size:14px;margin-top:3px;color:#f8fafc">
+                          ${esc(item.title)}
+                        </div>
+                        ${item.managerName ? `<div style="font-size:12px;color:var(--muted);margin-top:1px"><b>${esc(item.managerName)}</b> ${item.points ? `· ${ui.int(item.points)} ${t("pts")}` : ""}</div>` : ""}
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }).join("")}
+            </div>
+          </div>
+        `).join("");
+      }
+
+      el.innerHTML = `
+        <div class="fade-in">
+          <!-- Hero Banner & Stats -->
+          <div class="card pad" style="background:linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.9) 100%);border:1px solid var(--border);margin-bottom:24px;border-radius:16px;position:relative;overflow:hidden">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;position:relative;z-index:2">
+              <div>
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                  <span class="live-pulse-badge" style="background:rgba(99,102,241,0.15);border-color:rgba(99,102,241,0.35);color:#a5b4fc">
+                    <span style="font-size:13px">📰</span> ${t("News & Activities")}
+                  </span>
+                  <span style="font-size:12px;color:#94a3b8">${t("Live League Activity Feed")}</span>
+                </div>
+                <h2 style="margin:4px 0 6px;font-size:22px;color:#f8fafc">${t("League Activities & News")}</h2>
+                <p class="muted" style="margin:0;font-size:13px">${t("League feed: Transfer updates, market listings, manager deals & Kickbase news")}</p>
+              </div>
+
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+                <button class="btn primary sm" id="btn-news-reload" style="background:#6366f1;border-color:#6366f1;display:flex;align-items:center;gap:6px">
+                  ${ui.icon("refresh")} ${t("Refresh Feed")}
+                </button>
+                <div style="font-size:11px;color:#94a3b8">${t("Last updated:")} ${new Date().toLocaleTimeString()}</div>
+              </div>
+            </div>
+
+            <!-- Top Metric Cards -->
+            <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(180px, 1fr));gap:12px;margin-top:20px">
+              <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:12px 14px">
+                <div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700">${t("Transfers (7 Days)")}</div>
+                <div style="font-size:20px;font-weight:800;color:#10b981;margin-top:3px">${recentTransfers.length}</div>
+                <div style="font-size:11px;color:var(--muted)">${money(totalVolume)} ${t("Transfer Volume")}</div>
+              </div>
+
+              <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:12px 14px">
+                <div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700">${t("New on Market (7D)")}</div>
+                <div style="font-size:20px;font-weight:800;color:#f59e0b;margin-top:3px">${recentListings.length}</div>
+                <div style="font-size:11px;color:var(--muted)">${t("Players listed on TM")}</div>
+              </div>
+
+              <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:12px 14px">
+                <div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700">${t("Biggest Transfer")}</div>
+                <div style="font-size:15px;font-weight:800;color:#38bdf8;margin-top:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${biggestDeal ? esc(biggestDeal.playerName) : "–"}">
+                  ${biggestDeal ? esc(biggestDeal.playerName) : "–"}
+                </div>
+                <div style="font-size:11px;color:var(--muted)">${biggestDeal ? `${money(biggestDeal.price)} (${esc(biggestDeal.buyerName)})` : "–"}</div>
+              </div>
+
+              <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:12px 14px">
+                <div style="font-size:11px;color:var(--muted);text-transform:uppercase;font-weight:700">${t("Active Managers")}</div>
+                <div style="font-size:20px;font-weight:800;color:#a855f7;margin-top:3px">${activeManagers}</div>
+                <div style="font-size:11px;color:var(--muted)">${t("Involved in recent deals")}</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Controls: Filters & Search Bar -->
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:20px">
+            <div style="display:flex;gap:6px;background:var(--surface-2);padding:4px;border-radius:10px;border:1px solid var(--border);flex-wrap:wrap">
+              <button class="btn sm ${currentFilter === "all" ? "primary" : "ghost"}" data-feed-filter="all" style="height:28px;padding:0 12px;font-size:12px">
+                🌟 ${t("All Activities")} (${feedActivities.length + newsArticles.length})
+              </button>
+              <button class="btn sm ${currentFilter === "transfers" ? "primary" : "ghost"}" data-feed-filter="transfers" style="height:28px;padding:0 12px;font-size:12px">
+                🤝 ${t("Transfers & Deals")} (${transferCount})
+              </button>
+              <button class="btn sm ${currentFilter === "market" ? "primary" : "ghost"}" data-feed-filter="market" style="height:28px;padding:0 12px;font-size:12px">
+                🏪 ${t("New on Transfermarkt")} (${marketCount})
+              </button>
+              <button class="btn sm ${currentFilter === "league" ? "primary" : "ghost"}" data-feed-filter="league" style="height:28px;padding:0 12px;font-size:12px">
+                🏆 ${t("League Events")} (${leagueCount})
+              </button>
+              ${newsArticles.length ? `
+                <button class="btn sm ${currentFilter === "magazine" ? "primary" : "ghost"}" data-feed-filter="magazine" style="height:28px;padding:0 12px;font-size:12px">
+                  📰 ${t("Kickbase Magazin")} (${newsArticles.length})
+                </button>
+              ` : ""}
+              ${myCount > 0 ? `
+                <button class="btn sm ${currentFilter === "mine" ? "primary" : "ghost"}" data-feed-filter="mine" style="height:28px;padding:0 12px;font-size:12px">
+                  👤 ${t("My Activities")} (${myCount})
+                </button>
+              ` : ""}
+            </div>
+
+            <div style="min-width:240px;flex:1;max-width:360px">
+              <input type="search" id="news-search-input" class="input" placeholder="${esc(t("Search player or manager…"))}" value="${esc(searchQuery)}" style="height:36px;font-size:13px;width:100%">
+            </div>
+          </div>
+
+          <!-- Feed Timeline -->
+          <div id="news-timeline-container">
+            ${timelineHtml}
+          </div>
+        </div>
+      `;
+
+      // Event listeners
+      el.querySelector("#btn-news-reload")?.addEventListener("click", () => {
+        if (S.api.clearCache) {
+          S.api.clearCache(`/v4/leagues/${ctx.l}/activitiesFeed`);
+          S.api.clearCache(`/v4/base/news/`);
+        }
+        ui.toast(t("Refreshing feed…"));
+        pageNews(el, ctx);
+      });
+
+      el.querySelectorAll("[data-feed-filter]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          currentFilter = btn.dataset.feedFilter;
+          renderFeedView();
+        });
+      });
+
+      const sInput = el.querySelector("#news-search-input");
+      if (sInput) {
+        sInput.addEventListener("input", (e) => {
+          searchQuery = e.target.value;
+          renderFeedView();
+        });
+      }
+
+      el.querySelectorAll("[data-open-player]").forEach((item) => {
+        const pId = item.dataset.openPlayer;
+        if (pId) {
+          item.addEventListener("click", (e) => {
+            if (e.target.closest("a") || e.target.closest("button")) return;
+            const fullP = playerMap.get(pId) || { id: pId };
+            openPlayerModal(ctx, fullP, { squad, market });
+          });
+        }
+      });
+
+      el.querySelectorAll("[data-view-player]").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.stopPropagation();
+          const pId = btn.dataset.viewPlayer;
+          if (pId) {
+            const fullP = playerMap.get(pId) || { id: pId };
+            openPlayerModal(ctx, fullP, { squad, market });
+          }
+        });
+      });
+    }
+
+    renderFeedView();
+  }
+
   // -------------------------------------------------------------- live ----
   async function pageLive(el, ctx) {
     el.innerHTML = ui.loading("Connecting to live matchday feed and player stats…");
@@ -11524,6 +12268,7 @@ Analyze my squad strictly under Kickbase rules:
 
     // Build schedule and matchup lookups from competition matchdays
     const compId = (me && me.cpi) ? String(me.cpi) : "1";
+    const myId = myManagerId(rank);
     const matchScheduleMap = new Map();
     const teamScheduleMap = new Map();
     const teamToMatchMap = new Map();
@@ -11540,6 +12285,10 @@ Analyze my squad strictly under Kickbase rules:
     const relevantMds = (curCompDay !== null && mdList.some((x) => x.day === curCompDay))
       ? mdList.filter((x) => x.day === curCompDay)
       : mdList;
+
+    let hasLiveMatchesAcrossComp = false;
+    let hasUpcomingMatchesInComp = false;
+    let hasFinishedMatchesInComp = false;
 
     for (const md of relevantMds) {
       const matches = md.it || md.m || md.matches || [];
@@ -11561,6 +12310,10 @@ Analyze my squad strictly under Kickbase rules:
         if (t1 && mSt !== undefined) teamStatusMap.set(t1, mSt);
         if (t2 && mSt !== undefined) teamStatusMap.set(t2, mSt);
 
+        if (mSt === 1 || m.il) hasLiveMatchesAcrossComp = true;
+        else if (mSt === 2) hasFinishedMatchesInComp = true;
+        else if (mSt === 0) hasUpcomingMatchesInComp = true;
+
         const mMin = m.mt ?? m.m ?? m.minute ?? null;
         if (mId && mMin) matchMinuteMap.set(mId, mMin);
 
@@ -11576,13 +12329,72 @@ Analyze my squad strictly under Kickbase rules:
       }
     }
 
-    const squad = squadRaw.map((p) => tf.player(p));
-    const mine = rank.find((r) => r.id === myManagerId(rank));
+    // Determine the last fully completed matchday number
+    let lastCompletedMatchdayNum = null;
+    if (mdList && mdList.length) {
+      const completedMds = mdList.filter((md) => {
+        const matches = md.it || md.m || md.matches || [];
+        return matches.length > 0 && matches.every((m) => (Number(m.mst) === 2 || Number(m.st) === 2));
+      });
+      if (completedMds.length > 0) {
+        const days = completedMds.map((md) => Number(md.day || md.d)).filter((d) => !isNaN(d) && d > 0);
+        if (days.length) lastCompletedMatchdayNum = Math.max(...days);
+      }
+    }
+    if (!lastCompletedMatchdayNum && curCompDay) {
+      lastCompletedMatchdayNum = Math.max(1, curCompDay - 1);
+    }
 
-    // Starters from myEleven or squad
-    let starters = [];
+    const myElHasLive = myEl && Array.isArray(myEl.lp) && myEl.lp.some((p) => {
+      const mst = p.mst !== undefined ? Number(p.mst) : 0;
+      return mst === 1 || (mst === 0 && ((p.p && Number(p.p) !== 0) || (p.mt && Number(p.mt) > 0)));
+    });
+    const isLiveNow = hasLiveMatchesAcrossComp || myElHasLive;
+    const isOngoingWeekend = !isLiveNow && hasUpcomingMatchesInComp && hasFinishedMatchesInComp;
+    const isLastMatchday = !isLiveNow && !isOngoingWeekend;
+    const targetPastDay = lastCompletedMatchdayNum || curCompDay || 1;
+
+    // Load past matchday teamcenter, ranking, and manager transfers if viewing between matchdays
+    let pastTc = null;
+    let pastRankRows = null;
+    let myTransfers = [];
+    let targetMdKickoff = null;
+
+    if (mdList && mdList.length) {
+      const targetMdObj = mdList.find((md) => Number(md.day || md.d) === Number(targetPastDay));
+      const targetMdMatches = (targetMdObj && (targetMdObj.it || targetMdObj.m || targetMdObj.matches)) || [];
+      const matchTimes = targetMdMatches
+        .map((m) => new Date(m.dt || m.md || m.d || m.date || m.startTime || m.t).getTime())
+        .filter((t) => !isNaN(t) && t > 0);
+      if (matchTimes.length) {
+        targetMdKickoff = Math.min(...matchTimes);
+      }
+    }
+
+    if (isLastMatchday && targetPastDay) {
+      try {
+        const [hTc, hRank, hTransfers] = await Promise.all([
+          S.api.userTeamCenter ? S.api.userTeamCenter(ctx.l, myId, targetPastDay) : Promise.resolve(null),
+          S.api.ranking ? S.api.ranking(ctx.l, targetPastDay).catch(() => null) : Promise.resolve(null),
+          (myId && S.api.managerTransfers) ? S.api.managerTransfers(ctx.l, myId).catch(() => ({ it: [] })) : Promise.resolve({ it: [] })
+        ]);
+        pastTc = hTc;
+        if (hRank && Array.isArray(hRank.us)) {
+          pastRankRows = tf.ranking(hRank);
+        }
+        if (hTransfers) {
+          myTransfers = tf.transfers(hTransfers, S.session?.userName || "");
+        }
+      } catch (e) {}
+    }
+
+    const squad = squadRaw.map((p) => tf.player(p));
+    const mine = rank.find((r) => r.id === myId);
+
+    // 1. Current squad Starting XI and Bench
+    let currentStarters = [];
     if (myEl && Array.isArray(myEl.lp) && myEl.lp.length) {
-      starters = myEl.lp.map((raw) => {
+      currentStarters = myEl.lp.map((raw) => {
         const fullP = squad.find((sp) => sp.id === String(raw.i || raw.pi));
         const isSold = !fullP;
         const refP = fullP || {};
@@ -11591,14 +12403,12 @@ Analyze my squad strictly under Kickbase rules:
         const knownMst = matchStatusMap.get(mId) ?? teamStatusMap.get(tId);
         let mst = raw.mst !== undefined ? Number(raw.mst) : (refP.matchStatus !== undefined ? Number(refP.matchStatus) : (knownMst !== undefined ? knownMst : 0));
         
-        // If raw points or match minute are present and match is not marked finished (2), it is actively LIVE (1)
         const hasLivePts = (raw.p !== undefined && raw.p !== null && Number(raw.p) !== 0) || (refP.livePoints !== undefined && refP.livePoints !== null && Number(refP.livePoints) !== 0);
         const hasLiveMin = (raw.mt !== undefined && Number(raw.mt) > 0) || (refP.matchMinute !== undefined && Number(refP.matchMinute) > 0);
         if (mst === 0 && (hasLivePts || hasLiveMin || knownMst === 1)) {
           mst = 1;
         }
 
-        // Only show current game day points: 0 if upcoming and no points recorded, raw.p if live or finished
         let curGamePoints = 0;
         if (raw.p !== undefined && raw.p !== null) {
           curGamePoints = Number(raw.p);
@@ -11607,7 +12417,7 @@ Analyze my squad strictly under Kickbase rules:
         } else {
           curGamePoints = 0;
         }
-        const rawP = tf.player({ ...raw, st: undefined }); // myeleven "st" is not injury status
+        const rawP = tf.player({ ...raw, st: undefined });
         const actualMv = (refP.marketValue && refP.marketValue > 0) ? refP.marketValue : (rawP.marketValue || 0);
         const rawDate = raw.md || raw.d || raw.dt || raw.date || raw.startTime || raw.t || raw.matchDate || refP.matchDate;
         const resolvedDay = formatMatchDay(rawDate) || matchScheduleMap.get(mId) || teamScheduleMap.get(tId) || "";
@@ -11633,9 +12443,9 @@ Analyze my squad strictly under Kickbase rules:
       });
     } else {
       const savedLineup = store.get(`kb.lineup.${ctx.l}`) || [];
-      starters = savedLineup.map((id) => squad.find((p) => p.id === id)).filter(Boolean);
-      if (!starters.length) starters = squad.slice(0, 11);
-      starters = starters.map((p) => {
+      currentStarters = savedLineup.map((id) => squad.find((p) => p.id === id)).filter(Boolean);
+      if (!currentStarters.length) currentStarters = squad.slice(0, 11);
+      currentStarters = currentStarters.map((p) => {
         const mId = p.matchId || teamToMatchMap.get(p.teamId) || "";
         const knownMst = matchStatusMap.get(mId) ?? teamStatusMap.get(p.teamId);
         let mst = p.matchStatus !== undefined ? Number(p.matchStatus) : (knownMst !== undefined ? knownMst : 0);
@@ -11647,10 +12457,9 @@ Analyze my squad strictly under Kickbase rules:
       });
     }
 
-    // Bench players from myEleven or squad
-    let bench = [];
+    let currentBench = [];
     if (myEl && Array.isArray(myEl.nlp) && myEl.nlp.length) {
-      bench = myEl.nlp.map((raw) => {
+      currentBench = myEl.nlp.map((raw) => {
         const fullP = squad.find((sp) => sp.id === String(raw.i || raw.pi));
         const isSold = !fullP;
         const refP = fullP || {};
@@ -11673,7 +12482,7 @@ Analyze my squad strictly under Kickbase rules:
         } else {
           curGamePoints = 0;
         }
-        const rawP = tf.player({ ...raw, st: undefined }); // myeleven "st" is not injury status
+        const rawP = tf.player({ ...raw, st: undefined });
         const actualMv = (refP.marketValue && refP.marketValue > 0) ? refP.marketValue : (rawP.marketValue || 0);
         const rawDate = raw.md || raw.d || raw.dt || raw.date || raw.startTime || raw.t || raw.matchDate || refP.matchDate;
         const resolvedDay = formatMatchDay(rawDate) || matchScheduleMap.get(mId) || teamScheduleMap.get(tId) || "";
@@ -11698,7 +12507,7 @@ Analyze my squad strictly under Kickbase rules:
         };
       });
     } else {
-      bench = squad.filter((p) => !starters.some((s) => s.id === p.id)).map((p) => {
+      currentBench = squad.filter((p) => !currentStarters.some((s) => s.id === p.id)).map((p) => {
         const mId = p.matchId || teamToMatchMap.get(p.teamId) || "";
         const knownMst = matchStatusMap.get(mId) ?? teamStatusMap.get(p.teamId);
         let mst = p.matchStatus !== undefined ? Number(p.matchStatus) : (knownMst !== undefined ? knownMst : 0);
@@ -11710,13 +12519,256 @@ Analyze my squad strictly under Kickbase rules:
       });
     }
 
+    // 2. Historical fielded Starting XI from past teamcenter
+    let fieldedStarters = [];
+    let fieldedBench = [];
+    const userTc = (pastTc && pastTc.us && pastTc.us.find((u) => String(u.i) === String(myId)))
+      || (pastTc && pastTc.us && pastTc.us[0])
+      || pastTc;
+    const rawPastLp = (userTc && Array.isArray(userTc.lp)) ? userTc.lp : ((pastTc && Array.isArray(pastTc.lp)) ? pastTc.lp : null);
+
+    if (rawPastLp && rawPastLp.length) {
+      const missingIds = rawPastLp
+        .map((raw) => String(raw?.i || raw?.pi || raw || ""))
+        .filter((pid) => pid && pid !== "null" && pid !== "undefined" && !squad.some((sp) => sp.id === pid));
+
+      const fetchedSoldMap = new Map();
+      if (missingIds.length && S.api.player) {
+        await Promise.all(missingIds.map(async (pid) => {
+          try {
+            const pInfo = await S.api.player(ctx.l, pid);
+            if (pInfo) fetchedSoldMap.set(pid, tf.player(pInfo));
+          } catch (e) {}
+        }));
+      }
+
+      fieldedStarters = rawPastLp.map((raw) => {
+        const pid = String(raw?.i || raw?.pi || raw || "");
+        const inSquad = squad.find((sp) => sp.id === pid);
+        const soldP = fetchedSoldMap.get(pid);
+        const isSold = !inSquad;
+        const refP = inSquad || soldP || (typeof raw === "object" ? tf.player(raw) : { id: pid, name: `Player #${pid}`, position: "MID", color: "#64748b" });
+        const rawP = (typeof raw === "object") ? tf.player({ ...raw, st: undefined }) : {};
+        const tId = String(raw?.tid || refP.teamId || "");
+        const mId = String(raw?.mi || refP.matchId || teamToMatchMap.get(tId) || "");
+
+        let curGamePoints = 0;
+        if (raw && raw.p !== undefined && raw.p !== null) {
+          curGamePoints = Number(raw.p);
+        } else if (refP.ph && Array.isArray(refP.ph)) {
+          const phEntry = refP.ph.find((x) => Number(x.day || x.d) === Number(targetPastDay));
+          if (phEntry && phEntry.p !== undefined) curGamePoints = Number(phEntry.p);
+        } else if (refP.livePoints !== undefined && refP.livePoints !== null) {
+          curGamePoints = Number(refP.livePoints);
+        }
+
+        const actualMv = (refP.marketValue && refP.marketValue > 0) ? refP.marketValue : (rawP.marketValue || 0);
+        const rawDate = raw?.md || raw?.d || raw?.dt || raw?.date || raw?.startTime || raw?.t || refP.matchDate;
+        const resolvedDay = formatMatchDay(rawDate) || matchScheduleMap.get(mId) || teamScheduleMap.get(tId) || "";
+        const resolvedMatchup = matchMatchupMap.get(mId) || teamMatchupMap.get(tId) || refP.matchup || "";
+
+        return {
+          ...refP,
+          ...rawP,
+          id: pid,
+          name: refP.name || rawP.name || `Player #${pid}`,
+          position: refP.position || rawP.position || "MID",
+          marketValue: actualMv,
+          livePoints: curGamePoints,
+          matchStatus: 2,
+          matchMinute: raw?.mt !== undefined ? raw.mt : (refP.matchMinute ?? (matchMinuteMap.get(mId) ?? 90)),
+          matchup: resolvedMatchup,
+          matchDay: resolvedDay,
+          matchId: mId,
+          events: raw?.k || raw?.ev || raw?.events || refP.events || [],
+          status: refP.status || "Fit",
+          rawStatus: refP.rawStatus || 0,
+          isInjured: !!refP.rawStatus,
+          isStarter: true,
+          isSold
+        };
+      });
+
+      // Check if past teamcenter explicitly provides non-lineup bench players (nlp)
+      const rawPastNlp = (userTc && Array.isArray(userTc.nlp) && userTc.nlp.length)
+        ? userTc.nlp
+        : ((pastTc && Array.isArray(pastTc.nlp) && pastTc.nlp.length) ? pastTc.nlp : null);
+
+      if (rawPastNlp && rawPastNlp.length) {
+        const missingBenchIds = rawPastNlp
+          .map((raw) => String(raw?.i || raw?.pi || raw || ""))
+          .filter((pid) => pid && pid !== "null" && pid !== "undefined" && !squad.some((sp) => sp.id === pid));
+
+        const fetchedSoldBenchMap = new Map();
+        if (missingBenchIds.length && S.api.player) {
+          await Promise.all(missingBenchIds.map(async (pid) => {
+            try {
+              const pInfo = await S.api.player(ctx.l, pid);
+              if (pInfo) fetchedSoldBenchMap.set(pid, tf.player(pInfo));
+            } catch (e) {}
+          }));
+        }
+
+        fieldedBench = rawPastNlp.map((raw) => {
+          const pid = String(raw?.i || raw?.pi || raw || "");
+          const inSquad = squad.find((sp) => sp.id === pid);
+          const soldP = fetchedSoldBenchMap.get(pid);
+          const isSold = !inSquad;
+          const refP = inSquad || soldP || (typeof raw === "object" ? tf.player(raw) : { id: pid, name: `Player #${pid}`, position: "MID", color: "#64748b" });
+          const rawP = (typeof raw === "object") ? tf.player({ ...raw, st: undefined }) : {};
+          const tId = String(raw?.tid || refP.teamId || "");
+          const mId = String(raw?.mi || refP.matchId || teamToMatchMap.get(tId) || "");
+
+          let curGamePoints = 0;
+          if (raw && raw.p !== undefined && raw.p !== null) {
+            curGamePoints = Number(raw.p);
+          } else if (refP.ph && Array.isArray(refP.ph)) {
+            const phEntry = refP.ph.find((x) => Number(x.day || x.d) === Number(targetPastDay));
+            if (phEntry && phEntry.p !== undefined) curGamePoints = Number(phEntry.p);
+          } else if (refP.livePoints !== undefined && refP.livePoints !== null) {
+            curGamePoints = Number(refP.livePoints);
+          }
+
+          const actualMv = (refP.marketValue && refP.marketValue > 0) ? refP.marketValue : (rawP.marketValue || 0);
+          const rawDate = raw?.md || raw?.d || raw?.dt || raw?.date || raw?.startTime || raw?.t || refP.matchDate;
+          const resolvedDay = formatMatchDay(rawDate) || matchScheduleMap.get(mId) || teamScheduleMap.get(tId) || "";
+          const resolvedMatchup = matchMatchupMap.get(mId) || teamMatchupMap.get(tId) || refP.matchup || "";
+
+          return {
+            ...refP,
+            ...rawP,
+            id: pid,
+            name: refP.name || rawP.name || `Player #${pid}`,
+            position: refP.position || rawP.position || "MID",
+            marketValue: actualMv,
+            livePoints: curGamePoints,
+            matchStatus: 2,
+            matchMinute: raw?.mt !== undefined ? raw.mt : (refP.matchMinute ?? (matchMinuteMap.get(mId) ?? 90)),
+            matchup: resolvedMatchup,
+            matchDay: resolvedDay,
+            matchId: mId,
+            events: raw?.k || raw?.ev || raw?.events || refP.events || [],
+            status: refP.status || "Fit",
+            rawStatus: refP.rawStatus || 0,
+            isInjured: !!refP.rawStatus,
+            isStarter: false,
+            isSold
+          };
+        });
+      } else {
+        // Kickbase historical teamcenter does not record nlp; verify ownership at matchday kickoff:
+        // Any player acquired after matchday kickoff was NOT owned on this matchday.
+        const candidateBench = squad.filter((sp) => !fieldedStarters.some((fs) => fs.id === sp.id));
+
+        const verifiedBench = candidateBench.filter((sp) => {
+          if (!targetMdKickoff || !myTransfers || !myTransfers.length) {
+            return false;
+          }
+          const pTransfers = myTransfers.filter((t) => String(t.playerId) === String(sp.id) || (t.player && t.player.toLowerCase() === (sp.name || "").toLowerCase()));
+          const before = pTransfers.filter((t) => t.date && t.date.getTime() <= targetMdKickoff)
+                                   .sort((a, b) => a.date.getTime() - b.date.getTime());
+          if (before.length > 0) {
+            return before[before.length - 1].type === "Buy";
+          }
+          // No transfers before kickoff.
+          // If the player has a buy after kickoff, they were acquired after this matchday!
+          const afterBuy = pTransfers.find((t) => t.type === "Buy" && t.date && t.date.getTime() > targetMdKickoff);
+          if (afterBuy) return false;
+          // If in squad and has no buy records at all, they were assigned at initial league registration
+          return true;
+        });
+
+        // Also check if any bench player was owned at kickoff but SOLD after kickoff
+        const soldBenchIds = [];
+        if (targetMdKickoff && myTransfers && myTransfers.length) {
+          const uniquePids = [...new Set(myTransfers.map((t) => t.playerId).filter(Boolean))];
+          for (const pid of uniquePids) {
+            if (fieldedStarters.some((fs) => fs.id === pid)) continue;
+            if (verifiedBench.some((vb) => vb.id === pid)) continue;
+            const pTransfers = myTransfers.filter((t) => String(t.playerId) === String(pid));
+            const before = pTransfers.filter((t) => t.date && t.date.getTime() <= targetMdKickoff)
+                                     .sort((a, b) => a.date.getTime() - b.date.getTime());
+            if (before.length > 0 && before[before.length - 1].type === "Buy") {
+              soldBenchIds.push(pid);
+            }
+          }
+        }
+
+        const fetchedSoldBenchMap = new Map();
+        if (soldBenchIds.length && S.api.player) {
+          await Promise.all(soldBenchIds.map(async (pid) => {
+            try {
+              const pInfo = await S.api.player(ctx.l, pid);
+              if (pInfo) fetchedSoldBenchMap.set(pid, tf.player(pInfo));
+            } catch (e) {}
+          }));
+        }
+
+        const soldBenchPlayers = soldBenchIds.map((pid) => {
+          const soldP = fetchedSoldBenchMap.get(pid) || { id: pid, name: `Player #${pid}`, position: "MID", color: "#64748b" };
+          const tId = String(soldP.teamId || "");
+          const mId = String(soldP.matchId || teamToMatchMap.get(tId) || "");
+          let curGamePoints = 0;
+          if (soldP.ph && Array.isArray(soldP.ph)) {
+            const phEntry = soldP.ph.find((x) => Number(x.day || x.d) === Number(targetPastDay));
+            if (phEntry && phEntry.p !== undefined) curGamePoints = Number(phEntry.p);
+          } else if (soldP.livePoints !== undefined && soldP.livePoints !== null) {
+            curGamePoints = Number(soldP.livePoints);
+          }
+          return {
+            ...soldP,
+            matchId: mId,
+            matchup: soldP.matchup || matchMatchupMap.get(mId) || teamMatchupMap.get(tId) || "",
+            livePoints: curGamePoints,
+            matchStatus: 2,
+            isStarter: false,
+            isSold: true
+          };
+        });
+
+        fieldedBench = [
+          ...verifiedBench.map((p) => {
+            const mId = p.matchId || teamToMatchMap.get(p.teamId) || "";
+            let curGamePoints = 0;
+            if (p.ph && Array.isArray(p.ph)) {
+              const phEntry = p.ph.find((x) => Number(x.day || x.d) === Number(targetPastDay));
+              if (phEntry && phEntry.p !== undefined) curGamePoints = Number(phEntry.p);
+            } else if (p.livePoints !== undefined && p.livePoints !== null) {
+              curGamePoints = Number(p.livePoints);
+            }
+            return {
+              ...p,
+              matchId: mId,
+              matchup: p.matchup || matchMatchupMap.get(mId) || teamMatchupMap.get(p.teamId) || "",
+              livePoints: curGamePoints,
+              matchStatus: 2,
+              isStarter: false,
+              isSold: false
+            };
+          }),
+          ...soldBenchPlayers
+        ];
+      }
+    }
+
+    if (!fieldedStarters.length) {
+      fieldedStarters = currentStarters;
+      fieldedBench = currentBench;
+    }
+
     // Enrich players with playerCenter (exact event minutes & sub events), sold player MV, and matchDetails
     const matchEventMap = new Map();
     const realMatchBenchSet = new Set();
     const realMatchStarterSet = new Set();
-    const allLineupPlayers = [...starters, ...bench];
+    const allLineupPlayers = [
+      ...fieldedStarters,
+      ...fieldedBench,
+      ...currentStarters.filter((cs) => !fieldedStarters.some((fs) => fs.id === cs.id)),
+      ...currentBench.filter((cb) => !fieldedBench.some((fb) => fb.id === cb.id))
+    ];
 
     // 1. Fetch playerCenter (for exact player events & minutes) and player info (for sold players missing marketValue)
+    const enrichDay = isLastMatchday ? targetPastDay : (curCompDay || null);
     await Promise.all(allLineupPlayers.map(async (p) => {
       if (!p.id) return;
       const tasks = [];
@@ -11729,12 +12781,15 @@ Analyze my squad strictly under Kickbase rules:
       }
       if (S.api.playerCenter) {
         tasks.push(
-          S.api.playerCenter(compId, p.id).then((pc) => {
+          S.api.playerCenter(compId, p.id, enrichDay).then((pc) => {
             if (!pc) return;
             if (pc.mi && !p.matchId) p.matchId = String(pc.mi);
             if (pc.md && !p.matchDay) {
               const fDay = formatMatchDay(pc.md);
               if (fDay) p.matchDay = fDay;
+            }
+            if (pc.p !== undefined && pc.p !== null && (p.livePoints === 0 || p.livePoints === null || p.livePoints === undefined)) {
+              p.livePoints = Number(pc.p);
             }
             const pid = String(p.id);
             if (!matchEventMap.has(pid)) matchEventMap.set(pid, []);
@@ -11755,7 +12810,7 @@ Analyze my squad strictly under Kickbase rules:
     }));
 
     // 2. Fetch matchDetails for all discovered matchIds
-    const matchIds = [...new Set([...starters, ...bench].map((p) => p.matchId || teamToMatchMap.get(p.teamId)).filter(Boolean))];
+    const matchIds = [...new Set(allLineupPlayers.map((p) => p.matchId || teamToMatchMap.get(p.teamId)).filter(Boolean))];
     if (matchIds.length && S.api.matchDetails) {
       await Promise.all(matchIds.map(async (mId) => {
         try {
@@ -11839,12 +12894,10 @@ Analyze my squad strictly under Kickbase rules:
       const resolvedMatchup = p.matchup || matchMatchupMap.get(mId) || teamMatchupMap.get(p.teamId) || "";
       const combinedEvents = extra.length ? [...extra, ...(p.events || [])] : [...(p.events || [])];
 
-      // If player started on real-life match bench (t1nlp/t2nlp) and played/scored points, ensure sub_in is recorded
       if (realMatchBenchSet.has(pid) && !realMatchStarterSet.has(pid) && (p.livePoints !== 0 || combinedEvents.length > 0)) {
         combinedEvents.push({ eti: -1, text: "sub_in" });
       }
 
-      // Check authoritative match status from details or competition matchday
       const mSt = matchStatusMap.get(mId) ?? teamStatusMap.get(p.teamId);
       let finalStatus = p.matchStatus;
       if (mSt !== undefined && mSt !== 0) {
@@ -11865,39 +12918,11 @@ Analyze my squad strictly under Kickbase rules:
         events: combinedEvents
       };
     };
-    starters = starters.map(enrichPlayerFinal);
-    bench = bench.map(enrichPlayerFinal);
 
-    const liveTotalPoints = starters.reduce((s, p) => s + (p.livePoints || 0), 0);
-    const benchTotalPoints = bench.reduce((s, p) => s + (p.livePoints || 0), 0);
-    const matchdayPoints = mine?.matchdayPoints ?? liveTotalPoints;
-    const totalLiveScore = Math.max(0, matchdayPoints || liveTotalPoints);
-    const matchdayRank = mine?.matchdayRank ?? 1;
-
-    // Filter statuses
-    const playingNow = starters.filter((p) => p.matchStatus === 1);
-    const finishedMatches = starters.filter((p) => p.matchStatus === 2);
-    const upcomingMatches = starters.filter((p) => p.matchStatus === 0);
-
-    const isMatchdayActive = playingNow.length > 0 || finishedMatches.length > 0 || (mine && mine.matchdayPoints !== null);
-
-    // Sorted for the Points Bar Race graphic
-    const sortedStarters = [...starters].sort((a, b) => (b.livePoints ?? 0) - (a.livePoints ?? 0));
-    const topScorer = sortedStarters[0] || null;
-
-    // Leader in the league
-    const sortedManagersByMatchday = [...rank].sort((a, b) => (b.matchdayPoints || 0) - (a.matchdayPoints || 0));
-    const leagueLeader = sortedManagersByMatchday[0] || null;
-    const pointsBehindLeader = leagueLeader && leagueLeader.id !== mine?.id ? ((leagueLeader.matchdayPoints || 0) - matchdayPoints) : 0;
-
-    // Auto-detect formation
-    const dCount = starters.filter((p) => p.position === "DEF").length;
-    const mCount = starters.filter((p) => p.position === "MID").length;
-    const fCount = starters.filter((p) => p.position === "FWD").length;
-    let formationStr = (dCount + mCount + fCount === 10) ? `${dCount}-${mCount}-${fCount}` : (store.get(`kb.formation.${ctx.l}`) || `${dCount}-${mCount}-${fCount}` || "4-4-2");
-
-    // Max absolute points for scaling progress bars
-    const maxBarPoints = Math.max(1, ...starters.map((p) => Math.abs(p.livePoints ?? 0)), ...bench.map((p) => Math.abs(p.livePoints ?? 0)));
+    fieldedStarters = fieldedStarters.map(enrichPlayerFinal);
+    fieldedBench = fieldedBench.map(enrichPlayerFinal);
+    currentStarters = currentStarters.map(enrichPlayerFinal);
+    currentBench = currentBench.map(enrichPlayerFinal);
 
     function getPosGradient(pos, isNegative) {
       if (isNegative) return "linear-gradient(90deg, #dc2626, #ef4444)";
@@ -11922,17 +12947,95 @@ Analyze my squad strictly under Kickbase rules:
       }
     }
 
+    let lineupViewMode = isLastMatchday ? "fielded" : "current";
     let filterMode = "all";
     let tableFilter = "starters";
 
     function renderView() {
+      const activeStarters = (isLastMatchday && lineupViewMode === "fielded") ? fieldedStarters : currentStarters;
+      const activeBench = (isLastMatchday && lineupViewMode === "fielded") ? fieldedBench : currentBench;
+      const activeRank = (isLastMatchday && lineupViewMode === "fielded" && pastRankRows) ? pastRankRows : rank;
+      const activeMine = activeRank.find((r) => r.id === myId) || mine;
+
+      const liveTotalPoints = activeStarters.reduce((s, p) => s + (p.livePoints || 0), 0);
+      const benchTotalPoints = activeBench.reduce((s, p) => s + (p.livePoints || 0), 0);
+      const matchdayPoints = activeMine?.matchdayPoints ?? liveTotalPoints;
+      const totalLiveScore = Math.max(0, matchdayPoints || liveTotalPoints);
+      const matchdayRank = activeMine?.matchdayRank ?? 1;
+
+      // Filter statuses
+      const playingNow = activeStarters.filter((p) => p.matchStatus === 1);
+      const finishedMatches = activeStarters.filter((p) => p.matchStatus === 2);
+      const upcomingMatches = activeStarters.filter((p) => p.matchStatus === 0);
+
+      let heroBadgeHtml = "";
+      let heroSubtitle = "";
+      let scoreLabel = "";
+      let rankLabel = "";
+      let reloadBtnLabel = "";
+
+      if (isLiveNow) {
+        heroBadgeHtml = `
+          <span class="live-pulse-badge">
+            <span class="live-dot"></span>
+            ${t("Live Matchday Feed")}${curCompDay ? ` · ${t("Matchday")} ${curCompDay}` : ""}
+          </span>
+        `;
+        heroSubtitle = t("Updated in real-time from Kickbase");
+        scoreLabel = t("Live Score:");
+        rankLabel = `🏆 ${t("Live Rank")} #${matchdayRank}`;
+        reloadBtnLabel = t("Refresh Live Scores");
+      } else if (isOngoingWeekend) {
+        heroBadgeHtml = `
+          <span class="live-pulse-badge" style="background:rgba(234,179,8,0.15);border-color:rgba(234,179,8,0.4);color:#fde047">
+            <span class="live-dot" style="background:#eab308;box-shadow:0 0 8px #eab308"></span>
+            ${t("Ongoing Matchday Standings")}${curCompDay ? ` · ${t("Matchday")} ${curCompDay}` : ""}
+          </span>
+        `;
+        heroSubtitle = t("Weekend matches in progress · Upcoming matches scheduled");
+        scoreLabel = t("Interim Score:");
+        rankLabel = `🏆 ${t("Interim Rank")} #${matchdayRank}`;
+        reloadBtnLabel = t("Refresh Scores");
+      } else {
+        heroBadgeHtml = `
+          <span class="live-pulse-badge" style="background:rgba(59,130,246,0.15);border-color:rgba(59,130,246,0.4);color:#60a5fa">
+            <span style="font-size:13px">🏆</span>
+            ${t("Last Matchday Results")}${targetPastDay ? ` · ${t("Matchday")} ${targetPastDay}` : ""}
+          </span>
+        `;
+        heroSubtitle = lineupViewMode === "fielded"
+          ? `${t("Actual fielded Starting XI from Matchday")} ${targetPastDay}`
+          : t("Official final results · Next matchday starts on upcoming game day");
+        scoreLabel = t("Final Score:");
+        rankLabel = `🏆 ${t("Final Rank")} #${matchdayRank}`;
+        reloadBtnLabel = t("Refresh Scores");
+      }
+
+      // Sorted for the Points Bar Race graphic
+      const sortedStarters = [...activeStarters].sort((a, b) => (b.livePoints ?? 0) - (a.livePoints ?? 0));
+      const topScorer = sortedStarters[0] || null;
+
+      // Leader in the league
+      const sortedManagersByMatchday = [...activeRank].sort((a, b) => (b.matchdayPoints || 0) - (a.matchdayPoints || 0));
+      const leagueLeader = sortedManagersByMatchday[0] || null;
+      const pointsBehindLeader = leagueLeader && leagueLeader.id !== activeMine?.id ? ((leagueLeader.matchdayPoints || 0) - matchdayPoints) : 0;
+
+      // Auto-detect formation
+      const dCount = activeStarters.filter((p) => p.position === "DEF").length;
+      const mCount = activeStarters.filter((p) => p.position === "MID").length;
+      const fCount = activeStarters.filter((p) => p.position === "FWD").length;
+      let formationStr = (dCount + mCount + fCount === 10) ? `${dCount}-${mCount}-${fCount}` : (store.get(`kb.formation.${ctx.l}`) || `${dCount}-${mCount}-${fCount}` || "4-4-2");
+
+      // Max absolute points for scaling progress bars
+      const maxBarPoints = Math.max(1, ...activeStarters.map((p) => Math.abs(p.livePoints ?? 0)), ...activeBench.map((p) => Math.abs(p.livePoints ?? 0)));
+
       let displayedStarters = sortedStarters;
       if (filterMode === "live") displayedStarters = sortedStarters.filter((p) => p.matchStatus === 1);
       else if (filterMode === "ft") displayedStarters = sortedStarters.filter((p) => p.matchStatus === 2);
       else if (filterMode === "top") displayedStarters = sortedStarters.filter((p) => (p.livePoints || 0) >= 50);
 
       const byPos = { FWD: [], MID: [], DEF: [], GK: [] };
-      starters.forEach((p) => {
+      activeStarters.forEach((p) => {
         if (byPos[p.position]) byPos[p.position].push(p);
       });
 
@@ -11962,11 +13065,8 @@ Analyze my squad strictly under Kickbase rules:
             <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:16px;position:relative;z-index:2">
               <div>
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-                  <span class="live-pulse-badge">
-                    <span class="live-dot"></span>
-                    ${isMatchdayActive ? t("Live Matchday Feed") : t("Matchday Standings")}
-                  </span>
-                  <span style="font-size:12px;color:#94a3b8">${t("Updated in real-time from Kickbase")}</span>
+                  ${heroBadgeHtml}
+                  <span style="font-size:12px;color:#94a3b8">${heroSubtitle}</span>
                 </div>
                 <div style="display:flex;align-items:baseline;gap:16px;flex-wrap:wrap">
                   <div class="live-score-big">
@@ -11975,7 +13075,7 @@ Analyze my squad strictly under Kickbase rules:
                   </div>
                   <div style="display:flex;align-items:center;gap:8px">
                     <span class="pill up" style="font-size:14px;font-weight:700;padding:4px 12px;border-radius:99px">
-                      🏆 ${t("Matchday rank")} #${matchdayRank}
+                      ${rankLabel}
                     </span>
                     ${pointsBehindLeader > 0 ? `<span style="font-size:12.5px;color:#fde047;background:rgba(234,179,8,.15);padding:3px 8px;border-radius:8px">⚠️ -${pointsBehindLeader} ${t("pts behind #1")}</span>` : `<span style="font-size:12.5px;color:#34d399;background:rgba(16,185,129,.15);padding:3px 8px;border-radius:8px">👑 ${t("Leading the Matchday")}</span>`}
                   </div>
@@ -11987,11 +13087,31 @@ Analyze my squad strictly under Kickbase rules:
                   <span>•</span>
                   <span><b>${t("Top Performer:")}</b> ${topScorer ? `${esc(topScorer.name)} (+${topScorer.livePoints || 0} ${t("pts")})` : "–"}</span>
                 </div>
+                ${isLastMatchday ? `
+                  <div style="margin-top:14px;padding:12px 16px;background:rgba(59,130,246,0.08);border:1px solid rgba(59,130,246,0.25);border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:12.5px;color:#93c5fd;flex-wrap:wrap">
+                    <div style="display:flex;align-items:center;gap:10px">
+                      <span style="font-size:18px;flex-shrink:0">🏆</span>
+                      <span>
+                        ${lineupViewMode === "fielded"
+                          ? `<b>${t("Matchday")} ${targetPastDay} ${t("Fielded Lineup")}:</b> ${t("Showing the exact 11 players you fielded on Matchday")} ${targetPastDay} ${t("with official points earned.")}`
+                          : `<b>${t("Current Squad Preview")}:</b> ${t("Showing your currently active squad and Starting XI for the upcoming matchday.")}`}
+                      </span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px">
+                      <button class="btn sm ${lineupViewMode === "fielded" ? "primary" : "ghost"}" id="btn-toggle-fielded" style="font-size:11.5px;padding:3px 10px;height:28px">
+                        🏆 ${t("Fielded Starting XI")} (${t("Matchday")} ${targetPastDay})
+                      </button>
+                      <button class="btn sm ${lineupViewMode === "current" ? "primary" : "ghost"}" id="btn-toggle-current" style="font-size:11.5px;padding:3px 10px;height:28px">
+                        👁️ ${t("Current Squad Preview")}
+                      </button>
+                    </div>
+                  </div>
+                ` : ""}
               </div>
 
               <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
                 <button class="btn primary sm" id="btn-live-reload" style="background:#10b981;border-color:#10b981;display:flex;align-items:center;gap:6px">
-                  ${ui.icon("refresh")} ${t("Refresh Live Scores")}
+                  ${ui.icon("refresh")} ${reloadBtnLabel}
                 </button>
                 <div style="font-size:11px;color:#94a3b8" id="live-time-str">${t("Last updated:")} ${new Date().toLocaleTimeString()}</div>
               </div>
@@ -12001,15 +13121,15 @@ Analyze my squad strictly under Kickbase rules:
           <!-- Section 1: Match Day Standings & Manager Lineups -->
           <div style="margin: 24px 0 14px">
             <h3 style="margin:0;font-size:18px;display:flex;align-items:center;gap:8px">
-              ${ui.icon("groups")} ${t("Match Day Standings & Manager Lineups")}
+              ${ui.icon("groups")} ${isLiveNow ? t("Live Matchday Standings & Manager Lineups") : (isOngoingWeekend ? t("Ongoing Matchday Standings & Manager Lineups") : t("Matchday Standings & Manager Lineups (Last Matchday)"))}
             </h3>
-            <p class="muted" style="margin:2px 0 0;font-size:12.5px">${t("Real-time standings for the current game day across your league. Click \"Inspect Lineup\" to view any manager's live Starting XI!")}</p>
+            <p class="muted" style="margin:2px 0 0;font-size:12.5px">${isLastMatchday ? t("Final standings from the matchday across your league. Click \"Inspect Lineup\" to inspect any manager's Starting XI.") : t("Real-time standings for the current game day across your league. Click \"Inspect Lineup\" to view any manager's live Starting XI!")}</p>
           </div>
 
           <div class="card pad" style="background:var(--surface);margin-bottom:28px">
             <div style="display:flex;flex-direction:column;gap:12px">
               ${sortedManagersByMatchday.map((m, mIdx) => {
-                const isMe = m.id === mine?.id;
+                const isMe = m.id === activeMine?.id;
                 const mPts = m.matchdayPoints || 0;
                 const maxLeaguePts = Math.max(1, ...(sortedManagersByMatchday.map((x) => x.matchdayPoints || 0)));
                 const barWidth = Math.min(100, Math.max(8, Math.round((Math.max(0, mPts) / maxLeaguePts) * 100)));
@@ -12071,9 +13191,9 @@ Analyze my squad strictly under Kickbase rules:
           <!-- Section 2: Tactical Live Pitch -->
           <div id="live-pitch-section" style="margin: 28px 0 14px; scroll-margin-top: 20px">
             <h3 style="margin:0;font-size:18px;display:flex;align-items:center;gap:8px">
-              ${ui.icon("sports_soccer")} Live Starting XI Pitch (${formationStr})
+              ${ui.icon("sports_soccer")} ${isLastMatchday ? (lineupViewMode === "fielded" ? `${t("Starting XI Pitch (Last Matchday)")} · ${t("Matchday")} ${targetPastDay}` : `${t("Starting XI Pitch")} (${t("Current Squad Preview")})`) : (isOngoingWeekend ? t("Starting XI Pitch (Ongoing)") : t("Live Starting XI Pitch"))} (${formationStr})
             </h3>
-            <p class="muted" style="margin:2px 0 0;font-size:12.5px">${t("Real-time pitch view showing live status and scoring starters")}</p>
+            <p class="muted" style="margin:2px 0 0;font-size:12.5px">${isLastMatchday ? (lineupViewMode === "fielded" ? `${t("Pitch view showing starter points contribution from the last matchday")} (${t("Matchday")} ${targetPastDay})` : t("Preview of your current Starting XI on the pitch")) : t("Real-time pitch view showing live status and scoring starters")}</p>
           </div>
 
           <div class="pitch-wrap" style="margin-bottom:28px">
@@ -12085,10 +13205,10 @@ Analyze my squad strictly under Kickbase rules:
             <div class="pitch-header">
               <div class="pitch-formation">
                 <span style="font-weight:700;font-size:13px;color:#cfd3dc">Formation: ${formationStr}</span>
-                <span class="muted" style="font-size:12px">${t("· 11 Starters")}</span>
+                <span class="muted" style="font-size:12px">· ${activeStarters.length} ${t("Starters")}</span>
               </div>
               <div class="pitch-actions">
-                <span class="pill up" style="font-size:11.5px">⚡ Live Total: +${liveTotalPoints} pts</span>
+                <span class="pill up" style="font-size:11.5px">${isLastMatchday ? `🏆 ${t("Final Total:")}` : (isOngoingWeekend ? `⚡ ${t("Interim Total:")}` : `⚡ ${t("Live Total:")}`)} +${liveTotalPoints} ${t("pts")}</span>
               </div>
             </div>
             <div class="pitch-grid">
@@ -12097,19 +13217,19 @@ Analyze my squad strictly under Kickbase rules:
           </div>
 
           <!-- Section 3: Bench Players Live Points -->
-          ${bench.length ? `
+          ${activeBench.length ? `
             <div style="margin: 28px 0 14px">
               <h3 style="margin:0;font-size:18px;display:flex;align-items:center;gap:8px">
-                ${ui.icon("chair")} Reserves & Bench (${bench.length})
+                ${ui.icon("chair")} ${t("Reserves & Bench")} (${activeBench.length})
               </h3>
-              <p class="muted" style="margin:2px 0 0;font-size:12.5px">Bench players scoring points today (+${benchTotalPoints} pts on bench)</p>
+              <p class="muted" style="margin:2px 0 0;font-size:12.5px">${isLastMatchday ? `${t("Bench players points from last matchday")} (+${benchTotalPoints} ${t("pts")})` : `Bench players scoring points today (+${benchTotalPoints} pts on bench)`}</p>
             </div>
             <div class="bench-grid" style="margin-bottom:28px">
-              ${bench.map((p) => `
+              ${activeBench.map((p) => `
                 <div class="bench-card" data-live-player="${p.id}" style="border-left:3px solid ${p.color}; cursor:pointer;">
                   ${ui.pawn(p, 36)}
                   <div class="b-info">
-                    <div class="b-name">${esc(p.name)} ${ui.pos(p.position)} ${p.isSold ? `<span class="pill" style="font-size:9px;padding:1px 4px;background:rgba(255,255,255,0.08);color:#94a3b8" title="Player was sold mid-matchday but still scores for this game">Sold</span>` : ""}</div>
+                    <div class="b-name">${esc(p.name)} ${ui.pos(p.position)} ${p.isSold ? `<span class="pill" style="font-size:9px;padding:1px 4px;background:rgba(255,255,255,0.08);color:#94a3b8" title="${esc(t("Player was sold mid-matchday but still scores for this game"))}">${t("Sold")}</span>` : ""}</div>
                     <div class="b-sub">
                       <span class="live-pts-badge ${(p.livePoints || 0) >= 0 ? "up" : "down"}" style="padding:1px 6px;border-radius:6px;font-size:11px">⚡ ${(p.livePoints || 0) > 0 ? "+" : ""}${p.livePoints ?? 0} pts</span>
                       <span>${getStatusPill(p)}</span>
@@ -12126,12 +13246,12 @@ Analyze my squad strictly under Kickbase rules:
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin:28px 0 14px">
             <div>
               <h3 style="margin:0;font-size:18px;display:flex;align-items:center;gap:8px">
-                ${ui.icon("bar_chart")} ${t("Player Live Points Race & Contribution")}
+                ${ui.icon("bar_chart")} ${isLastMatchday ? t("Points Contribution Race (Last Matchday)") : (isOngoingWeekend ? t("Player Points Race & Contribution") : t("Player Live Points Race & Contribution"))}
               </h3>
-              <p class="muted" style="margin:2px 0 0;font-size:12.5px">${t("Real-time individual player scores scaled by team points contribution")}</p>
+              <p class="muted" style="margin:2px 0 0;font-size:12.5px">${isLastMatchday ? t("Player scores and team points contribution from the last matchday") : t("Real-time individual player scores scaled by team points contribution")}</p>
             </div>
             <div style="display:flex;gap:6px;background:var(--surface-2);padding:4px;border-radius:10px;border:1px solid var(--border)">
-              <button class="btn sm ${filterMode === "all" ? "primary" : "ghost"}" data-filter="all" style="height:26px;padding:0 10px;font-size:12px">${t("All")} (11)</button>
+              <button class="btn sm ${filterMode === "all" ? "primary" : "ghost"}" data-filter="all" style="height:26px;padding:0 10px;font-size:12px">${t("All")} (${activeStarters.length})</button>
               <button class="btn sm ${filterMode === "live" ? "primary" : "ghost"}" data-filter="live" style="height:26px;padding:0 10px;font-size:12px">● ${t("Live")} (${playingNow.length})</button>
               <button class="btn sm ${filterMode === "ft" ? "primary" : "ghost"}" data-filter="ft" style="height:26px;padding:0 10px;font-size:12px">${t("Finished")} (${finishedMatches.length})</button>
               <button class="btn sm ${filterMode === "top" ? "primary" : "ghost"}" data-filter="top" style="height:26px;padding:0 10px;font-size:12px">Top (>50 ${t("pts")})</button>
@@ -12168,39 +13288,41 @@ Analyze my squad strictly under Kickbase rules:
                       <div style="flex:1;min-width:120px;display:flex;flex-direction:column;gap:4px">
                         <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--muted)">
                           <span>${p.matchup ? esc(p.matchup) : (p.matchStatus === 2 ? t("Match finished") : t("Upcoming match"))}</span>
-                          ${shareOfTeam > 0 ? `<span style="font-weight:600;color:#a5b4fc">${shareOfTeam}% ${t("team share")}</span>` : ""}
+                          <span>${shareOfTeam > 0 ? `${shareOfTeam}% ${t("of team points")}` : ""}</span>
                         </div>
-                        <div class="live-meter-bg">
-                          <div class="live-meter-fill" style="width:${widthPercent}%;background:${posGrad};box-shadow:0 0 10px ${isNeg ? "rgba(239,68,68,0.5)" : "rgba(16,185,129,0.3)"}"></div>
+                        <div class="live-meter-bg" style="position:relative">
+                          <div class="live-meter-fill" style="width:${widthPercent}%;background:${posGrad};box-shadow: 0 0 10px ${isNeg ? "rgba(239, 68, 68, 0.4)" : "rgba(16, 185, 129, 0.3)"}"></div>
                         </div>
                       </div>
 
-                      <!-- Points Badge -->
-                      <div style="text-align:right;min-width:90px;flex-shrink:0">
-                        <div class="live-pts-badge ${pts >= 0 ? "up" : "down"}" style="font-size:15px;display:inline-block;padding:4px 10px">
+                      <!-- Player Points Badge -->
+                      <div style="text-align:right;min-width:70px">
+                        <div class="live-pts-badge ${pts >= 0 ? "up" : "down"}" style="font-size:15px;font-weight:800;padding:2px 8px;border-radius:6px">
                           ⚡ ${pts > 0 ? "+" : ""}${pts} ${t("pts")}
                         </div>
-                        ${(p.marketValue && p.marketValue > 0) ? `<div style="font-size:10.5px;color:var(--muted);margin-top:2px">${t("MW")} ${money(p.marketValue)}</div>` : ""}
+                        <div style="font-size:10.5px;color:var(--muted);margin-top:2px">${money(p.marketValue)}</div>
                       </div>
                     </div>
                   `;
                 }).join("")}
               </div>
-            ` : `<p class="muted" style="text-align:center;padding:20px 0">${t("No players match the selected filter.")}</p>`}
+            ` : `
+              <div class="empty muted" style="padding:20px;text-align:center">${t("No starters match this filter.")}</div>
+            `}
           </div>
 
           <!-- Section 5: Live Matchday Player Performance Table -->
           <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin:28px 0 14px">
             <div>
               <h3 style="margin:0;font-size:18px;display:flex;align-items:center;gap:8px">
-                ${ui.icon("table_chart")} ${t("Live Matchday Player Performance Table")}
+                ${ui.icon("table_chart")} ${isLastMatchday ? t("Player Performance Table (Last Matchday)") : (isOngoingWeekend ? t("Ongoing Matchday Player Performance Table") : t("Live Matchday Player Performance Table"))}
               </h3>
-              <p class="muted" style="margin:2px 0 0;font-size:12.5px">${t("Real-time breakdown of goals, assists, substitutions, cards, match status, and game points")}</p>
+              <p class="muted" style="margin:2px 0 0;font-size:12.5px">${isLastMatchday ? t("Player scores and team points contribution from the last matchday") : t("Real-time breakdown of goals, assists, substitutions, cards, match status, and game points")}</p>
             </div>
             <div style="display:flex;gap:6px;background:var(--surface-2);padding:4px;border-radius:10px;border:1px solid var(--border)">
-              <button class="btn sm ${tableFilter === "starters" ? "primary" : "ghost"}" data-tbl-filter="starters" style="height:26px;padding:0 10px;font-size:12px">${t("Starters")} (${starters.length})</button>
-              <button class="btn sm ${tableFilter === "all" ? "primary" : "ghost"}" data-tbl-filter="all" style="height:26px;padding:0 10px;font-size:12px">${t("All Squad")} (${starters.length + bench.length})</button>
-              ${bench.length ? `<button class="btn sm ${tableFilter === "bench" ? "primary" : "ghost"}" data-tbl-filter="bench" style="height:26px;padding:0 10px;font-size:12px">${t("Reserves / Bench")} (${bench.length})</button>` : ""}
+              <button class="btn sm ${tableFilter === "starters" ? "primary" : "ghost"}" data-tbl-filter="starters" style="height:26px;padding:0 10px;font-size:12px">${t("Starters")} (${activeStarters.length})</button>
+              <button class="btn sm ${tableFilter === "all" ? "primary" : "ghost"}" data-tbl-filter="all" style="height:26px;padding:0 10px;font-size:12px">${t("All Squad")} (${activeStarters.length + activeBench.length})</button>
+              ${activeBench.length ? `<button class="btn sm ${tableFilter === "bench" ? "primary" : "ghost"}" data-tbl-filter="bench" style="height:26px;padding:0 10px;font-size:12px">${t("Reserves / Bench")} (${activeBench.length})</button>` : ""}
             </div>
           </div>
 
@@ -12213,9 +13335,9 @@ Analyze my squad strictly under Kickbase rules:
       // Render Live Performance Table
       const tContainer = el.querySelector("#t-live-players");
       if (tContainer) {
-        let pool = starters;
-        if (tableFilter === "bench") pool = bench;
-        else if (tableFilter === "all") pool = [...starters, ...bench];
+        let pool = activeStarters;
+        if (tableFilter === "bench") pool = activeBench;
+        else if (tableFilter === "all") pool = [...activeStarters, ...activeBench];
 
         const tableRows = pool.map((p) => {
           const events = parsePlayerEvents(p.events, p.matchMinute);
@@ -12298,11 +13420,13 @@ Analyze my squad strictly under Kickbase rules:
           {
             key: "goalsCount",
             label: "Goals",
+            align: "center",
             fmt: (v, r) => r.goalsHtml
           },
           {
             key: "assistsCount",
             label: "Assists",
+            align: "center",
             fmt: (v, r) => r.assistsHtml
           },
           {
@@ -12313,30 +13437,34 @@ Analyze my squad strictly under Kickbase rules:
           {
             key: "hasCards",
             label: "Cards",
+            align: "center",
             fmt: (v, r) => r.cardsHtml
           },
           {
             key: "livePoints",
             label: "Game Points",
-            kind: "int",
-            right: true,
-            fmt: (v) => `<span class="live-pts-badge ${(v || 0) >= 0 ? "up" : "down"}" style="font-size:12.5px;padding:2px 8px">⚡ ${(v || 0) > 0 ? "+" : ""}${v ?? 0} ${t("pts")}</span>`
+            align: "right",
+            fmt: (v) => `
+              <span class="live-pts-badge ${(v || 0) >= 0 ? "up" : "down"}" style="font-size:13px;font-weight:800;padding:2px 8px;border-radius:6px">
+                ⚡ ${(v || 0) > 0 ? "+" : ""}${v ?? 0} ${t("pts")}
+              </span>
+            `
           },
           {
             key: "marketValue",
             label: "Market Value",
-            kind: "money",
-            right: true,
-            fmt: (v, r) => (v && v > 0) ? money(v) : (r.isSold ? `<span class="muted" style="font-size:11px" title="${esc(t("Market value unknown (Player sold)"))}">${t("Sold")}</span>` : "—")
+            align: "right",
+            fmt: (v) => (v && v > 0) ? money(v) : '<span class="muted">—</span>'
           }
         ];
 
         ui.table(tContainer, tableRows, liveTableCols, {
           sort: "livePoints",
           desc: true,
-          rowClass: (r) => (r.matchStatus === 1 ? "tr-user-deal" : ""),
+          searchable: false,
+          empty: t("No players match this selection."),
           onRowClick: (r) => {
-            const fullP = allLineupPlayers.find((x) => String(x.id) === String(r.id)) || r;
+            const fullP = allLineupPlayers.find((p) => String(p.id) === String(r.id)) || r;
             openPlayerModal(ctx, fullP, { squad, livePoints: r.livePoints, matchStatus: r.matchStatus, matchMinute: r.matchMinute, matchup: r.matchup, matchId: r.matchId, events: r.events, isStarter: r.isStarter });
           }
         });
@@ -12367,6 +13495,16 @@ Analyze my squad strictly under Kickbase rules:
         });
       });
 
+      el.querySelector("#btn-toggle-fielded")?.addEventListener("click", () => {
+        lineupViewMode = "fielded";
+        renderView();
+      });
+
+      el.querySelector("#btn-toggle-current")?.addEventListener("click", () => {
+        lineupViewMode = "current";
+        renderView();
+      });
+
       el.querySelector("#btn-live-reload")?.addEventListener("click", async () => {
         if (S.api.clearCache) {
           S.api.clearCache(`/v4/leagues/${ctx.l}/teamcenter`);
@@ -12388,39 +13526,42 @@ Analyze my squad strictly under Kickbase rules:
 
           if (container.style.display === "block") {
             container.style.display = "none";
-            btn.innerHTML = `${ui.icon("visibility")} Inspect Lineup ▾`;
+            btn.innerHTML = `${ui.icon("visibility")} ${t("Inspect Lineup ▾")}`;
             return;
           }
 
           container.style.display = "block";
-          btn.innerHTML = `${ui.icon("visibility_off")} Hide Lineup ▴`;
+          btn.innerHTML = `${ui.icon("visibility_off")} ${t("Hide Lineup ▴")}`;
 
           try {
-            const rivalTc = await S.api.userTeamCenter(ctx.l, mId);
-            if (!rivalTc || !Array.isArray(rivalTc.lp) || !rivalTc.lp.length) {
-              container.innerHTML = `<div class="muted" style="font-size:12px;padding:8px">No live lineup available for ${esc(mName)}.</div>`;
+            const rivalTc = await S.api.userTeamCenter(ctx.l, mId, isLastMatchday ? targetPastDay : null);
+            const rivalUser = (rivalTc && rivalTc.us && rivalTc.us.find((u) => String(u.i) === String(mId))) || (rivalTc && rivalTc.us && rivalTc.us[0]) || rivalTc;
+            const rLp = (rivalUser && Array.isArray(rivalUser.lp)) ? rivalUser.lp : ((rivalTc && Array.isArray(rivalTc.lp)) ? rivalTc.lp : []);
+
+            if (!rLp || !rLp.length) {
+              container.innerHTML = `<div class="muted" style="font-size:12px;padding:8px">${t("No lineup available for")} ${esc(mName)}.</div>`;
               return;
             }
 
-            const rivalStarters = rivalTc.lp.map((raw) => {
-              const p = tf.player({ ...raw, st: undefined }); // teamcenter "st" is not injury status
-              const tId = String(raw.tid || p.teamId || "");
-              const matchId = String(raw.mi || p.matchId || teamToMatchMap.get(tId) || "");
+            const rivalStarters = rLp.map((raw) => {
+              const pid = String(raw?.i || raw?.pi || raw || "");
+              const p = (typeof raw === "object") ? tf.player({ ...raw, st: undefined }) : { id: pid, name: `Player #${pid}`, position: "MID", color: "#64748b" };
+              const tId = String(raw?.tid || p.teamId || "");
+              const matchId = String(raw?.mi || p.matchId || teamToMatchMap.get(tId) || "");
               const knownMst = matchStatusMap.get(matchId) ?? teamStatusMap.get(tId);
-              let mst = raw.mst !== undefined ? Number(raw.mst) : (p.matchStatus !== undefined ? Number(p.matchStatus) : (knownMst !== undefined ? knownMst : 0));
-              const hasLivePts = (raw.p !== undefined && raw.p !== null && Number(raw.p) !== 0) || (p.livePoints !== undefined && p.livePoints !== null && Number(p.livePoints) !== 0);
-              const hasLiveMin = (raw.mt !== undefined && Number(raw.mt) > 0) || (p.matchMinute !== undefined && Number(p.matchMinute) > 0);
+              let mst = raw?.mst !== undefined ? Number(raw.mst) : (p.matchStatus !== undefined ? Number(p.matchStatus) : (knownMst !== undefined ? knownMst : (isLastMatchday ? 2 : 0)));
+              const hasLivePts = (raw?.p !== undefined && raw.p !== null && Number(raw.p) !== 0) || (p.livePoints !== undefined && p.livePoints !== null && Number(p.livePoints) !== 0);
+              const hasLiveMin = (raw?.mt !== undefined && Number(raw.mt) > 0) || (p.matchMinute !== undefined && Number(p.matchMinute) > 0);
               if (mst === 0 && (hasLivePts || hasLiveMin || knownMst === 1)) {
                 mst = 1;
               }
-              const curGamePoints = (raw.p !== undefined && raw.p !== null) ? Number(raw.p) : (p.livePoints || 0);
-              const pid = String(raw.i || raw.pi || p.id);
+              const curGamePoints = (raw?.p !== undefined && raw.p !== null) ? Number(raw.p) : (p.livePoints || 0);
               const extraEv = matchEventMap.get(pid) || [];
-              const rEvents = [...extraEv, ...(raw.k || raw.ev || raw.events || [])];
-              const rawDate = raw.md || raw.d || raw.dt || raw.date || raw.startTime || raw.t || raw.matchDate;
+              const rEvents = [...extraEv, ...(raw?.k || raw?.ev || raw?.events || [])];
+              const rawDate = raw?.md || raw?.d || raw?.dt || raw?.date || raw?.startTime || raw?.t || p.matchDate;
               const resolvedDay = formatMatchDay(rawDate) || matchScheduleMap.get(matchId) || teamScheduleMap.get(tId) || "";
               const resolvedMatchup = matchMatchupMap.get(matchId) || teamMatchupMap.get(tId) || p.matchup || "";
-              const mMinute = raw.mt !== undefined ? raw.mt : (p.matchMinute ?? (matchMinuteMap.get(matchId) ?? 0));
+              const mMinute = raw?.mt !== undefined ? raw.mt : (p.matchMinute ?? (matchMinuteMap.get(matchId) ?? (isLastMatchday ? 90 : 0)));
               return {
                 ...p,
                 livePoints: curGamePoints,
@@ -12435,8 +13576,8 @@ Analyze my squad strictly under Kickbase rules:
 
             container.innerHTML = `
               <div style="font-size:12px;font-weight:700;color:#cbd5e1;margin-bottom:8px;display:flex;align-items:center;justify-content:space-between">
-                <span>${esc(mName)}'s Starting XI (${rivalStarters.length} players)</span>
-                <span style="color:#34d399">Total Starter Score: +${rivalTotal} pts</span>
+                <span>${esc(mName)}'s ${t("Starting XI")} (${rivalStarters.length} ${t("Starters")})</span>
+                <span style="color:#34d399">${t("Total Starter Score:")} +${rivalTotal} ${t("pts")}</span>
               </div>
               <div class="rival-lineup-row">
                 ${rivalStarters.map((rp) => `
@@ -12463,6 +13604,7 @@ Analyze my squad strictly under Kickbase rules:
 
     renderView();
   }
+
 
   async function pageAdvisor(el, ctx) {
     el.innerHTML = ui.loading(t("Consulting Gemini AI Coach…"));
