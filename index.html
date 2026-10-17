@@ -3941,32 +3941,40 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
   function bars(container, { title, categories, series, mode = "grouped", height = 320, yFmt = compact, labels, yLabel, legend = true }) {
     const { svg, width } = frame(container, { title, height, legend: legend ? series.map((d) => [d.name, d.color]) : null });
     const m = { l: 56, r: 16, t: labels ? 22 : 12, b: 30 };
-    const totals = categories.map((_, i) => series.reduce((s2, d) => s2 + Math.max(0, d.values[i] || 0), 0));
-    const maxV = mode === "stacked" ? Math.max(...totals) : Math.max(...series.flatMap((d) => d.values));
-    const minV = Math.min(0, ...series.flatMap((d) => d.values));
+    const flatVals = series.flatMap((d) => (d.values || []).map((v) => Number(v) || 0));
+    const totals = categories.map((_, i) => series.reduce((s2, d) => s2 + Math.max(0, Number(d.values[i]) || 0), 0));
+    const maxV = mode === "stacked" ? Math.max(0, ...totals) : Math.max(0, ...flatVals);
+    const minV = Math.min(0, ...flatVals);
     const yt = niceTicks(minV, maxV);
     const y = (v) => height - m.b - ((v - yt.lo) / ((yt.hi - yt.lo) || 1)) * (height - m.t - m.b);
-    const band = (width - m.l - m.r) / categories.length;
+    const band = (width - m.l - m.r) / Math.max(1, categories.length);
     const x = (i) => m.l + band * i + band / 2;
     axes(svg, { width, height, m, x: (v) => x(categories.indexOf(v)), y, xTicks: categories, yTicks: yt.ticks, yFmt, xFmt: String, yLabel });
-    const inner = band * 0.72;
+    if (yt.lo < 0 && yt.hi >= 0) {
+      s("line", { x1: m.l, x2: width - m.r, y1: y(0), y2: y(0), class: "axis" }, svg);
+    }
+    const inner = Math.min(band * 0.72, Math.max(1, series.length) * 48);
     series.forEach((d, si) => {
       const g = s("g", { class: "series", "data-series": d.name }, svg);
-      d.values.forEach((v, i) => {
+      d.values.forEach((rawV, i) => {
+        const v = Number(rawV) || 0;
         let bx, bw, by, bh;
         if (mode === "stacked") {
-          const below = series.slice(0, si).reduce((s2, dd) => s2 + Math.max(0, dd.values[i] || 0), 0);
+          const below = series.slice(0, si).reduce((s2, dd) => s2 + Math.max(0, Number(dd.values[i]) || 0), 0);
           bw = inner; bx = x(i) - bw / 2; by = y(below + v); bh = y(below) - y(below + v);
         } else {
-          bw = inner / series.length; bx = x(i) - inner / 2 + si * bw; by = y(Math.max(0, v)); bh = Math.abs(y(v) - y(0));
+          bw = inner / Math.max(1, series.length); bx = x(i) - inner / 2 + si * bw; by = y(Math.max(0, v)); bh = Math.abs(y(v) - y(0));
         }
-        const rect = s("rect", { x: bx + 1, y: by, width: Math.max(1, bw - 2), height: Math.max(0, bh), rx: 3, fill: d.color }, g);
+        const clampedTop = Math.max(m.t, Math.min(height - m.b, by));
+        const clampedBot = Math.max(m.t, Math.min(height - m.b, by + Math.max(0, bh)));
+        const fillCol = v < 0 ? (d.negColor || "#f87171") : d.color;
+        const rect = s("rect", { x: bx + 1, y: clampedTop, width: Math.max(1, bw - 2), height: Math.max(0, clampedBot - clampedTop), rx: 3, fill: fillCol }, g);
         rect.addEventListener("mousemove", (e) => tooltip(`<b>${KB.ui.esc(d.name)}</b> · ${KB.ui.esc(String(categories[i]))}<br>${yFmt(v)}`, e));
         rect.addEventListener("mouseleave", () => tooltip(null));
       });
     });
     if (labels) categories.forEach((c, i) => {
-      const top = mode === "stacked" ? totals[i] : Math.max(...series.map((d) => d.values[i]));
+      const top = mode === "stacked" ? totals[i] : Math.max(0, ...series.map((d) => Number(d.values[i]) || 0));
       s("text", { x: x(i), y: y(top) - 7, "text-anchor": "middle", class: "label" }, svg).textContent = labels[i];
     });
   }
