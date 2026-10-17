@@ -2269,6 +2269,7 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
       id: String(u.i), name: u.n, seasonPoints: u.sp || 0, seasonRank: u.spl ?? null,
       matchdayPoints: u.mdp || 0, matchdayRank: u.mdpl ?? null, teamValue: u.tv || 0,
       image: KB.imageUrl ? KB.imageUrl(u.uim) : null,
+      lp: Array.isArray(u.lp) ? u.lp : null,
     })).sort((a, b) => (a.seasonRank ?? 1e9) - (b.seasonRank ?? 1e9));
   }
 
@@ -12727,36 +12728,75 @@ Analyze my squad strictly under Kickbase rules:
     const userTc = (pastTc && pastTc.us && pastTc.us.find((u) => String(u.i) === String(myId)))
       || (pastTc && pastTc.us && pastTc.us[0])
       || pastTc;
-    const rawPastLp = (userTc && Array.isArray(userTc.lp)) ? userTc.lp : ((pastTc && Array.isArray(pastTc.lp)) ? pastTc.lp : null);
+    const myPastRankRow = pastRankRows ? pastRankRows.find((r) => String(r.id) === String(myId)) : null;
+    let rawPastLp = (userTc && Array.isArray(userTc.lp) && userTc.lp.length)
+      ? userTc.lp
+      : ((pastTc && Array.isArray(pastTc.lp) && pastTc.lp.length)
+          ? pastTc.lp
+          : (myPastRankRow && Array.isArray(myPastRankRow.lp) ? myPastRankRow.lp : null));
+
+    const userLpiList = (userTc && Array.isArray(userTc.lpi)) ? userTc.lpi : ((pastTc && Array.isArray(pastTc.lpi)) ? pastTc.lpi : []);
+    const userLpiMap = new Map();
+    for (const item of userLpiList) {
+      if (item && (item.i || item.pi) && item.pim && KB.imageUrl) {
+        userLpiMap.set(String(item.i || item.pi), KB.imageUrl(item.pim));
+      }
+    }
+    const myTransferMetaMap = new Map();
+    for (const tr of myTransfers || []) {
+      if (tr && tr.playerId) {
+        const prev = myTransferMetaMap.get(String(tr.playerId)) || {};
+        myTransferMetaMap.set(String(tr.playerId), {
+          name: tr.player || prev.name || "",
+          image: tr.image || prev.image || null
+        });
+      }
+    }
 
     if (rawPastLp && rawPastLp.length) {
+      rawPastLp = rawPastLp.filter((raw) => {
+        if (raw === null || raw === undefined) return false;
+        const pid = String(typeof raw === "object" ? (raw.i ?? raw.pi ?? raw.id ?? "") : raw).trim();
+        return pid !== "" && pid !== "null" && pid !== "undefined";
+      });
+
       const missingIds = rawPastLp
-        .map((raw) => String(raw?.i || raw?.pi || raw || ""))
-        .filter((pid) => pid && pid !== "null" && pid !== "undefined" && !squad.some((sp) => sp.id === pid));
+        .map((raw) => String(typeof raw === "object" ? (raw.i ?? raw.pi ?? raw.id ?? "") : raw).trim())
+        .filter((pid) => pid && !squad.some((sp) => sp.id === pid));
 
       const fetchedSoldMap = new Map();
+      const fetchedSoldRawMap = new Map();
       if (missingIds.length && S.api.player) {
         await Promise.all(missingIds.map(async (pid) => {
           try {
             const pInfo = await S.api.player(ctx.l, pid);
-            if (pInfo) fetchedSoldMap.set(pid, tf.player(pInfo));
+            if (pInfo) {
+              fetchedSoldRawMap.set(pid, pInfo);
+              fetchedSoldMap.set(pid, tf.player(pInfo));
+            }
           } catch (e) {}
         }));
       }
 
       fieldedStarters = rawPastLp.map((raw) => {
-        const pid = String(raw?.i || raw?.pi || raw || "");
+        const isObj = raw !== null && typeof raw === "object";
+        const pid = String(isObj ? (raw.i ?? raw.pi ?? raw.id ?? "") : raw).trim();
         const inSquad = squad.find((sp) => sp.id === pid);
         const soldP = fetchedSoldMap.get(pid);
+        const soldRaw = fetchedSoldRawMap.get(pid);
+        const trMeta = myTransferMetaMap.get(pid);
         const isSold = !inSquad;
-        const refP = inSquad || soldP || (typeof raw === "object" ? tf.player(raw) : { id: pid, name: `Player #${pid}`, position: "MID", color: "#64748b" });
-        const rawP = (typeof raw === "object") ? tf.player({ ...raw, st: undefined }) : {};
-        const tId = String(raw?.tid || refP.teamId || "");
-        const mId = String(raw?.mi || refP.matchId || teamToMatchMap.get(tId) || "");
+        const refP = inSquad || soldP || (isObj ? tf.player(raw) : { id: pid, name: trMeta?.name || `Player #${pid}`, position: "MID", color: "#64748b" });
+        const rawP = isObj ? tf.player({ ...raw, st: undefined }) : {};
+        const tId = String((isObj && raw.tid) || refP.teamId || rawP.teamId || "");
+        const mId = String((isObj && raw.mi) || refP.matchId || rawP.matchId || teamToMatchMap.get(tId) || "");
 
         let curGamePoints = 0;
-        if (raw && raw.p !== undefined && raw.p !== null) {
+        if (isObj && raw.p !== undefined && raw.p !== null) {
           curGamePoints = Number(raw.p);
+        } else if (soldRaw && Array.isArray(soldRaw.ph)) {
+          const phEntry = soldRaw.ph.find((x) => Number(x.day || x.d) === Number(targetPastDay));
+          if (phEntry && phEntry.p !== undefined) curGamePoints = Number(phEntry.p);
         } else if (refP.ph && Array.isArray(refP.ph)) {
           const phEntry = refP.ph.find((x) => Number(x.day || x.d) === Number(targetPastDay));
           if (phEntry && phEntry.p !== undefined) curGamePoints = Number(phEntry.p);
@@ -12765,24 +12805,32 @@ Analyze my squad strictly under Kickbase rules:
         }
 
         const actualMv = (refP.marketValue && refP.marketValue > 0) ? refP.marketValue : (rawP.marketValue || 0);
-        const rawDate = raw?.md || raw?.d || raw?.dt || raw?.date || raw?.startTime || raw?.t || refP.matchDate;
+        const rawDate = (isObj && (raw.md || raw.d || raw.dt || raw.date || raw.startTime || raw.t)) || refP.matchDate;
         const resolvedDay = formatMatchDay(rawDate) || matchScheduleMap.get(mId) || teamScheduleMap.get(tId) || "";
         const resolvedMatchup = matchMatchupMap.get(mId) || teamMatchupMap.get(tId) || refP.matchup || "";
+        const cleanName = (n) => (n && typeof n === "string" && !n.startsWith("Player #") ? n.trim() : "");
+        const resolvedName = cleanName(refP.name) || cleanName(rawP.name) || cleanName(trMeta?.name) || `Player #${pid}`;
+        const resolvedPos = (refP.position && refP.position !== "?") ? refP.position : ((rawP.position && rawP.position !== "?") ? rawP.position : "MID");
+        const resolvedImg = refP.image || rawP.image || userLpiMap.get(pid) || trMeta?.image || null;
+        const resolvedColor = KB.playerColor ? KB.playerColor(pid, resolvedName) : (refP.color || rawP.color || "#64748b");
 
         return {
-          ...refP,
           ...rawP,
+          ...refP,
           id: pid,
-          name: refP.name || rawP.name || `Player #${pid}`,
-          position: refP.position || rawP.position || "MID",
+          name: resolvedName,
+          position: resolvedPos,
+          image: resolvedImg,
+          color: resolvedColor,
+          teamId: tId,
           marketValue: actualMv,
           livePoints: curGamePoints,
           matchStatus: 2,
-          matchMinute: raw?.mt !== undefined ? raw.mt : (refP.matchMinute ?? (matchMinuteMap.get(mId) ?? 90)),
+          matchMinute: (isObj && raw.mt !== undefined) ? raw.mt : (refP.matchMinute ?? (matchMinuteMap.get(mId) ?? 90)),
           matchup: resolvedMatchup,
           matchDay: resolvedDay,
           matchId: mId,
-          events: raw?.k || raw?.ev || raw?.events || refP.events || [],
+          events: (isObj && (raw.k || raw.ev || raw.events)) || refP.events || [],
           status: refP.status || "Fit",
           rawStatus: refP.rawStatus || 0,
           isInjured: !!refP.rawStatus,
@@ -12792,38 +12840,54 @@ Analyze my squad strictly under Kickbase rules:
       });
 
       // Check if past teamcenter explicitly provides non-lineup bench players (nlp)
-      const rawPastNlp = (userTc && Array.isArray(userTc.nlp) && userTc.nlp.length)
+      let rawPastNlp = (userTc && Array.isArray(userTc.nlp) && userTc.nlp.length)
         ? userTc.nlp
         : ((pastTc && Array.isArray(pastTc.nlp) && pastTc.nlp.length) ? pastTc.nlp : null);
 
       if (rawPastNlp && rawPastNlp.length) {
+        rawPastNlp = rawPastNlp.filter((raw) => {
+          if (raw === null || raw === undefined) return false;
+          const pid = String(typeof raw === "object" ? (raw.i ?? raw.pi ?? raw.id ?? "") : raw).trim();
+          return pid !== "" && pid !== "null" && pid !== "undefined";
+        });
+
         const missingBenchIds = rawPastNlp
-          .map((raw) => String(raw?.i || raw?.pi || raw || ""))
-          .filter((pid) => pid && pid !== "null" && pid !== "undefined" && !squad.some((sp) => sp.id === pid));
+          .map((raw) => String(typeof raw === "object" ? (raw.i ?? raw.pi ?? raw.id ?? "") : raw).trim())
+          .filter((pid) => pid && !squad.some((sp) => sp.id === pid));
 
         const fetchedSoldBenchMap = new Map();
+        const fetchedSoldBenchRawMap = new Map();
         if (missingBenchIds.length && S.api.player) {
           await Promise.all(missingBenchIds.map(async (pid) => {
             try {
               const pInfo = await S.api.player(ctx.l, pid);
-              if (pInfo) fetchedSoldBenchMap.set(pid, tf.player(pInfo));
+              if (pInfo) {
+                fetchedSoldBenchRawMap.set(pid, pInfo);
+                fetchedSoldBenchMap.set(pid, tf.player(pInfo));
+              }
             } catch (e) {}
           }));
         }
 
         fieldedBench = rawPastNlp.map((raw) => {
-          const pid = String(raw?.i || raw?.pi || raw || "");
+          const isObj = raw !== null && typeof raw === "object";
+          const pid = String(isObj ? (raw.i ?? raw.pi ?? raw.id ?? "") : raw).trim();
           const inSquad = squad.find((sp) => sp.id === pid);
           const soldP = fetchedSoldBenchMap.get(pid);
+          const soldRaw = fetchedSoldBenchRawMap.get(pid);
+          const trMeta = myTransferMetaMap.get(pid);
           const isSold = !inSquad;
-          const refP = inSquad || soldP || (typeof raw === "object" ? tf.player(raw) : { id: pid, name: `Player #${pid}`, position: "MID", color: "#64748b" });
-          const rawP = (typeof raw === "object") ? tf.player({ ...raw, st: undefined }) : {};
-          const tId = String(raw?.tid || refP.teamId || "");
-          const mId = String(raw?.mi || refP.matchId || teamToMatchMap.get(tId) || "");
+          const refP = inSquad || soldP || (isObj ? tf.player(raw) : { id: pid, name: trMeta?.name || `Player #${pid}`, position: "MID", color: "#64748b" });
+          const rawP = isObj ? tf.player({ ...raw, st: undefined }) : {};
+          const tId = String((isObj && raw.tid) || refP.teamId || rawP.teamId || "");
+          const mId = String((isObj && raw.mi) || refP.matchId || rawP.matchId || teamToMatchMap.get(tId) || "");
 
           let curGamePoints = 0;
-          if (raw && raw.p !== undefined && raw.p !== null) {
+          if (isObj && raw.p !== undefined && raw.p !== null) {
             curGamePoints = Number(raw.p);
+          } else if (soldRaw && Array.isArray(soldRaw.ph)) {
+            const phEntry = soldRaw.ph.find((x) => Number(x.day || x.d) === Number(targetPastDay));
+            if (phEntry && phEntry.p !== undefined) curGamePoints = Number(phEntry.p);
           } else if (refP.ph && Array.isArray(refP.ph)) {
             const phEntry = refP.ph.find((x) => Number(x.day || x.d) === Number(targetPastDay));
             if (phEntry && phEntry.p !== undefined) curGamePoints = Number(phEntry.p);
@@ -12832,24 +12896,32 @@ Analyze my squad strictly under Kickbase rules:
           }
 
           const actualMv = (refP.marketValue && refP.marketValue > 0) ? refP.marketValue : (rawP.marketValue || 0);
-          const rawDate = raw?.md || raw?.d || raw?.dt || raw?.date || raw?.startTime || raw?.t || refP.matchDate;
+          const rawDate = (isObj && (raw.md || raw.d || raw.dt || raw.date || raw.startTime || raw.t)) || refP.matchDate;
           const resolvedDay = formatMatchDay(rawDate) || matchScheduleMap.get(mId) || teamScheduleMap.get(tId) || "";
           const resolvedMatchup = matchMatchupMap.get(mId) || teamMatchupMap.get(tId) || refP.matchup || "";
+          const cleanName = (n) => (n && typeof n === "string" && !n.startsWith("Player #") ? n.trim() : "");
+          const resolvedName = cleanName(refP.name) || cleanName(rawP.name) || cleanName(trMeta?.name) || `Player #${pid}`;
+          const resolvedPos = (refP.position && refP.position !== "?") ? refP.position : ((rawP.position && rawP.position !== "?") ? rawP.position : "MID");
+          const resolvedImg = refP.image || rawP.image || userLpiMap.get(pid) || trMeta?.image || null;
+          const resolvedColor = KB.playerColor ? KB.playerColor(pid, resolvedName) : (refP.color || rawP.color || "#64748b");
 
           return {
-            ...refP,
             ...rawP,
+            ...refP,
             id: pid,
-            name: refP.name || rawP.name || `Player #${pid}`,
-            position: refP.position || rawP.position || "MID",
+            name: resolvedName,
+            position: resolvedPos,
+            image: resolvedImg,
+            color: resolvedColor,
+            teamId: tId,
             marketValue: actualMv,
             livePoints: curGamePoints,
             matchStatus: 2,
-            matchMinute: raw?.mt !== undefined ? raw.mt : (refP.matchMinute ?? (matchMinuteMap.get(mId) ?? 90)),
+            matchMinute: (isObj && raw.mt !== undefined) ? raw.mt : (refP.matchMinute ?? (matchMinuteMap.get(mId) ?? 90)),
             matchup: resolvedMatchup,
             matchDay: resolvedDay,
             matchId: mId,
-            events: raw?.k || raw?.ev || raw?.events || refP.events || [],
+            events: (isObj && (raw.k || raw.ev || raw.events)) || refP.events || [],
             status: refP.status || "Fit",
             rawStatus: refP.rawStatus || 0,
             isInjured: !!refP.rawStatus,
@@ -12907,7 +12979,8 @@ Analyze my squad strictly under Kickbase rules:
         }
 
         const soldBenchPlayers = soldBenchIds.map((pid) => {
-          const soldP = fetchedSoldBenchMap.get(pid) || { id: pid, name: `Player #${pid}`, position: "MID", color: "#64748b" };
+          const trMeta = myTransferMetaMap.get(String(pid));
+          const soldP = fetchedSoldBenchMap.get(pid) || { id: pid, name: trMeta?.name || `Player #${pid}`, image: trMeta?.image || null, position: "MID", color: KB.playerColor ? KB.playerColor(pid, trMeta?.name || "") : "#64748b" };
           const tId = String(soldP.teamId || "");
           const mId = String(soldP.matchId || teamToMatchMap.get(tId) || "");
           let curGamePoints = 0;
@@ -12969,15 +13042,24 @@ Analyze my squad strictly under Kickbase rules:
       ...currentBench.filter((cb) => !fieldedBench.some((fb) => fb.id === cb.id))
     ];
 
-    // 1. Fetch playerCenter (for exact player events & minutes) and player info (for sold players missing marketValue)
+    // 1. Fetch playerCenter (for exact player events & minutes) and player info (for sold players missing marketValue or name)
     const enrichDay = isLastMatchday ? targetPastDay : (curCompDay || null);
     await Promise.all(allLineupPlayers.map(async (p) => {
       if (!p.id) return;
       const tasks = [];
-      if ((!p.marketValue || p.marketValue <= 0) && S.api.player) {
+      if ((!p.marketValue || p.marketValue <= 0 || !p.name || p.name.startsWith("Player #") || !p.position || p.position === "?") && S.api.player) {
         tasks.push(
           S.api.player(ctx.l, p.id).then((pInfo) => {
-            if (pInfo && pInfo.mv) p.marketValue = Number(pInfo.mv);
+            if (!pInfo) return;
+            const parsed = tf.player(pInfo);
+            if (parsed.marketValue > 0 && (!p.marketValue || p.marketValue <= 0)) p.marketValue = parsed.marketValue;
+            if (parsed.name && (!p.name || p.name.startsWith("Player #"))) {
+              p.name = parsed.name;
+              p.color = parsed.color || p.color;
+            }
+            if (parsed.position && parsed.position !== "?" && (!p.position || p.position === "?")) p.position = parsed.position;
+            if (parsed.image && !p.image) p.image = parsed.image;
+            if (parsed.teamId && !p.teamId) p.teamId = parsed.teamId;
           }).catch(() => {})
         );
       }
@@ -12985,6 +13067,12 @@ Analyze my squad strictly under Kickbase rules:
         tasks.push(
           S.api.playerCenter(compId, p.id, enrichDay).then((pc) => {
             if (!pc) return;
+            if (pc.n && (!p.name || p.name.startsWith("Player #"))) {
+              p.name = String(pc.n).trim();
+              p.color = KB.playerColor ? KB.playerColor(p.id, p.name) : p.color;
+            }
+            if (pc.pim && !p.image && KB.imageUrl) p.image = KB.imageUrl(pc.pim);
+            if (pc.tid && !p.teamId) p.teamId = String(pc.tid);
             if (pc.mi && !p.matchId) p.matchId = String(pc.mi);
             if (pc.md && !p.matchDay) {
               const fDay = formatMatchDay(pc.md);
@@ -13736,42 +13824,322 @@ Analyze my squad strictly under Kickbase rules:
           btn.innerHTML = `${ui.icon("visibility_off")} ${t("Hide Lineup ▴")}`;
 
           try {
-            const rivalTc = await S.api.userTeamCenter(ctx.l, mId, isLastMatchday ? targetPastDay : null);
-            const rivalUser = (rivalTc && rivalTc.us && rivalTc.us.find((u) => String(u.i) === String(mId))) || (rivalTc && rivalTc.us && rivalTc.us[0]) || rivalTc;
-            const rLp = (rivalUser && Array.isArray(rivalUser.lp)) ? rivalUser.lp : ((rivalTc && Array.isArray(rivalTc.lp)) ? rivalTc.lp : []);
+            const inspectDay = isLastMatchday ? targetPastDay : (curCompDay || null);
+            const [rivalTcRes, rivalSquadRes] = await Promise.all([
+              S.api.userTeamCenter ? S.api.userTeamCenter(ctx.l, mId, inspectDay) : Promise.resolve(null),
+              S.api.managerSquad ? S.api.managerSquad(ctx.l, mId).catch(() => null) : Promise.resolve(null)
+            ]);
+            let rivalTc = rivalTcRes;
+            if (!rivalTc && inspectDay && S.api.userTeamCenter) {
+              rivalTc = await S.api.userTeamCenter(ctx.l, mId, null);
+            }
+
+            const rivalUser = (rivalTc && Array.isArray(rivalTc.us) && rivalTc.us.find((u) => String(u.i) === String(mId)))
+              || (rivalTc && Array.isArray(rivalTc.us) && rivalTc.us[0])
+              || rivalTc;
+            let rLp = (rivalUser && Array.isArray(rivalUser.lp))
+              ? rivalUser.lp
+              : ((rivalTc && Array.isArray(rivalTc.lp)) ? rivalTc.lp : []);
+
+            if ((!rLp || !rLp.length) && activeRank) {
+              const rankMgr = activeRank.find((r) => String(r.id) === String(mId));
+              if (rankMgr && Array.isArray(rankMgr.lp) && rankMgr.lp.length) {
+                rLp = rankMgr.lp;
+              }
+            }
+
+            // Filter out null/empty lineup slots
+            rLp = (rLp || []).filter((raw) => {
+              if (raw === null || raw === undefined) return false;
+              const pid = String(typeof raw === "object" ? (raw.i ?? raw.pi ?? raw.id ?? "") : raw).trim();
+              return pid !== "" && pid !== "null" && pid !== "undefined";
+            });
+
+            // Parse rival manager's current squad
+            const rivalSquadRaw = (rivalSquadRes && Array.isArray(rivalSquadRes.it))
+              ? rivalSquadRes.it
+              : (Array.isArray(rivalSquadRes) ? rivalSquadRes : []);
+            const rivalSquadList = rivalSquadRaw.map((sp) => tf.player(sp));
+            const rivalSquadMap = new Map(rivalSquadList.map((sp) => [String(sp.id), sp]));
+
+            // Fallback to managerSquad starters (lo !== null) if teamcenter lp is empty
+            if (!rLp.length && rivalSquadRaw.length) {
+              const ordered = rivalSquadRaw
+                .filter((sp) => sp && sp.lo !== undefined && sp.lo !== null)
+                .sort((a, b) => Number(a.lo) - Number(b.lo));
+              rLp = ordered.length ? ordered : rivalSquadRaw.slice(0, 11);
+            }
 
             if (!rLp || !rLp.length) {
               container.innerHTML = `<div class="muted" style="font-size:12px;padding:8px">${t("No lineup available for")} ${esc(mName)}.</div>`;
               return;
             }
 
+            // Build image lookup from teamcenter lpi
+            const lpiList = (rivalUser && Array.isArray(rivalUser.lpi))
+              ? rivalUser.lpi
+              : ((rivalTc && Array.isArray(rivalTc.lpi)) ? rivalTc.lpi : []);
+            const lpiMap = new Map();
+            for (const item of lpiList) {
+              if (item && (item.i || item.pi) && item.pim && KB.imageUrl) {
+                lpiMap.set(String(item.i || item.pi), KB.imageUrl(item.pim));
+              }
+            }
+
+            // Build known player map from rival squad + our own squad/lineup
+            const knownMap = new Map();
+            for (const sp of [...squad, ...allLineupPlayers, ...rivalSquadList]) {
+              if (sp && sp.id) {
+                const existing = knownMap.get(String(sp.id));
+                if (!existing || !existing.name || existing.name.startsWith("Player #")) {
+                  knownMap.set(String(sp.id), sp);
+                }
+              }
+            }
+
+            // Fetch missing player metadata (e.g. sold players not in rival's current squad) and playerCenter (for matchday points, events, name fallback)
+            const fetchedPlayerMap = new Map();
+            const fetchedRawPlayerMap = new Map();
+            const pcMap = new Map();
+
+            await Promise.all(rLp.map(async (raw) => {
+              const pid = String(typeof raw === "object" ? (raw.i ?? raw.pi ?? raw.id ?? "") : raw).trim();
+              if (!pid) return;
+              const known = knownMap.get(pid);
+              const rawName = (typeof raw === "object" && raw !== null) ? (raw.n || raw.pn || raw.ln || raw.fn || "") : "";
+              const needsPlayerFetch = (!known || !known.name || known.name.startsWith("Player #") || !known.position || known.position === "?") && !rawName;
+
+              const tasks = [];
+              if (needsPlayerFetch && S.api.player) {
+                tasks.push(
+                  S.api.player(ctx.l, pid).then((pInfo) => {
+                    if (pInfo) {
+                      fetchedRawPlayerMap.set(pid, pInfo);
+                      fetchedPlayerMap.set(pid, tf.player(pInfo));
+                    }
+                  }).catch(() => {})
+                );
+              }
+              if (S.api.playerCenter) {
+                tasks.push(
+                  S.api.playerCenter(compId, pid, inspectDay).then((pc) => {
+                    if (pc) pcMap.set(pid, pc);
+                  }).catch(() => {})
+                );
+              }
+              await Promise.all(tasks);
+            }));
+
+            // Optional transfer history fallback if any starter still lacks a resolved name
+            const transferNameMap = new Map();
+            const hasUnresolvedName = rLp.some((raw) => {
+              const isObj = raw !== null && typeof raw === "object";
+              const pid = String(isObj ? (raw.i ?? raw.pi ?? raw.id ?? "") : raw).trim();
+              const knownP = knownMap.get(pid);
+              const fetchedP = fetchedPlayerMap.get(pid);
+              const rawP = isObj ? tf.player({ ...raw, st: undefined }) : {};
+              const pc = pcMap.get(pid);
+              const cleanName = (n) => (n && typeof n === "string" && !n.startsWith("Player #") ? n.trim() : "");
+              return !(cleanName(knownP?.name) || cleanName(fetchedP?.name) || cleanName(rawP.name) || cleanName(pc?.n));
+            });
+
+            if (hasUnresolvedName && S.api.managerTransfers) {
+              try {
+                const trRes = await S.api.managerTransfers(ctx.l, mId);
+                for (const item of trRes?.it || []) {
+                  const tPid = String(item?.pi || item?.i || "");
+                  const tName = String(item?.pn || item?.n || "").trim();
+                  if (tPid && tName) transferNameMap.set(tPid, tName);
+                }
+              } catch (e) {}
+            }
+
+            // Fetch matchDetails for any newly discovered matchIds not yet loaded
+            const newMatchIds = [...new Set(rLp.map((raw) => {
+              const isObj = raw !== null && typeof raw === "object";
+              const pid = String(isObj ? (raw.i ?? raw.pi ?? raw.id ?? "") : raw).trim();
+              const known = knownMap.get(pid);
+              const fetched = fetchedPlayerMap.get(pid);
+              const pc = pcMap.get(pid);
+              const tId = String((isObj && raw.tid) || pc?.tid || known?.teamId || fetched?.teamId || "");
+              return String((isObj && raw.mi) || pc?.mi || known?.matchId || fetched?.matchId || teamToMatchMap.get(tId) || "");
+            }).filter((mIdVal) => mIdVal && !matchMatchupMap.has(mIdVal)))];
+
+            if (newMatchIds.length && S.api.matchDetails) {
+              await Promise.all(newMatchIds.map(async (mIdVal) => {
+                try {
+                  const details = await S.api.matchDetails(mIdVal);
+                  if (details) {
+                    const dDate = details.md || details.dt || details.d || details.date || details.startTime || details.t;
+                    const formatted = formatMatchDay(dDate);
+                    if (formatted) {
+                      matchScheduleMap.set(mIdVal, formatted);
+                      if (details.t1) teamScheduleMap.set(String(details.t1), formatted);
+                      if (details.t2) teamScheduleMap.set(String(details.t2), formatted);
+                    }
+                    const detSt = details.mst !== undefined ? Number(details.mst) : (details.st !== undefined ? Number(details.st) : (details.il ? 1 : 0));
+                    if (detSt !== undefined && detSt !== 0) {
+                      matchStatusMap.set(mIdVal, detSt);
+                      if (details.t1) teamStatusMap.set(String(details.t1), detSt);
+                      if (details.t2) teamStatusMap.set(String(details.t2), detSt);
+                    }
+                    const detMin = details.mt ?? details.m ?? details.minute ?? null;
+                    if (detMin) matchMinuteMap.set(mIdVal, detMin);
+                    const t1sy = details.t1sy || "";
+                    const t2sy = details.t2sy || "";
+                    if (t1sy && t2sy) {
+                      const hasScore = (detSt > 0 || details.il) && details.t1g !== undefined && details.t2g !== undefined;
+                      const matchupStr = hasScore ? `${t1sy} ${details.t1g}:${details.t2g} ${t2sy}` : `${t1sy} vs ${t2sy}`;
+                      matchMatchupMap.set(mIdVal, matchupStr);
+                      if (details.t1) teamMatchupMap.set(String(details.t1), matchupStr);
+                      if (details.t2) teamMatchupMap.set(String(details.t2), matchupStr);
+                    }
+                    for (const sp of [...(details.t1lp || []), ...(details.t2lp || [])]) {
+                      const spId = String(sp.i || sp.pi || sp.id || "");
+                      if (spId) realMatchStarterSet.add(spId);
+                    }
+                    for (const bp of [...(details.t1nlp || []), ...(details.t2nlp || [])]) {
+                      const bpId = String(bp.i || bp.pi || bp.id || "");
+                      if (bpId) realMatchBenchSet.add(bpId);
+                    }
+                    if (Array.isArray(details.events)) {
+                      for (const ev of details.events) {
+                        const mt = ev.mt ?? ev.m ?? ev.minute ?? null;
+                        const p1 = String(ev.pi || ev.p || ev.id || ev.playerId || "");
+                        const ke1 = ev.ke !== undefined ? Number(ev.ke) : (ev.eti !== undefined ? Number(ev.eti) : null);
+                        if (p1) {
+                          if (!matchEventMap.has(p1)) matchEventMap.set(p1, []);
+                          matchEventMap.get(p1).push({ ...ev, mt });
+                        }
+                        if (ev.rev) {
+                          const rpid = String(ev.rev.pi || ev.rev.p || ev.rev.id || "");
+                          let rke = ev.rev.ke !== undefined ? Number(ev.rev.ke) : (ev.rev.eti !== undefined ? Number(ev.rev.eti) : null);
+                          if ((rke === null || rke === 0) && ke1 === -1) rke = -2;
+                          if ((rke === null || rke === 0) && ke1 === -2) rke = -1;
+                          if (rpid) {
+                            if (!matchEventMap.has(rpid)) matchEventMap.set(rpid, []);
+                            matchEventMap.get(rpid).push({ ...ev.rev, ke: rke ?? ev.rev.ke, mt });
+                          }
+                        }
+                        if (ev.in && (ev.in.pi || ev.in.p || ev.in.id)) {
+                          const inPid = String(ev.in.pi || ev.in.p || ev.in.id);
+                          if (!matchEventMap.has(inPid)) matchEventMap.set(inPid, []);
+                          matchEventMap.get(inPid).push({ ...ev.in, id: -1, eti: -1, mt, text: "sub_in" });
+                        }
+                        if (ev.out && (ev.out.pi || ev.out.p || ev.out.id)) {
+                          const outPid = String(ev.out.pi || ev.out.p || ev.out.id);
+                          if (!matchEventMap.has(outPid)) matchEventMap.set(outPid, []);
+                          matchEventMap.get(outPid).push({ ...ev.out, id: -2, eti: -2, mt, text: "sub_out" });
+                        }
+                      }
+                    }
+                  }
+                } catch (e) {}
+              }));
+            }
+
             const rivalStarters = rLp.map((raw) => {
-              const pid = String(raw?.i || raw?.pi || raw || "");
-              const p = (typeof raw === "object") ? tf.player({ ...raw, st: undefined }) : { id: pid, name: `Player #${pid}`, position: "MID", color: "#64748b" };
-              const tId = String(raw?.tid || p.teamId || "");
-              const matchId = String(raw?.mi || p.matchId || teamToMatchMap.get(tId) || "");
+              const isObj = raw !== null && typeof raw === "object";
+              const pid = String(isObj ? (raw.i ?? raw.pi ?? raw.id ?? "") : raw).trim();
+              const rawP = isObj ? tf.player({ ...raw, st: undefined }) : {};
+              const knownP = knownMap.get(pid) || {};
+              const fetchedP = fetchedPlayerMap.get(pid) || {};
+              const fetchedRawP = fetchedRawPlayerMap.get(pid) || null;
+              const pc = pcMap.get(pid) || null;
+              const isSold = rivalSquadMap.size > 0 && !rivalSquadMap.has(pid);
+
+              const cleanName = (n) => (n && typeof n === "string" && !n.startsWith("Player #") ? n.trim() : "");
+              const resolvedName = cleanName(knownP.name)
+                || cleanName(fetchedP.name)
+                || cleanName(rawP.name)
+                || cleanName(pc?.n)
+                || cleanName(transferNameMap.get(pid))
+                || `Player #${pid}`;
+
+              const resolvedPos = (knownP.position && knownP.position !== "?")
+                ? knownP.position
+                : ((fetchedP.position && fetchedP.position !== "?")
+                    ? fetchedP.position
+                    : ((rawP.position && rawP.position !== "?") ? rawP.position : "MID"));
+
+              const resolvedImage = knownP.image
+                || fetchedP.image
+                || rawP.image
+                || lpiMap.get(pid)
+                || (pc?.pim && KB.imageUrl ? KB.imageUrl(pc.pim) : null)
+                || null;
+
+              const resolvedColor = KB.playerColor
+                ? KB.playerColor(pid, resolvedName)
+                : (knownP.color || fetchedP.color || rawP.color || "#64748b");
+
+              const tId = String((isObj && raw.tid) || pc?.tid || knownP.teamId || fetchedP.teamId || rawP.teamId || "");
+              const matchId = String((isObj && raw.mi) || pc?.mi || knownP.matchId || fetchedP.matchId || teamToMatchMap.get(tId) || "");
               const knownMst = matchStatusMap.get(matchId) ?? teamStatusMap.get(tId);
-              let mst = raw?.mst !== undefined ? Number(raw.mst) : (p.matchStatus !== undefined ? Number(p.matchStatus) : (knownMst !== undefined ? knownMst : (isLastMatchday ? 2 : 0)));
-              const hasLivePts = (raw?.p !== undefined && raw.p !== null && Number(raw.p) !== 0) || (p.livePoints !== undefined && p.livePoints !== null && Number(p.livePoints) !== 0);
-              const hasLiveMin = (raw?.mt !== undefined && Number(raw.mt) > 0) || (p.matchMinute !== undefined && Number(p.matchMinute) > 0);
+              let mst = (isObj && raw.mst !== undefined)
+                ? Number(raw.mst)
+                : (pc?.mst !== undefined
+                    ? Number(pc.mst)
+                    : (knownMst !== undefined ? knownMst : (isLastMatchday ? 2 : 0)));
+
+              let curGamePoints = 0;
+              if (isObj && raw.p !== undefined && raw.p !== null && raw.lo === undefined && raw.ap === undefined) {
+                curGamePoints = Number(raw.p);
+              } else if (pc && pc.p !== undefined && pc.p !== null) {
+                curGamePoints = Number(pc.p);
+              } else if (fetchedRawP && Array.isArray(fetchedRawP.ph) && inspectDay) {
+                const phEntry = fetchedRawP.ph.find((x) => Number(x.day || x.d) === Number(inspectDay));
+                if (phEntry && phEntry.p !== undefined) curGamePoints = Number(phEntry.p);
+              } else if (knownP.livePoints !== undefined && knownP.livePoints !== null && !rivalSquadMap.has(pid)) {
+                curGamePoints = Number(knownP.livePoints);
+              }
+
+              const mMinute = (isObj && raw.mt !== undefined)
+                ? raw.mt
+                : (pc?.mt !== undefined
+                    ? pc.mt
+                    : (matchMinuteMap.get(matchId) ?? (isLastMatchday ? 90 : 0)));
+              const hasLivePts = curGamePoints !== 0;
+              const hasLiveMin = Number(mMinute) > 0 && !isLastMatchday;
               if (mst === 0 && (hasLivePts || hasLiveMin || knownMst === 1)) {
                 mst = 1;
               }
-              const curGamePoints = (raw?.p !== undefined && raw.p !== null) ? Number(raw.p) : (p.livePoints || 0);
+
               const extraEv = matchEventMap.get(pid) || [];
-              const rEvents = [...extraEv, ...(raw?.k || raw?.ev || raw?.events || [])];
-              const rawDate = raw?.md || raw?.d || raw?.dt || raw?.date || raw?.startTime || raw?.t || p.matchDate;
+              const pcEvents = [
+                ...(Array.isArray(pc?.events) ? pc.events : []),
+                ...(Array.isArray(pc?.k) ? pc.k : [])
+              ];
+              const rawEvents = isObj ? (raw.k || raw.ev || raw.events || []) : [];
+              const rEvents = [...extraEv, ...pcEvents, ...rawEvents];
+              if (realMatchBenchSet.has(pid) && !realMatchStarterSet.has(pid) && (curGamePoints !== 0 || rEvents.length > 0)) {
+                rEvents.push({ eti: -1, text: "sub_in" });
+              }
+
+              const rawDate = (isObj && (raw.md || raw.d || raw.dt || raw.date || raw.startTime || raw.t)) || pc?.md || knownP.matchDate || fetchedP.matchDate;
               const resolvedDay = formatMatchDay(rawDate) || matchScheduleMap.get(matchId) || teamScheduleMap.get(tId) || "";
-              const resolvedMatchup = matchMatchupMap.get(matchId) || teamMatchupMap.get(tId) || p.matchup || "";
-              const mMinute = raw?.mt !== undefined ? raw.mt : (p.matchMinute ?? (matchMinuteMap.get(matchId) ?? (isLastMatchday ? 90 : 0)));
+              const resolvedMatchup = matchMatchupMap.get(matchId) || teamMatchupMap.get(tId) || knownP.matchup || fetchedP.matchup || "";
+              const resolvedMv = knownP.marketValue || fetchedP.marketValue || rawP.marketValue || 0;
+
               return {
-                ...p,
+                ...rawP,
+                ...fetchedP,
+                ...knownP,
+                id: pid,
+                name: resolvedName,
+                position: resolvedPos,
+                image: resolvedImage,
+                color: resolvedColor,
+                teamId: tId,
+                matchId,
+                marketValue: resolvedMv,
                 livePoints: curGamePoints,
                 matchStatus: mst,
                 matchMinute: mMinute,
                 matchup: resolvedMatchup,
                 matchDay: resolvedDay,
-                events: rEvents
+                events: rEvents,
+                isSold
               };
             });
             const rivalTotal = rivalStarters.reduce((sum, p) => sum + (p.livePoints || 0), 0);
@@ -13783,7 +14151,7 @@ Analyze my squad strictly under Kickbase rules:
               </div>
               <div class="rival-lineup-row">
                 ${rivalStarters.map((rp) => `
-                  <div style="background:var(--surface);border:1px solid var(--border);border-top:3px solid ${rp.color};border-radius:8px;padding:8px;display:flex;flex-direction:column;align-items:center;text-align:center">
+                  <div data-rival-player="${esc(rp.id)}" style="background:var(--surface);border:1px solid var(--border);border-top:3px solid ${rp.color};border-radius:8px;padding:8px;display:flex;flex-direction:column;align-items:center;text-align:center;cursor:pointer">
                     ${ui.pawn(rp, 34, { center: true })}
                     <div style="font-size:11.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:110px" title="${esc(rp.name)}">${esc(rp.name)}</div>
                     <div class="live-pts-badge ${(rp.livePoints || 0) >= 0 ? "up" : "down"}" style="font-size:11.5px;margin:3px 0;padding:1px 6px">
@@ -13797,6 +14165,16 @@ Analyze my squad strictly under Kickbase rules:
                 `).join("")}
               </div>
             `;
+
+            container.querySelectorAll("[data-rival-player]").forEach((card) => {
+              card.addEventListener("click", () => {
+                const pid = card.dataset.rivalPlayer;
+                const targetP = rivalStarters.find((p) => String(p.id) === String(pid));
+                if (targetP) {
+                  openPlayerModal(ctx, targetP, { squad, livePoints: targetP.livePoints, matchStatus: targetP.matchStatus, matchMinute: targetP.matchMinute, matchup: targetP.matchup, matchId: targetP.matchId, events: targetP.events, isStarter: true });
+                }
+              });
+            });
           } catch (err) {
             container.innerHTML = `<div class="down" style="font-size:12px;padding:8px">Could not load lineup: ${esc(err.message)}</div>`;
           }
