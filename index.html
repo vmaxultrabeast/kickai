@@ -4611,11 +4611,12 @@ Analyze my squad strictly under Kickbase rules:
   // ------------------------------------------------------------ storage ----
   const store = {
     get(k, d = null) { try { return JSON.parse(localStorage.getItem(k) ?? sessionStorage.getItem(k)) ?? d; } catch (e) { return d; } },
-    set(k, v, persist = true) { (persist ? localStorage : sessionStorage).setItem(k, JSON.stringify(v)); },
-    del(k) { localStorage.removeItem(k); sessionStorage.removeItem(k); },
+    set(k, v, persist = true) { try { (persist ? localStorage : sessionStorage).setItem(k, JSON.stringify(v)); } catch (e) {} },
+    del(k) { try { localStorage.removeItem(k); sessionStorage.removeItem(k); } catch (e) {} },
   };
   const settings = () => store.get("kb.settings", { bidding: false });
   const setSetting = (k, v) => store.set("kb.settings", { ...settings(), [k]: v });
+  const saveSettings = (patch) => store.set("kb.settings", { ...settings(), ...(patch && typeof patch === "object" ? patch : {}) });
 
   function loadSession() {
     const s = store.get("kb.session");
@@ -11158,9 +11159,10 @@ Analyze my squad strictly under Kickbase rules:
             bPlace.innerHTML = `<div class="spinner"></div> Submitting…`;
             try {
               if (!settings().bidding) {
-                saveSettings({ bidding: true });
+                setSetting("bidding", true);
                 const sBid = document.querySelector("#s-bidding");
                 if (sBid) sBid.checked = true;
+                try { renderBiddingSetting(); } catch (_) {}
               }
               const actionFn = isUpdate
                 ? () => S.api.updateOffer(ctx.l, pid, val, marketPlayer.myOfferId, currentBid, marketPlayer)
@@ -11938,15 +11940,16 @@ Analyze my squad strictly under Kickbase rules:
       confirm.addEventListener("change", () => { place.disabled = !confirm.checked || !(Number(price.value) > 0); });
       place.addEventListener("click", async () => {
         const v = Math.floor(Number(price.value));
-        // Ensure bidding setting is enabled if user explicitly places/updates a bid
-        if (!settings().bidding) {
-          saveSettings({ bidding: true });
-          const sBid = document.querySelector("#s-bidding");
-          if (sBid) sBid.checked = true;
-        }
         const btnLabel = isUpdate ? "Update bid" : "Place bid";
         place.disabled = true; place.innerHTML = `<div class="spinner"></div> Sending to Kickbase…`;
         try {
+          // Ensure bidding setting is enabled if user explicitly places/updates a bid
+          if (!settings().bidding) {
+            setSetting("bidding", true);
+            const sBid = document.querySelector("#s-bidding");
+            if (sBid) sBid.checked = true;
+            try { renderBiddingSetting(); } catch (_) {}
+          }
           const actionFn = isUpdate
             ? () => S.api.updateOffer(ctx.l, p.id, v, p.myOfferId, currentBid, p)
             : () => S.api.placeOffer(ctx.l, p.id, v, p);
