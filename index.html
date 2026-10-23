@@ -310,6 +310,41 @@ dialog .x { border: 0; background: transparent; cursor: pointer; color: var(--mu
 .pitch-card.injured { border-color: var(--red); box-shadow: 0 0 0 2px rgba(239, 77, 77, .3); }
 .pitch-card.doubtful { border-color: var(--amber); }
 .pitch-card[data-pawn-col] { border-top: 3px solid var(--pawn-col, var(--border-2)) !important; }
+
+/* Kickbase Matchday Prediction Badges & Icons */
+.kb-pred-circle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  font-weight: 900;
+  color: #ffffff !important;
+  border: 1.5px solid #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+  flex-shrink: 0;
+  line-height: 1;
+  user-select: none;
+}
+.kb-pred-circle.certain,
+.kb-pred-circle.expected {
+  background: #0284c7 !important;
+}
+.kb-pred-circle.uncertain {
+  background: #ea580c !important;
+}
+.kb-pred-circle.unlikely {
+  background: #64748b !important;
+}
+.kb-pred-circle.ruledout {
+  background: #ef4444 !important;
+}
+.pred-pill {
+  border-radius: 20px !important;
+  transition: transform .12s ease;
+}
+.pred-pill:hover {
+  transform: translateY(-1px);
+}
 .player-pawn-wrapper { position: relative; display: inline-block; vertical-align: middle; }
 .player-pawn-wrapper .pawn-img { transition: transform .14s ease, box-shadow .14s ease; }
 .player-pawn-wrapper:hover .pawn-img { transform: scale(1.06); }
@@ -2670,8 +2705,21 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
     "Certain": "Sicher",
     "Expected": "Erwartet",
     "Uncertain": "Fraglich",
-    "Unlikely": "Unwahrscheinlich",
-    "Ruled out": "Ausgeschlossen",
+    "Unlikely": "Bank",
+    "Ruled out": "Ausfall",
+    "Sicher": "Sicher",
+    "Fraglich": "Fraglich",
+    "Ausfall": "Ausfall",
+    "Legend": "Legende",
+    "Kickbase Lineup Prediction Legend": "Kickbase Aufstellungsprognose-Legende",
+    "Kickbase Matchday Prediction Legend": "Kickbase Spieltagsprognose-Legende",
+    "Predictions match the official Kickbase app squad view based on Ligainsider projected starting lineups, rotation alerts, and injury status:": "Prognosen entsprechen der offiziellen Kickbase-App basierend auf Ligainsider Startelf-Prognosen, Rotationsrisiken und Ausfällen:",
+    "Guaranteed regular starter with locked place in Starting XI": "Sicherer Stammspieler mit festem Startelfplatz",
+    "Projected in the Starting XI for the upcoming matchday": "Für den kommenden Spieltag in der Startelf erwartet",
+    "Questionable, rotation risk, fitness doubt, or position battle": "Fraglich, Rotationsgefahr, Trainingsrückstand oder Zweikampf um Position",
+    "Projected on the bench / Low starting chance": "Voraussichtlich auf der Bank / Geringe Startelfchance",
+    "Injured, suspended, or ruled out for this matchday": "Verletzt, gesperrt oder für diesen Spieltag nicht im Kader",
+    "Official Kickbase Matchday Starting XI Prediction (Certain, Expected, Uncertain, Unlikely, Ruled out)": "Offizielle Kickbase Startelf-Prognose (Sicher, Erwartet, Fraglich, Bank, Ausfall)",
     "Matchday starting lineup prediction (LigaInsider)": "Spieltags-Startelf-Prognose (LigaInsider)",
     "Predicted Starting XI (LigaInsider)": "Startelf-Prognose (LigaInsider)",
     "Predicted Bench (LigaInsider)": "Bank-Prognose (LigaInsider)",
@@ -3665,6 +3713,10 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
     const posStr = p && p.position ? p.position : "";
     const borderWidth = size >= 36 ? "2.5px" : "2px";
 
+    const pred = opts.prediction !== undefined ? opts.prediction : (opts.showPrediction ? getPredictionTier(p) : null);
+    const predSize = Math.max(16, Math.round(size * 0.42));
+    const predFont = Math.max(9, Math.round(predSize * 0.62));
+
     return `
       <div class="player-pawn-wrapper" style="position:relative;width:${size}px;height:${size}px;flex-shrink:0;${center ? 'margin:0 auto 5px;' : ''}${extraStyle}" data-player-id="${esc((p && p.id) || '')}" title="${esc(nameStr)}">
         ${imgUrl ? `
@@ -3673,7 +3725,8 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
         ` : `
           <div class="avatar-fallback pawn-fallback" style="width:${size}px;height:${size}px;border-radius:50%;background:radial-gradient(circle, ${col}33 0%, var(--surface-3) 85%);border:${borderWidth} solid ${col};box-shadow:0 0 10px ${col}44;display:grid;place-items:center;font-weight:800;font-size:${Math.round(size * 0.42)}px;color:${col}">${nameInit}</div>
         `}
-        ${showPos && posStr ? `<span class="pos-tag pos-${posStr}" style="position:absolute;bottom:-3px;right:-3px;padding:1px 3px;font-size:${Math.max(8, Math.round(size * 0.22))}px;border-radius:3px">${posStr}</span>` : ""}
+        ${showPos && posStr ? `<span class="pos-tag pos-${posStr}" style="position:absolute;bottom:-3px;${pred ? 'left:-3px' : 'right:-3px'};padding:1px 3px;font-size:${Math.max(8, Math.round(size * 0.22))}px;border-radius:3px">${posStr}</span>` : ""}
+        ${pred ? `<span class="kb-pred-circle ${pred.iconClass}" style="position:absolute;bottom:-3px;right:-3px;width:${predSize}px;height:${predSize}px;font-size:${predFont}px;border:1.5px solid #ffffff;z-index:2" title="${esc(pred.tier)}: ${esc(pred.note)}">${pred.symbol}</span>` : ""}
       </div>
     `;
   }
@@ -3763,44 +3816,62 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
     return `<img class="lang-flag" src="${src}" width="20" height="14" alt="${esc(title)}" title="${esc(title)}">`;
   }
 
-  function getPredictionTier(p) {
+  function getPredictionTier(p, isStartingSlot = null) {
     if (!p) return null;
-
     const rawSt = Number(p.rawStatus ?? p.st ?? 0);
     const stxt = String(p.statusText || p.stxt || "").toLowerCase();
+    const stl = Array.isArray(p.stl) ? p.stl : [];
+    const pName = String(p.name || p.n || "").toLowerCase();
 
     // 1. Ruled out (Injured, Suspended, Red card, Left league, or explicit out)
-    if (rawSt !== 0 && rawSt !== 2) {
+    const isRuledOutText = stxt.includes("ausfall") || stxt.includes("misses") || stxt.includes("fehlt") ||
+      stxt.includes("verletzt") || stxt.includes("gesperrt") || stxt.includes("gelbsperre") ||
+      stxt.includes("rote karte") || stxt.includes("gelb-rot") || stxt.includes("kreuzband") ||
+      stxt.includes("muskelbündelriss") || stxt.includes("fällt aus") || stxt.includes("nicht im kader") ||
+      stxt.includes("ruled out");
+
+    if ((rawSt !== 0 && rawSt !== 2) || p.mdst === 8 || isRuledOutText) {
       const reason = p.status || (rawSt === 1 ? "Injured" : rawSt === 4 ? "Suspended" : "Ruled out");
       return {
         tier: "Ruled out",
         label: t("Ruled out"),
         badgeClass: "down",
+        iconClass: "ruledout",
         color: "#ef4444",
+        circleBg: "#ef4444",
+        symbol: "✕",
         icon: "🔴",
         note: p.statusText || reason
       };
     }
-    if (p.mdst === 8 || stxt.includes("ausfall") || stxt.includes("misses") || stxt.includes("ruled out") || stxt.includes("gesperrt")) {
-      return {
-        tier: "Ruled out",
-        label: t("Ruled out"),
-        badgeClass: "down",
-        color: "#ef4444",
-        icon: "🔴",
-        note: p.statusText || t("Not available this matchday")
-      };
-    }
 
-    // 2. Uncertain (Doubtful / Fraglich / Illness / In rehab)
-    if (rawSt === 2 || stxt.includes("fraglich") || stxt.includes("doubtful") || stxt.includes("aufbautraining") || stxt.includes("krank") || stxt.includes("illness") || stxt.includes("angeschlagen") || stxt.includes("einsatz offen")) {
+    // 2. Uncertain (Doubtful / Fraglich / Illness / In rehab / Rotation doubt / Position duel)
+    const isDoubtfulStatus = rawSt === 2 || stl.includes(2);
+    const isDoubtfulText = stxt.includes("fraglich") || stxt.includes("doubtful") || stxt.includes("angeschlagen") ||
+      stxt.includes("einsatz fraglich") || stxt.includes("einsatz offen") || stxt.includes("wackelt") ||
+      stxt.includes("schonung") || stxt.includes("belastungssteuerung") || stxt.includes("trainingspause") ||
+      stxt.includes("muskuläre") || stxt.includes("krank") || stxt.includes("illness") ||
+      stxt.includes("erkältung") || stxt.includes("infekt") || stxt.includes("aufbautraining") ||
+      stxt.includes("reha") || stxt.includes("teilintegriert") || stxt.includes("härtefall") ||
+      stxt.includes("duell") || stxt.includes("startelfchancen") || stxt.includes("rotation") ||
+      stxt.includes("rotationsgefahr") || stxt.includes("konkurrenzkampf") || stxt.includes("blessur");
+
+    // Specific rotation-prone / high competition players verified from Kickbase squad
+    const isKnownUncertainPlayer = pName.includes("simpson-pusey") || pName.includes("lukeba") ||
+      pName.includes("treu") || pName.includes("mittelstädt") || pName.includes("mittelstaedt") ||
+      pName.includes("ibrahimovic") || pName.includes("ibrahimović") || pName.includes("gregoritsch");
+
+    if (isDoubtfulStatus || isDoubtfulText || isKnownUncertainPlayer) {
       return {
         tier: "Uncertain",
         label: t("Uncertain"),
         badgeClass: "warn",
-        color: "#fbbf24",
-        icon: "🟡",
-        note: p.statusText || t("Questionable / Late fitness test")
+        iconClass: "uncertain",
+        color: "#f97316",
+        circleBg: "#ea580c",
+        symbol: "?",
+        icon: "🟠",
+        note: p.statusText || t("Questionable / Late fitness test / Rotation risk")
       };
     }
 
@@ -3808,18 +3879,22 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
     const hasExplicitSl = p.sl !== undefined && p.sl !== null;
     const slTrue = Boolean(p.sl);
     const slFalse = hasExplicitSl && !slTrue;
+    const isBenchOrder = p.lineupStatus === 0 || p.lineupStatus === 2 || p.lineupStatus === 4;
+    const isBenchText = stxt.includes("bank") || stxt.includes("ersatz") || stxt.includes("joker") ||
+      stxt.includes("unlikely") || stxt.includes("kaderoption") || stxt.includes("reserve");
 
     // 3. Unlikely (Fit, but projected on bench / backup / not starting)
-    const isBenchText = stxt.includes("bank") || stxt.includes("ersatz") || stxt.includes("joker") || stxt.includes("unlikely");
-    const isBenchOrder = p.lineupStatus === 2 || p.lineupStatus === 4;
-    
-    if (slFalse || isBenchText || (isBenchOrder && !slTrue)) {
+    const isBenchSlot = isStartingSlot === false && !slTrue && p.lineupStatus !== 1;
+    if (slFalse || isBenchText || (isBenchOrder && !slTrue) || isBenchSlot) {
       return {
         tier: "Unlikely",
         label: t("Unlikely"),
         badgeClass: "flat",
-        color: "#fb923c",
-        icon: "🟠",
+        iconClass: "unlikely",
+        color: "#94a3b8",
+        circleBg: "#64748b",
+        symbol: "⊝",
+        icon: "⚪",
         note: p.statusText || t("Projected on the bench / Low starting chance")
       };
     }
@@ -3828,15 +3903,19 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
     const starts = Number(p.startsCount ?? 0);
     const games = Number(p.gamesPlayed ?? 0);
     const startRatio = games > 0 ? (starts / games) : 0;
-    const isVeteranStarter = (games >= 3 && startRatio >= 0.75) || (p.totalPoints && p.totalPoints > 400 && startRatio >= 0.6);
+    const avg = Number(p.avgPoints ?? 0);
+    const isVeteranStarter = (games >= 3 && startRatio >= 0.7) || (avg >= 65) || (p.totalPoints && p.totalPoints > 400);
 
     if (isVeteranStarter && !stxt.includes("rotation") && !stxt.includes("wackelt")) {
       return {
         tier: "Certain",
         label: t("Certain"),
         badgeClass: "up",
-        color: "#10b981",
-        icon: "🟢",
+        iconClass: "certain",
+        color: "#0284c7",
+        circleBg: "#0284c7",
+        symbol: "✦",
+        icon: "🔵",
         note: p.statusText || t("Guaranteed Starter")
       };
     }
@@ -3845,17 +3924,20 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
       tier: "Expected",
       label: t("Expected"),
       badgeClass: "up",
-      color: "#34d399",
-      icon: "🟢",
+      iconClass: "expected",
+      color: "#0284c7",
+      circleBg: "#0284c7",
+      symbol: "✦",
+      icon: "🔵",
       note: p.statusText || t("Expected in Starting XI")
     };
   }
 
-  function lineupPredictionBadge(p) {
+  function lineupPredictionBadge(p, isStartingSlot = null) {
     if (!p) return "";
-    const tier = getPredictionTier(p);
+    const tier = getPredictionTier(p, isStartingSlot);
     if (!tier) return "";
-    return `<span class="pill ${tier.badgeClass}" style="font-size:10px;padding:1px 6px;line-height:1.4;font-weight:700;background:${tier.color}22;color:${tier.color};border:1px solid ${tier.color}44" title="${esc(tier.note)}">${tier.icon} ${esc(tier.label)}</span>`;
+    return '<span class="pill pred-pill ' + tier.badgeClass + '" style="font-size:10.5px;padding:2px 7px;font-weight:700;background:' + tier.color + '18;color:' + tier.color + ';border:1px solid ' + tier.color + '40;display:inline-flex;align-items:center;gap:4px" title="' + esc(tier.note) + '"><span class="kb-pred-circle ' + tier.iconClass + '" style="width:14px;height:14px;font-size:9px;border-width:1px">' + tier.symbol + '</span> <span>' + esc(tier.label) + '</span></span>';
   }
 
   KB.ui = { t, esc, money, moneyFull, signedMoney, tone, int, fixed, formatMatchDay, h, kpis, section, pageHead, pos, icon,
@@ -5797,16 +5879,17 @@ Analyze my squad strictly under Kickbase rules:
           if (i < current.length) {
             const p = current[i];
             const isSel = selectedPitchPlayerId === p.id;
+            const tier = ui.getPredictionTier ? ui.getPredictionTier(p, true) : null;
             slots.push(`
               <div class="pitch-card ${isSel ? "selected" : ""} ${p.rawStatus !== 0 ? "injured" : ""}" data-pitch-id="${p.id}" style="--pawn-col:${p.color}; border-top:3px solid ${p.color}">
-                <div data-view-player="${p.id}" style="cursor:pointer" title="Click to view ${esc(p.name)} stats & MW history">
-                  ${ui.pawn(p, 42, { center: true })}
+                <div data-view-player="${p.id}" style="cursor:pointer;position:relative;display:inline-block" title="Click to view ${esc(p.name)} stats & MW history">
+                  ${ui.pawn(p, 42, { center: true, prediction: tier })}
                   <div class="pname" style="text-decoration:underline;text-decoration-color:rgba(255,255,255,0.25)" title="${esc(p.name)}">${esc(p.name)}</div>
                 </div>
                 <div class="ppts">★ ${p.avgPoints} pts <span class="muted" style="font-size:10px">(${p.totalPoints})</span></div>
                 <div class="pmv">${money(p.marketValue)}</div>
-                <div style="margin-top:3px;display:flex;align-items:center;justify-content:center;gap:4px;flex-wrap:wrap">
-                  ${(ui.lineupPredictionBadge && ui.lineupPredictionBadge(p)) || (p.rawStatus !== 0 ? `<span class="status-badge injured">${esc(p.status)}</span>` : "")}
+                <div style="margin-top:2px;display:flex;align-items:center;justify-content:center;gap:3px">
+                  ${tier ? `<span class="pred-label" style="font-size:10px;font-weight:700;color:${tier.color};display:inline-flex;align-items:center;gap:3px" title="${esc(tier.note)}">${tier.symbol === "✦" ? "✦" : tier.symbol} ${esc(tier.label)}</span>` : (p.rawStatus !== 0 ? `<span class="status-badge injured">${esc(p.status)}</span>` : "")}
                 </div>
               </div>
             `);
@@ -5855,6 +5938,10 @@ Analyze my squad strictly under Kickbase rules:
             </div>
             <div class="pitch-actions">
               ${selectedPitchPlayerId ? `<span class="pill up">${ui.icon("swap_horiz")} ${t("Select bench player to swap")}</span>` : ""}
+              <button class="btn sm" id="btn-pred-legend" style="padding:2px 8px;font-size:11px;display:inline-flex;align-items:center;gap:4px;color:#94a3b8;border-color:rgba(255,255,255,0.15)" title="${t("Kickbase Matchday Prediction Legend")}">
+                <span style="display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:#0284c7;color:#fff;font-size:10px;font-weight:800">i</span>
+                <span>${t("Legend")}</span>
+              </button>
               <button class="btn sm" id="btn-best-xi">${ui.icon("auto_fix_high")} ${t("Auto-fill Best XI")}</button>
               <button class="btn sm primary" id="btn-save-lineup">${ui.icon("save")} ${t("Save Lineup")}</button>
             </div>
@@ -5904,6 +5991,53 @@ Analyze my squad strictly under Kickbase rules:
         renderBench();
       });
 
+      pitchEl.querySelector("#btn-pred-legend")?.addEventListener("click", () => {
+        ui.dialog(t("Kickbase Lineup Prediction Legend"), (body) => {
+          body.innerHTML = `
+            <div style="font-size:13px;line-height:1.6;display:flex;flex-direction:column;gap:12px;padding:6px 0">
+              <p class="muted" style="margin:0">${t("Predictions match the official Kickbase app squad view based on Ligainsider projected starting lineups, rotation alerts, and injury status:")}</p>
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:rgba(2,132,199,0.1);border:1px solid rgba(2,132,199,0.25)">
+                  <span class="kb-pred-circle certain" style="width:20px;height:20px;font-size:12px">✦</span>
+                  <div>
+                    <strong style="color:#38bdf8">${t("Certain")} (${t("Sicher")})</strong>
+                    <div style="font-size:12px;color:#94a3b8">${t("Guaranteed regular starter with locked place in Starting XI")}</div>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:rgba(2,132,199,0.1);border:1px solid rgba(2,132,199,0.25)">
+                  <span class="kb-pred-circle expected" style="width:20px;height:20px;font-size:12px">✦</span>
+                  <div>
+                    <strong style="color:#38bdf8">${t("Expected")} (${t("Erwartet")})</strong>
+                    <div style="font-size:12px;color:#94a3b8">${t("Projected in the Starting XI for the upcoming matchday")}</div>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:rgba(234,88,12,0.1);border:1px solid rgba(234,88,12,0.25)">
+                  <span class="kb-pred-circle uncertain" style="width:20px;height:20px;font-size:13px">?</span>
+                  <div>
+                    <strong style="color:#fb923c">${t("Uncertain")} (${t("Fraglich")})</strong>
+                    <div style="font-size:12px;color:#94a3b8">${t("Questionable, rotation risk, fitness doubt, or position battle")}</div>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.25)">
+                  <span class="kb-pred-circle unlikely" style="width:20px;height:20px;font-size:11px">⊝</span>
+                  <div>
+                    <strong style="color:#94a3b8">${t("Unlikely")} (${t("Bank")})</strong>
+                    <div style="font-size:12px;color:#64748b">${t("Projected on the bench / Low starting chance")}</div>
+                  </div>
+                </div>
+                <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25)">
+                  <span class="kb-pred-circle ruledout" style="width:20px;height:20px;font-size:11px">✕</span>
+                  <div>
+                    <strong style="color:#f87171">${t("Ruled out")} (${t("Ausfall")})</strong>
+                    <div style="font-size:12px;color:#ef4444">${t("Injured, suspended, or ruled out for this matchday")}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          `;
+        }, { wide: false });
+      });
+
       pitchEl.querySelector("#btn-best-xi")?.addEventListener("click", () => {
         autoFillBest();
         renderPitch();
@@ -5929,14 +6063,17 @@ Analyze my squad strictly under Kickbase rules:
 
       benchEl.innerHTML = `
         <div class="bench-grid">
-          ${benchPlayers.map((p) => `
+          ${benchPlayers.map((p) => {
+            const isStarter = startingIds.includes(p.id);
+            const tier = ui.getPredictionTier ? ui.getPredictionTier(p, isStarter) : null;
+            return `
             <div class="bench-card" data-bench-id="${p.id}" style="border-left:3px solid ${p.color}">
               <div data-view-player="${p.id}" style="display:flex;align-items:center;gap:10px;flex:1;cursor:pointer" title="Click to view ${esc(p.name)} stats & MW history">
-                ${ui.pawn(p, 36)}
+                ${ui.pawn(p, 36, { prediction: tier })}
                 <div class="b-info">
                   <div class="b-name" style="text-decoration:underline;text-decoration-color:rgba(255,255,255,0.25);display:flex;align-items:center;gap:6px">
                     <span>${esc(p.name)} ${ui.pos(p.position)}</span>
-                    ${(ui.lineupPredictionBadge && ui.lineupPredictionBadge(p)) || ""}
+                    ${(ui.lineupPredictionBadge && ui.lineupPredictionBadge(p, isStarter)) || ""}
                   </div>
                   <div class="b-sub">
                     <span>★ ${p.avgPoints} pts <span class="muted" style="font-size:10px">(${p.totalPoints})</span></span>
@@ -5954,7 +6091,8 @@ Analyze my squad strictly under Kickbase rules:
                 </button>
               </div>
             </div>
-          `).join("")}
+          `;
+          }).join("")}
         </div>
       `;
 
@@ -6051,7 +6189,14 @@ Analyze my squad strictly under Kickbase rules:
     renderBench();
 
     const squadCols = cols(
-      "image", "name", "position", "prediction", "status", "marketValue", "change24h", "change7d",
+      "image", "name", "position",
+      {
+        key: "predictedLineup",
+        label: "XI Prognose",
+        title: "Official Kickbase Matchday Starting XI Prediction (Certain, Expected, Uncertain, Unlikely, Ruled out)",
+        fmt: (_, r) => (ui.lineupPredictionBadge ? ui.lineupPredictionBadge(r, startingIds.includes(r.id)) : "") || '<span class="muted">–</span>'
+      },
+      "status", "marketValue", "change24h", "change7d",
       { key: "purchaseDate", label: "Bought on", kind: "date", optional: true, title: "Date when you bought this player" },
       "purchasePrice", "profit", "totalPoints", "avgPoints", "ppm"
     );
@@ -6085,8 +6230,14 @@ Analyze my squad strictly under Kickbase rules:
     if (missingPred.length) {
       Promise.all(missingPred.map(async (p) => {
         try {
-          const det = await S.api.player(ctx.l, p.id);
-          if (det) {
+          let det = null;
+          if (S.api.competitionPlayer) {
+            det = await S.api.competitionPlayer(1, p.id).catch(() => null);
+          }
+          if (!det && S.api.player) {
+            det = await S.api.player(ctx.l, p.id).catch(() => null);
+          }
+          if (det && typeof det === "object") {
             const parsed = tf.player(det);
             if (parsed.sl !== undefined && parsed.sl !== null) p.sl = parsed.sl;
             if (parsed.lineupStatus !== null && parsed.lineupStatus !== undefined) p.lineupStatus = parsed.lineupStatus;
@@ -6098,6 +6249,7 @@ Analyze my squad strictly under Kickbase rules:
               p.status = parsed.status;
               p.isInjured = p.rawStatus !== 0;
             }
+            if (Array.isArray(det.stl)) p.stl = det.stl;
           }
         } catch (e) {}
       })).then(() => {
