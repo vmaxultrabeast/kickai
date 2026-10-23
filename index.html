@@ -2235,10 +2235,11 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
       rawStatus: rawSt,
       statusText: String(first(p, "stxt", "si") || "").trim(),
       statusUpdateDays: first(p, "stud") !== undefined && first(p, "stud") !== null ? Number(first(p, "stud")) : null,
+      sl: first(p, "sl") !== undefined && first(p, "sl") !== null ? Boolean(first(p, "sl")) : null,
       lineupStatus: first(p, "lst") !== undefined && first(p, "lst") !== null ? Number(first(p, "lst")) : null,
-      predictedLineup: first(p, "lst") !== undefined && first(p, "lst") !== null
-        ? Number(first(p, "lst")) === 1
-        : (first(p, "sl") !== undefined && first(p, "sl") !== null ? Boolean(first(p, "sl")) : null),
+      predictedLineup: (first(p, "sl") !== undefined && first(p, "sl") !== null)
+        ? Boolean(first(p, "sl"))
+        : (first(p, "lst") !== undefined && first(p, "lst") !== null ? Number(first(p, "lst")) === 1 : null),
       reportProvider: String(first(p, "plpt") || "").trim(),
       reportProviderLogo: first(p, "plpurl") && KB.imageUrl ? KB.imageUrl(first(p, "plpurl")) : null,
       reportDate: first(p, "dt") ? new Date(first(p, "dt")) : null,
@@ -2666,6 +2667,11 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
     "Pos": "Pos",
     "Position": "Position",
     "Prediction": "Prognose",
+    "Certain": "Sicher",
+    "Expected": "Erwartet",
+    "Uncertain": "Fraglich",
+    "Unlikely": "Unwahrscheinlich",
+    "Ruled out": "Ausgeschlossen",
     "Matchday starting lineup prediction (LigaInsider)": "Spieltags-Startelf-Prognose (LigaInsider)",
     "Predicted Starting XI (LigaInsider)": "Startelf-Prognose (LigaInsider)",
     "Predicted Bench (LigaInsider)": "Bank-Prognose (LigaInsider)",
@@ -3264,6 +3270,11 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
     "Starts": "Startelf",
     "Starting XI": "Startelf",
     "Prediction": "Prognose",
+    "Certain": "Sicher",
+    "Expected": "Erwartet",
+    "Uncertain": "Fraglich",
+    "Unlikely": "Unwahrscheinlich",
+    "Ruled out": "Ausgeschlossen",
     "Matchday starting lineup prediction (LigaInsider)": "Spieltags-Startelf-Prognose (LigaInsider)",
     "Predicted Starting XI (LigaInsider)": "Startelf-Prognose (LigaInsider)",
     "Predicted Bench (LigaInsider)": "Bank-Prognose (LigaInsider)",
@@ -3752,42 +3763,104 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
     return `<img class="lang-flag" src="${src}" width="20" height="14" alt="${esc(title)}" title="${esc(title)}">`;
   }
 
+  function getPredictionTier(p) {
+    if (!p) return null;
+
+    const rawSt = Number(p.rawStatus ?? p.st ?? 0);
+    const stxt = String(p.statusText || p.stxt || "").toLowerCase();
+
+    // 1. Ruled out (Injured, Suspended, Red card, Left league, or explicit out)
+    if (rawSt !== 0 && rawSt !== 2) {
+      const reason = p.status || (rawSt === 1 ? "Injured" : rawSt === 4 ? "Suspended" : "Ruled out");
+      return {
+        tier: "Ruled out",
+        label: t("Ruled out"),
+        badgeClass: "down",
+        color: "#ef4444",
+        icon: "🔴",
+        note: p.statusText || reason
+      };
+    }
+    if (p.mdst === 8 || stxt.includes("ausfall") || stxt.includes("misses") || stxt.includes("ruled out") || stxt.includes("gesperrt")) {
+      return {
+        tier: "Ruled out",
+        label: t("Ruled out"),
+        badgeClass: "down",
+        color: "#ef4444",
+        icon: "🔴",
+        note: p.statusText || t("Not available this matchday")
+      };
+    }
+
+    // 2. Uncertain (Doubtful / Fraglich / Illness / In rehab)
+    if (rawSt === 2 || stxt.includes("fraglich") || stxt.includes("doubtful") || stxt.includes("aufbautraining") || stxt.includes("krank") || stxt.includes("illness") || stxt.includes("angeschlagen") || stxt.includes("einsatz offen")) {
+      return {
+        tier: "Uncertain",
+        label: t("Uncertain"),
+        badgeClass: "warn",
+        color: "#fbbf24",
+        icon: "🟡",
+        note: p.statusText || t("Questionable / Late fitness test")
+      };
+    }
+
+    // Check starting lineup indicators:
+    const hasExplicitSl = p.sl !== undefined && p.sl !== null;
+    const slTrue = Boolean(p.sl);
+    const slFalse = hasExplicitSl && !slTrue;
+
+    // 3. Unlikely (Fit, but projected on bench / backup / not starting)
+    const isBenchText = stxt.includes("bank") || stxt.includes("ersatz") || stxt.includes("joker") || stxt.includes("unlikely");
+    const isBenchOrder = p.lineupStatus === 2 || p.lineupStatus === 4;
+    
+    if (slFalse || isBenchText || (isBenchOrder && !slTrue)) {
+      return {
+        tier: "Unlikely",
+        label: t("Unlikely"),
+        badgeClass: "flat",
+        color: "#fb923c",
+        icon: "🟠",
+        note: p.statusText || t("Projected on the bench / Low starting chance")
+      };
+    }
+
+    // 4 & 5. Certain vs Expected
+    const starts = Number(p.startsCount ?? 0);
+    const games = Number(p.gamesPlayed ?? 0);
+    const startRatio = games > 0 ? (starts / games) : 0;
+    const isVeteranStarter = (games >= 3 && startRatio >= 0.75) || (p.totalPoints && p.totalPoints > 400 && startRatio >= 0.6);
+
+    if (isVeteranStarter && !stxt.includes("rotation") && !stxt.includes("wackelt")) {
+      return {
+        tier: "Certain",
+        label: t("Certain"),
+        badgeClass: "up",
+        color: "#10b981",
+        icon: "🟢",
+        note: p.statusText || t("Guaranteed Starter")
+      };
+    }
+
+    return {
+      tier: "Expected",
+      label: t("Expected"),
+      badgeClass: "up",
+      color: "#34d399",
+      icon: "🟢",
+      note: p.statusText || t("Expected in Starting XI")
+    };
+  }
+
   function lineupPredictionBadge(p) {
     if (!p) return "";
-    if (p.rawStatus !== undefined && p.rawStatus !== 0 && p.status && p.status !== "Fit") {
-      const title = p.statusText || p.status;
-      return `<span class="pill down" style="font-size:10px;padding:1px 6px;line-height:1.4" title="${esc(title)}">🔴 ${esc(t(p.status))}</span>`;
-    }
-    const isStarter = (p.lineupStatus !== null && p.lineupStatus !== undefined)
-      ? Number(p.lineupStatus) === 1
-      : (p.predictedLineup === true);
-    const isBench = (p.lineupStatus !== null && p.lineupStatus !== undefined)
-      ? (Number(p.lineupStatus) === 2 || Number(p.lineupStatus) === 4)
-      : (p.predictedLineup === false);
-    const isOut = p.lineupStatus !== null && p.lineupStatus !== undefined && Number(p.lineupStatus) === 0;
-
-    if (isStarter) {
-      const prov = p.reportProvider || "Kickbase";
-      const tip = p.statusText ? `${prov}: ${p.statusText}` : `${prov}: ${t("Predicted Starting XI")}`;
-      return `<span class="pill up" style="font-size:10px;padding:1px 6px;line-height:1.4;font-weight:700" title="${esc(tip)}">🟢 S11</span>`;
-    }
-    if (isBench) {
-      const prov = p.reportProvider || "Kickbase";
-      const tip = p.statusText ? `${prov}: ${p.statusText}` : `${prov}: ${t("Predicted Bench")}`;
-      return `<span class="pill warn" style="font-size:10px;padding:1px 6px;line-height:1.4;font-weight:700" title="${esc(tip)}">🟡 Bank</span>`;
-    }
-    if (isOut) {
-      return `<span class="pill down" style="font-size:10px;padding:1px 6px;line-height:1.4" title="Nicht im Kader / Out">🔴 Out</span>`;
-    }
-    if (p.statusText) {
-      return `<span class="pill flat" style="font-size:10px;padding:1px 6px;line-height:1.4" title="${esc(p.statusText)}">${esc(p.statusText)}</span>`;
-    }
-    return "";
+    const tier = getPredictionTier(p);
+    if (!tier) return "";
+    return `<span class="pill ${tier.badgeClass}" style="font-size:10px;padding:1px 6px;line-height:1.4;font-weight:700;background:${tier.color}22;color:${tier.color};border:1px solid ${tier.color}44" title="${esc(tier.note)}">${tier.icon} ${esc(tier.label)}</span>`;
   }
 
   KB.ui = { t, esc, money, moneyFull, signedMoney, tone, int, fixed, formatMatchDay, h, kpis, section, pageHead, pos, icon,
     loading, alert, table, dialog, toast, missing, pawn, playerColor: KB.playerColor, PLAYER_PALETTE: KB.PLAYER_PALETTE,
-    FLAGS, flag, flagImg, lineupPredictionBadge };
+    FLAGS, flag, flagImg, getPredictionTier, lineupPredictionBadge };
 })(globalThis.KB = globalThis.KB || {});
 
 // ---- charts.js
@@ -6008,13 +6081,14 @@ Analyze my squad strictly under Kickbase rules:
     renderSquadTable();
 
     // Background hydration for squad predictions & status if missing from /squad payload
-    const missingPred = squad.filter((p) => p.predictedLineup === null || p.predictedLineup === undefined);
+    const missingPred = squad.filter((p) => p.sl === undefined || p.sl === null || !p.statusText);
     if (missingPred.length) {
       Promise.all(missingPred.map(async (p) => {
         try {
           const det = await S.api.player(ctx.l, p.id);
           if (det) {
             const parsed = tf.player(det);
+            if (parsed.sl !== undefined && parsed.sl !== null) p.sl = parsed.sl;
             if (parsed.lineupStatus !== null && parsed.lineupStatus !== undefined) p.lineupStatus = parsed.lineupStatus;
             if (parsed.predictedLineup !== null && parsed.predictedLineup !== undefined) p.predictedLineup = parsed.predictedLineup;
             if (parsed.statusText) p.statusText = parsed.statusText;
@@ -11105,14 +11179,9 @@ Analyze my squad strictly under Kickbase rules:
 
         const predBadgeEl = body.querySelector("#pm-prediction-badge");
         if (predBadgeEl) {
-          const rawLst = pInfo?.lst !== undefined && pInfo.lst !== null ? Number(pInfo.lst) : p.lineupStatus;
-          const isStarter = (rawLst !== null && rawLst !== undefined)
-            ? rawLst === 1
-            : (pInfo?.sl !== undefined && pInfo.sl !== null ? Boolean(pInfo.sl) : p.predictedLineup);
-          if (isStarter !== null && isStarter !== undefined) {
-            predBadgeEl.innerHTML = isStarter
-              ? `<span class="pill up" style="font-weight:700;font-size:11px;padding:2px 8px" title="Predicted Starting XI">🟢 S11 (${t("Starting XI")})</span>`
-              : `<span class="pill warn" style="font-weight:700;font-size:11px;padding:2px 8px" title="Predicted Bench">🟡 Bank (${t("Bench")})</span>`;
+          const tier = ui.getPredictionTier ? ui.getPredictionTier({ ...p, ...pInfo }) : null;
+          if (tier) {
+            predBadgeEl.innerHTML = `<span class="pill ${tier.badgeClass}" style="font-weight:700;font-size:11px;padding:2px 8px;background:${tier.color}22;color:${tier.color};border:1px solid ${tier.color}44" title="${esc(tier.note)}">${tier.icon} ${esc(tier.label)}</span>`;
           }
         }
 
