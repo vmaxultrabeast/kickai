@@ -2246,7 +2246,9 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
       change24h: first(p, "tfhmvt") ?? 0,
       change7d: first(p, "sdmvt") ?? null,
       trend: TREND[first(p, "mvt")] || "",
-      purchasePrice: first(p, "prc") ?? (first(p, "mvgl") !== undefined && first(p, "mvgl") !== null && mv > 0 ? mv - Number(first(p, "mvgl")) : null),
+      purchasePrice: (exs !== undefined || first(p, "iotm") || first(p, "ofc") !== undefined)
+        ? null
+        : (first(p, "prc") ?? (first(p, "mvgl") !== undefined && first(p, "mvgl") !== null && mv > 0 ? mv - Number(first(p, "mvgl")) : null)),
       profit: first(p, "mvgl") ?? null,
       isOnMarket: !!first(p, "iotm"),
       totalPoints: pts,
@@ -2660,6 +2662,11 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
     "Player": "Spieler",
     "Pos": "Pos",
     "Position": "Position",
+    "Prediction": "Prognose",
+    "Matchday starting lineup prediction (LigaInsider)": "Spieltags-Startelf-Prognose (LigaInsider)",
+    "Predicted Starting XI (LigaInsider)": "Startelf-Prognose (LigaInsider)",
+    "Predicted Bench (LigaInsider)": "Bank-Prognose (LigaInsider)",
+    "Starting XI": "Startelf",
     "Owner": "Besitzer",
     "Status": "Status",
     "Market value": "Marktwert",
@@ -3252,6 +3259,11 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
     "Subs": "Bank",
     "starts": "Startelf",
     "Starts": "Startelf",
+    "Starting XI": "Startelf",
+    "Prediction": "Prognose",
+    "Matchday starting lineup prediction (LigaInsider)": "Spieltags-Startelf-Prognose (LigaInsider)",
+    "Predicted Starting XI (LigaInsider)": "Startelf-Prognose (LigaInsider)",
+    "Predicted Bench (LigaInsider)": "Bank-Prognose (LigaInsider)",
     "Total points": "Gesamtpunkte",
     "Avg points": "Ø Punkte",
     "Ø points": "Ø Punkte",
@@ -3737,9 +3749,29 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
     return `<img class="lang-flag" src="${src}" width="20" height="14" alt="${esc(title)}" title="${esc(title)}">`;
   }
 
+  function lineupPredictionBadge(p) {
+    if (!p) return "";
+    if (p.rawStatus !== undefined && p.rawStatus !== 0 && p.status && p.status !== "Fit") {
+      const title = p.statusText || p.status;
+      return `<span class="pill down" style="font-size:10px;padding:1px 6px;line-height:1.4" title="${esc(title)}">🔴 ${esc(t(p.status))}</span>`;
+    }
+    if (p.predictedLineup === true) {
+      const tip = p.statusText ? `LigaInsider: ${p.statusText}` : t("Predicted Starting XI (LigaInsider)");
+      return `<span class="pill up" style="font-size:10px;padding:1px 6px;line-height:1.4;font-weight:700" title="${esc(tip)}">🟢 S11</span>`;
+    }
+    if (p.predictedLineup === false) {
+      const tip = p.statusText ? `LigaInsider: ${p.statusText}` : t("Predicted Bench (LigaInsider)");
+      return `<span class="pill warn" style="font-size:10px;padding:1px 6px;line-height:1.4;font-weight:700" title="${esc(tip)}">🟡 Bank</span>`;
+    }
+    if (p.statusText) {
+      return `<span class="pill flat" style="font-size:10px;padding:1px 6px;line-height:1.4" title="${esc(p.statusText)}">${esc(p.statusText)}</span>`;
+    }
+    return "";
+  }
+
   KB.ui = { t, esc, money, moneyFull, signedMoney, tone, int, fixed, formatMatchDay, h, kpis, section, pageHead, pos, icon,
     loading, alert, table, dialog, toast, missing, pawn, playerColor: KB.playerColor, PLAYER_PALETTE: KB.PLAYER_PALETTE,
-    FLAGS, flag, flagImg };
+    FLAGS, flag, flagImg, lineupPredictionBadge };
 })(globalThis.KB = globalThis.KB || {});
 
 // ---- charts.js
@@ -5178,6 +5210,12 @@ Analyze my squad strictly under Kickbase rules:
       fmt: (v, r) => `<span style="display:inline-flex;align-items:center;gap:6px"><span class="player-color-dot" style="background:${(r && r.color) || KB.playerColor(r || v)};box-shadow:0 0 6px ${(r && r.color) || KB.playerColor(r || v)}88"></span><span style="font-weight:600">${esc(v)}</span></span>`
     },
     position: { key: "position", label: "Pos", kind: "pos" },
+    prediction: {
+      key: "predictedLineup",
+      label: "Prediction",
+      title: "Matchday starting lineup prediction (LigaInsider)",
+      fmt: (_, r) => (ui.lineupPredictionBadge ? ui.lineupPredictionBadge(r) : "") || '<span class="muted">–</span>'
+    },
     manager: { key: "manager", label: "Owner" },
     status: {
       key: "status",
@@ -5678,7 +5716,9 @@ Analyze my squad strictly under Kickbase rules:
                 </div>
                 <div class="ppts">★ ${p.avgPoints} pts <span class="muted" style="font-size:10px">(${p.totalPoints})</span></div>
                 <div class="pmv">${money(p.marketValue)}</div>
-                ${p.rawStatus !== 0 ? `<span class="status-badge injured">${esc(p.status)}</span>` : ""}
+                <div style="margin-top:3px;display:flex;align-items:center;justify-content:center;gap:4px;flex-wrap:wrap">
+                  ${(ui.lineupPredictionBadge && ui.lineupPredictionBadge(p)) || (p.rawStatus !== 0 ? `<span class="status-badge injured">${esc(p.status)}</span>` : "")}
+                </div>
               </div>
             `);
           } else {
@@ -5805,11 +5845,14 @@ Analyze my squad strictly under Kickbase rules:
               <div data-view-player="${p.id}" style="display:flex;align-items:center;gap:10px;flex:1;cursor:pointer" title="Click to view ${esc(p.name)} stats & MW history">
                 ${ui.pawn(p, 36)}
                 <div class="b-info">
-                  <div class="b-name" style="text-decoration:underline;text-decoration-color:rgba(255,255,255,0.25)">${esc(p.name)} ${ui.pos(p.position)}</div>
+                  <div class="b-name" style="text-decoration:underline;text-decoration-color:rgba(255,255,255,0.25);display:flex;align-items:center;gap:6px">
+                    <span>${esc(p.name)} ${ui.pos(p.position)}</span>
+                    ${(ui.lineupPredictionBadge && ui.lineupPredictionBadge(p)) || ""}
+                  </div>
                   <div class="b-sub">
                     <span>★ ${p.avgPoints} pts <span class="muted" style="font-size:10px">(${p.totalPoints})</span></span>
                     <span>${money(p.marketValue)}</span>
-                    ${p.rawStatus !== 0 ? `<span class="status-badge injured">${esc(p.status)}</span>` : ""}
+                    ${p.rawStatus !== 0 && !p.predictedLineup ? `<span class="status-badge injured">${esc(p.status)}</span>` : ""}
                   </div>
                 </div>
               </div>
@@ -5919,7 +5962,7 @@ Analyze my squad strictly under Kickbase rules:
     renderBench();
 
     const squadCols = cols(
-      "image", "name", "position", "status", "marketValue", "change24h", "change7d",
+      "image", "name", "position", "prediction", "status", "marketValue", "change24h", "change7d",
       { key: "purchaseDate", label: "Bought on", kind: "date", optional: true, title: "Date when you bought this player" },
       "purchasePrice", "profit", "totalPoints", "avgPoints", "ppm"
     );
@@ -5937,12 +5980,43 @@ Analyze my squad strictly under Kickbase rules:
     });
 
     const tSquadEl = el.querySelector("#t-squad");
-    ui.table(tSquadEl, squad, squadCols, {
-      sort: "marketValue",
-      rowClass: (p) => (startingIds.includes(p.id) ? "me" : ""),
-      onRowClick: (p) => openPlayerModal(ctx, p, { budget, market, squad }),
-      rowTitle: (p) => `Click to view player stats & MW history for ${p.name}`
-    });
+    const renderSquadTable = () => {
+      if (!tSquadEl) return;
+      ui.table(tSquadEl, squad, squadCols, {
+        sort: "marketValue",
+        rowClass: (p) => (startingIds.includes(p.id) ? "me" : ""),
+        onRowClick: (p) => openPlayerModal(ctx, p, { budget, market, squad }),
+        rowTitle: (p) => `Click to view player stats & MW history for ${p.name}`
+      });
+    };
+    renderSquadTable();
+
+    // Background hydration for squad predictions & status if missing from /squad payload
+    const missingPred = squad.filter((p) => p.predictedLineup === null || p.predictedLineup === undefined);
+    if (missingPred.length) {
+      Promise.all(missingPred.map(async (p) => {
+        try {
+          const det = await S.api.player(ctx.l, p.id);
+          if (det) {
+            const parsed = tf.player(det);
+            if (parsed.predictedLineup !== null && parsed.predictedLineup !== undefined) p.predictedLineup = parsed.predictedLineup;
+            if (parsed.statusText) p.statusText = parsed.statusText;
+            if (parsed.reportProvider) p.reportProvider = parsed.reportProvider;
+            if (det.st !== undefined && det.st !== null) {
+              p.rawStatus = Number(det.st);
+              p.status = parsed.status;
+              p.isInjured = p.rawStatus !== 0;
+            }
+          }
+        } catch (e) {}
+      })).then(() => {
+        if (!ctx.stale()) {
+          renderPitch();
+          renderBench();
+          renderSquadTable();
+        }
+      });
+    }
 
     tSquadEl?.addEventListener("click", (e) => {
       const sellBtn = e.target.closest("[data-t-sell]");
@@ -10829,6 +10903,7 @@ Analyze my squad strictly under Kickbase rules:
               <span style="font-size:20px;font-weight:800;color:#fff">${esc(pName)}</span>
               ${p.position && p.position !== "?" ? ui.pos(p.position) : ""}
               <span id="pm-status-badge" style="font-size:11.5px;padding:2px 8px;border-radius:999px;background:rgba(255,255,255,0.06);color:var(--muted)">…</span>
+              <span id="pm-prediction-badge"></span>
             </div>
             <div style="font-size:12.5px;color:var(--muted);margin-top:2px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
               <span id="pm-team-name">Bundesliga</span>
@@ -10949,7 +11024,7 @@ Analyze my squad strictly under Kickbase rules:
             isAssignedAtRegistration: Boolean(squadPlayer.isAssignedAtRegistration),
             source: "squad"
           };
-        } else if (p.purchasePrice) {
+        } else if (squadPlayer && p.purchasePrice) {
           userPurchase = {
             price: p.purchasePrice,
             date: p.purchaseDate ? new Date(p.purchaseDate) : (p.date ? new Date(p.date) : null),
@@ -10959,7 +11034,7 @@ Analyze my squad strictly under Kickbase rules:
           };
         }
 
-        if (!userPurchase && Array.isArray(rankData) && rankData.length) {
+        if (squadPlayer && !userPurchase && Array.isArray(rankData) && rankData.length) {
           try {
             const myId = myManagerId(rankData);
             if (myId) {
@@ -11011,6 +11086,16 @@ Analyze my squad strictly under Kickbase rules:
           statusBadge.style.color = isFit ? "#34d399" : (isInj ? "#f87171" : "#fbbf24");
         }
 
+        const predBadgeEl = body.querySelector("#pm-prediction-badge");
+        if (predBadgeEl) {
+          const pred = pInfo?.sl !== undefined && pInfo.sl !== null ? Boolean(pInfo.sl) : p.predictedLineup;
+          if (pred !== null && pred !== undefined) {
+            predBadgeEl.innerHTML = pred
+              ? `<span class="pill up" style="font-weight:700;font-size:11px;padding:2px 8px" title="LigaInsider: Predicted Starting XI">🟢 S11 (${t("Starting XI")})</span>`
+              : `<span class="pill warn" style="font-weight:700;font-size:11px;padding:2px 8px" title="LigaInsider: Not in Starting XI">🟡 Bank (${t("Bench")})</span>`;
+          }
+        }
+
         const teamEl = body.querySelector("#pm-team-name");
         if (teamEl && (pInfo?.tn || pInfo?.t || p.teamName)) {
           teamEl.textContent = pInfo.tn || pInfo.t || p.teamName;
@@ -11053,7 +11138,7 @@ Analyze my squad strictly under Kickbase rules:
           const initialPrice = isUpdate && currentBid > 0 ? currentBid : base;
 
           let purchaseHtml = "";
-          if (userPurchase) {
+          if (userPurchase && squadPlayer) {
             const curMv = p.marketValue || 0;
             const profit = curMv - userPurchase.price;
             const profitPct = userPurchase.price > 0 ? Math.round((profit / userPurchase.price) * 1000) / 10 : 0;
