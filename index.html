@@ -2592,6 +2592,7 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
     "Leader": "Tabellenführer",
     "Best form": "Beste Form",
     "Most consistent": "Konstantester Manager",
+    "Highest team value": "Höchster Kaderwert",
     "Best trader": "Bester Trader",
     "Friday Kickoff Deadline": "Freitag-Anpfiff-Frist",
     "Lineup Health": "Aufstellungs-Fitness",
@@ -3207,6 +3208,7 @@ html[data-theme="pro-light"] .kb-theme-opt.active {
     "Leader": "Spitzenreiter",
     "Best form": "Beste Form",
     "Most consistent": "Konstantester",
+    "Highest team value": "Höchster Kaderwert",
     "Best trader": "Bester Trader",
     "Season overview": "Saison-Übersicht",
     "Points race": "Punkte-Rennen",
@@ -6325,13 +6327,13 @@ Analyze my squad strictly under Kickbase rules:
     const myBudget = me?.b ?? 0;
     const colors = charts.colorMap(sum.map((r) => r.manager), meName);
     const by = (k) => [...sum].sort((a, b) => (b[k] ?? -1e18) - (a[k] ?? -1e18))[0];
-    const leader = sum[0], form = by("form"), cons = by("consistency"), trader = by("net");
+    const leader = sum[0], form = by("form"), cons = by("consistency"), topTv = by("teamValue");
     el.innerHTML = ui.pageHead(ctx.name, "Manager comparison", "How everyone in your league is really doing – beyond the table.")
       + ui.kpis([
         { label: "Leader", value: leader.manager, sub: `${ui.int(leader.seasonPoints)} points` },
         { label: "Best form", value: form.manager, sub: `Ø ${ui.int(form.form)} last 5 matchdays` },
         { label: "Most consistent", value: cons.manager, sub: `consistency ${ui.fixed(2)(cons.consistency)}` },
-        { label: "Best trader", value: trader.manager, delta: signedMoney(trader.net), tone: tone(trader.net), sub: "transfer balance" },
+        { label: "Highest team value", value: topTv ? topTv.manager : "–", sub: topTv && topTv.teamValue ? ui.money(topTv.teamValue) : "" },
       ])
       + ui.section("Season overview", "click a column to sort") + `<div id="t-sum"></div>`
       + `<div class="tabs" id="tabs">${["Points race", "Rank history", "Distribution", "Head-to-head", "Team value & Wealth 💰", "Transfers", "Manager Trades 🔴"]
@@ -6346,7 +6348,6 @@ Analyze my squad strictly under Kickbase rules:
       { key: "teamValue", label: "Team value", kind: "money" },
       { key: "ppmTeamValue", label: "pts / €1M", kind: "f1", title: "Season points per million team value" },
       { key: "buys", label: "Buys", kind: "int" }, { key: "sells", label: "Sells", kind: "int" },
-      { key: "net", label: "Transfer balance", kind: "delta" },
     ], { sort: "seasonRank", desc: false, rowClass: (r) => (r.managerId === meId ? "me" : "") });
 
     const season = stats.playedMatchdays(stats.currentSeason(d.perf));
@@ -11531,7 +11532,9 @@ Analyze my squad strictly under Kickbase rules:
           const hasPerfEntries = [...curSeason.mdMap.values()].some((m) => m && m.hp);
           const pInfoMap = parseMatchdayList(pInfo?.ph, {
             latestDay: refProfileDay,
-            requireExplicitDay: hasPerfEntries && refProfileDay <= 0
+            // pInfo.ph has no .day fields and its first item is not reliably the current matchday,
+            // so guessing day numbers would duplicate MD n into MD n+1. Only use it when /performance is empty.
+            requireExplicitDay: hasPerfEntries
           });
           pInfoMap.forEach((v, k) => {
             if (v.hp) {
@@ -11607,7 +11610,33 @@ Analyze my squad strictly under Kickbase rules:
         }
 
         // Attach or preserve ongoing matchday (liveDay) in curSeason.mdMap when player played today (mst === 1 or mst === 2)
-        if (liveDay > 0) {
+        // Only treat liveDay as played if the player's fixture on liveDay has actually kicked off.
+        // Otherwise endpoints like myeleven / playercenter / competitionPlayer still carry the PREVIOUS
+        // matchday's points & minutes, which would create a duplicate "MD n+1" copy of MD n.
+        const perfHasLiveDay = Boolean(existingLiveEntry && existingLiveEntry.hp && existingLiveEntry.realMp);
+        // Kickbase's competition "day" already points to the NEXT matchday once the previous one is finished.
+        // Check whether ANY fixture of liveDay has actually kicked off (live/finished status or kickoff time in the past).
+        const liveDayObj = liveDay > 0 ? mdListAll.find((md) => Number(md.day || md.d) === liveDay) : null;
+        const liveDayMatches = (liveDayObj && (liveDayObj.it || liveDayObj.m || liveDayObj.matches)) || [];
+        const kickedOff = (m) => {
+          const st = Number(m?.mst ?? m?.st ?? (m?.il ? 1 : 0));
+          if (st === 1 || st === 2) return true;
+          const ko = m?.dt ?? m?.md ?? m?.d;
+          if (!ko) return false;
+          const ts = typeof ko === "number" ? (ko > 1e11 ? ko : ko * 1000) : new Date(ko).getTime();
+          return !isNaN(ts) && ts <= Date.now();
+        };
+        const matchdayHasStarted = liveDayMatches.length ? liveDayMatches.some(kickedOff) : null;
+        // Only a LIVE status (1) counts as explicit evidence: a finished status (2) on myeleven/livePoints refers to the last played game.
+        const explicitLiveMst = [opts.matchStatus, myElPlayer?.mst].map((v) => Number(v ?? 0)).some((v) => v === 1);
+        const liveDayStarted = matchdayHasStarted !== false && (perfHasLiveDay || (
+          teamMatchOnLiveDay ? kickedOff(teamMatchOnLiveDay) : explicitLiveMst
+        ));
+        if (liveDay > 0 && !liveDayStarted && existingLiveEntry && (matchdayHasStarted === false || !perfHasLiveDay)) {
+          // Drop any carried-over entry for a matchday that hasn't started for this player yet
+          curSeason.mdMap.set(liveDay, { day: liveDay, p: 0, mp: 0, hp: false });
+        }
+        if (liveDay > 0 && liveDayStarted) {
           const playedOnLiveDay = Boolean(existingLiveEntry && existingLiveEntry.hp && (existingLiveEntry.p !== 0 || existingLiveEntry.mp > 0))
             || (resolvedLivePts !== null && !isNaN(resolvedLivePts) && resolvedLivePts !== 0)
             || resolvedLiveMin > 0
@@ -11779,7 +11808,7 @@ Analyze my squad strictly under Kickbase rules:
                 <div style="font-weight:700;color:${titleColor};margin-bottom:3px">${s.title}</div>
                 <div style="display:flex;align-items:baseline;justify-content:space-between">
                   <span>Ø <b>${ui.int(s.avgPoints)}</b> ${t("pts") || "pts"}</span>
-                  <span style="color:var(--muted);font-size:11px">${ui.int(s.totalPoints)} ${t("total") || "total"} (${s.playedGames} ${t("games_short") || "g"})</span>
+                  <span style="color:var(--muted);font-size:11px">${ui.int(s.totalPoints)} ${t("total") || "total"} (${s.playedGames} ${t("games_short") === "games_short" ? "g" : t("games_short")})</span>
                 </div>
               </div>
             `;
@@ -11798,7 +11827,7 @@ Analyze my squad strictly under Kickbase rules:
             seasonSelectEl.style.display = seasons.length > 1 ? "inline-block" : "none";
             seasonSelectEl.innerHTML = seasons.map((s, idx) => {
               const label = s.isCurrent ? `★ ${s.title}` : s.title;
-              const meta = s.playedGames ? ` (${s.playedGames} ${t("games_short") || "g"} · Ø ${ui.int(s.avgPoints)} ${t("pts") || "pts"})` : "";
+              const meta = s.playedGames ? ` (${s.playedGames} ${t("games_short") === "games_short" ? "g" : t("games_short")} · Ø ${ui.int(s.avgPoints)} ${t("pts") || "pts"})` : "";
               return `<option value="${idx}" ${idx === activeSeasonIndex ? "selected" : ""}>${label}${meta}</option>`;
             }).join("");
             seasonSelectEl.value = String(activeSeasonIndex);
